@@ -55,11 +55,13 @@ module.exports = {
     try {
       let guild, replyFn, subcommand, targetUser;
 
+      const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
+
       if (isSlash) {
         const interaction = interactionOrMessage;
         guild = interaction.guild;
 
-        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
           return interaction.reply({
             content: '\u274C You need the **Administrator** permission to manage no-prefix users.',
             ephemeral: true,
@@ -77,7 +79,7 @@ module.exports = {
         const client = clientOrUndefined;
         guild = message.guild;
 
-        if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
           return message.reply('\u274C You need the **Administrator** permission to manage no-prefix users.');
         }
 

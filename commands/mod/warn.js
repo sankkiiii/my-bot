@@ -15,6 +15,7 @@ module.exports = {
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
     const client = isSlash ? argsOrClient : clientOrUndefined;
+    const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
 
     try {
       let targetUser, reason, guild, executor, replyFn;
@@ -27,7 +28,7 @@ module.exports = {
         reason = interaction.options.getString('reason') || 'No reason provided';
         replyFn = (content) => interaction.reply({ content, ephemeral: true });
 
-        if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
           return interaction.reply({ content: '\u274C You need the **Timeout Members** permission to use this command.', ephemeral: true });
         }
       } else {
@@ -36,7 +37,7 @@ module.exports = {
         guild = message.guild;
         executor = message.author;
 
-        if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
           return message.reply('\u274C You need the **Timeout Members** permission to use this command.');
         }
 

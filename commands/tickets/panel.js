@@ -7,6 +7,7 @@ const {
   PermissionFlagsBits,
   CommandInteraction,
 } = require('discord.js');
+const config = require('../../config');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -18,6 +19,7 @@ module.exports = {
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
 
     try {
       let channel, guild, replyFn;
@@ -28,7 +30,7 @@ module.exports = {
         guild = interaction.guild;
         replyFn = (content) => interaction.reply({ content, ephemeral: true });
 
-        if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
           return interaction.reply({ content: '\u274C You need the **Manage Channels** permission to use this command.', ephemeral: true });
         }
       } else {
@@ -36,7 +38,7 @@ module.exports = {
         channel = message.channel;
         guild = message.guild;
 
-        if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
           return message.reply('\u274C You need the **Manage Channels** permission to use this command.');
         }
         replyFn = (content) => message.reply(content);

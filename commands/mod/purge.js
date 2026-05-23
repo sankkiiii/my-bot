@@ -16,6 +16,7 @@ module.exports = {
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
     const client = isSlash ? argsOrClient : clientOrUndefined;
+    const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
 
     try {
       let amount, channel, executor, guild, replyFn;
@@ -28,7 +29,7 @@ module.exports = {
         amount = interaction.options.getInteger('amount');
         replyFn = (content) => interaction.reply({ content, ephemeral: true });
 
-        if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
           return interaction.reply({ content: '\u274C You need the **Manage Messages** permission to use this command.', ephemeral: true });
         }
       } else {
@@ -38,7 +39,7 @@ module.exports = {
         guild = message.guild;
         executor = message.author;
 
-        if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
           return message.reply('\u274C You need the **Manage Messages** permission to use this command.');
         }
 
