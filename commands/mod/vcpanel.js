@@ -78,6 +78,8 @@ module.exports = {
           { name: '\uD83D\uDEAB Reject User', value: 'Block a user', inline: true },
           { name: '\u2795 Trust User', value: 'Allow a user', inline: true },
           { name: '\uD83D\uDDD1\uFE0F Delete VC', value: 'Delete channel', inline: true },
+          { name: '\uD83D\uDC62 Kick VC', value: 'Remove a user from the VC', inline: true },
+          { name: '\uD83D\uDD28 Ban VC', value: 'Ban a user from rejoining the VC', inline: true },
         )
         .setThumbnail(guild.iconURL({ dynamic: true }))
         .setFooter({ text: `${guild.name} \u2022 Create a VC first, then use these buttons` });
@@ -98,7 +100,12 @@ module.exports = {
         new ButtonBuilder().setCustomId('vc_delete').setLabel('\uD83D\uDDD1\uFE0F Delete').setStyle(ButtonStyle.Danger),
       );
 
-      await channel.send({ embeds: [embed], components: [row1, row2] });
+      const row3 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('vc_kick').setLabel('\uD83D\uDC62 Kick from VC').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId('vc_ban').setLabel('\uD83D\uDD28 Ban from VC').setStyle(ButtonStyle.Danger),
+      );
+
+      await channel.send({ embeds: [embed], components: [row1, row2, row3] });
       await replyFn('\u2705 VC control panel sent! This panel works permanently \u2014 users can control their temp VCs from here.');
     } catch (err) {
       console.error('[VCPanel]', err);

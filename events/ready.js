@@ -100,7 +100,8 @@ module.exports = {
             );
 
             for (const [, channel] of channels) {
-              if (channel.members.size === 0) {
+              const humanMembers = channel.members.filter(m => !m.user.bot);
+              if (humanMembers.size === 0) {
                 await channel.delete().catch((err) =>
                   console.error(`[Ready] Failed to delete leftover VC ${channel.name}:`, err.message),
                 );

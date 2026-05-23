@@ -35,9 +35,10 @@ function setTicketCount(count) {
 const VC_BUTTON_IDS = [
   'vc_rename', 'vc_limit', 'vc_lock', 'vc_unlock', 'vc_hide',
   'vc_unhide', 'vc_waiting', 'vc_trust', 'vc_reject', 'vc_delete',
+  'vc_kick', 'vc_ban',
 ];
 
-const VC_MODAL_IDS = ['vc_rename_modal', 'vc_limit_modal', 'vc_trust_modal', 'vc_reject_modal'];
+const VC_MODAL_IDS = ['vc_rename_modal', 'vc_limit_modal', 'vc_trust_modal', 'vc_reject_modal', 'vc_kick_modal', 'vc_ban_modal'];
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -346,7 +347,7 @@ function findUserVc(tempVCs, userId, interactionChannelId, userVoiceChannelId) {
 async function handleVcButton(interaction) {
   const id = interaction.customId;
   const tempVCs = interaction.client.tempVCs;
-  const modalButtons = ['vc_rename', 'vc_limit', 'vc_trust', 'vc_reject'];
+  const modalButtons = ['vc_rename', 'vc_limit', 'vc_trust', 'vc_reject', 'vc_kick', 'vc_ban'];
 
   console.log('=== VC BUTTON CLICKED ===');
   console.log('customId:', id);
@@ -498,6 +499,53 @@ async function handleVcButton(interaction) {
       return interaction.editReply({ content: '\u231B Waiting room enabled.' });
     }
 
+    if (id === 'vc_kick') {
+      const modal = new ModalBuilder()
+        .setCustomId('vc_kick_modal')
+        .setTitle('Kick User from VC')
+        .addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('vc_kick_input')
+              .setLabel('User ID')
+              .setPlaceholder("Paste the user's Discord ID")
+              .setMinLength(17)
+              .setMaxLength(20)
+              .setRequired(true)
+              .setStyle(TextInputStyle.Short),
+          ),
+        );
+      return interaction.showModal(modal);
+    }
+
+    if (id === 'vc_ban') {
+      const modal = new ModalBuilder()
+        .setCustomId('vc_ban_modal')
+        .setTitle('Ban User from VC')
+        .addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('vc_ban_input')
+              .setLabel('User ID')
+              .setPlaceholder("Paste the user's Discord ID")
+              .setMinLength(17)
+              .setMaxLength(20)
+              .setRequired(true)
+              .setStyle(TextInputStyle.Short),
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('vc_ban_reason')
+              .setLabel('Reason (optional)')
+              .setPlaceholder('Why are you banning this user?')
+              .setStyle(TextInputStyle.Short)
+              .setMaxLength(200)
+              .setRequired(false),
+          ),
+        );
+      return interaction.showModal(modal);
+    }
+
     if (id === 'vc_delete') {
       tempVCs.delete(vcChannelId);
       await interaction.editReply({ content: '\uD83D\uDDD1\uFE0F Deleting your voice channel...' });
@@ -612,6 +660,84 @@ async function handleVcModal(interaction) {
         Connect: false,
       });
       await interaction.editReply(`\uD83D\uDEAB ${member.user} has been rejected from your channel.`);
+      return;
+    }
+
+    if (id === 'vc_kick_modal') {
+      const userId = interaction.fields.getTextInputValue('vc_kick_input').trim();
+      let member;
+      try {
+        member = await interaction.guild.members.fetch(userId);
+      } catch {
+        return interaction.editReply('\u274C User not found.');
+      }
+      if (member.id === interaction.user.id) {
+        return interaction.editReply('\u274C You cannot kick yourself.');
+      }
+      if (member.voice?.channelId !== vcChannelId) {
+        return interaction.editReply('\u274C That user is not in your voice channel.');
+      }
+      await member.voice.disconnect('Kicked from VC by owner');
+      await voiceChannel.permissionOverwrites.edit(member.id, {
+        Connect: false,
+        ViewChannel: false,
+      });
+      const kickEmbed = new EmbedBuilder()
+        .setTitle('\uD83D\uDC62 User Kicked from VC')
+        .setColor(0xED4245)
+        .addFields(
+          { name: 'Kicked User', value: `${member.displayName} (${member.user.tag})`, inline: true },
+          { name: 'Kicked By', value: `${interaction.user}`, inline: true },
+          { name: 'Channel', value: voiceChannel.name, inline: true },
+        );
+      await interaction.editReply({ embeds: [kickEmbed] });
+      return;
+    }
+
+    if (id === 'vc_ban_modal') {
+      const userId = interaction.fields.getTextInputValue('vc_ban_input').trim();
+      const reason = interaction.fields.getTextInputValue('vc_ban_reason')?.trim() || 'No reason provided';
+      let member;
+      try {
+        member = await interaction.guild.members.fetch(userId);
+      } catch {
+        return interaction.editReply('\u274C User not found.');
+      }
+      if (member.id === interaction.user.id) {
+        return interaction.editReply('\u274C You cannot ban yourself.');
+      }
+      if (member.voice?.channelId === vcChannelId) {
+        await member.voice.disconnect('Banned from VC by owner').catch(() => {});
+      }
+      await voiceChannel.permissionOverwrites.edit(member.id, {
+        Connect: false,
+        ViewChannel: false,
+        Speak: false,
+      });
+      try {
+        await member.send({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle('\uD83D\uDD28 Banned from Voice Channel')
+              .setDescription(`You have been banned from **${voiceChannel.name}** in **${interaction.guild.name}**`)
+              .setColor(0xED4245)
+              .addFields(
+                { name: 'Reason', value: reason },
+                { name: 'Banned By', value: interaction.user.tag },
+              ),
+          ],
+        });
+      } catch {}
+      const banEmbed = new EmbedBuilder()
+        .setTitle('\uD83D\uDD28 User Banned from VC')
+        .setColor(0xED4245)
+        .addFields(
+          { name: 'Banned User', value: `${member.displayName} (${member.user.tag})`, inline: true },
+          { name: 'Banned By', value: `${interaction.user}`, inline: true },
+          { name: 'Reason', value: reason, inline: true },
+          { name: 'Channel', value: voiceChannel.name, inline: true },
+        );
+      await interaction.editReply({ embeds: [banEmbed] });
       return;
     }
   } catch (err) {
