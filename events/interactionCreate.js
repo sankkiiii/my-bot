@@ -9,6 +9,9 @@ const {
   ChannelType,
   PermissionFlagsBits,
   AttachmentBuilder,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
 } = require('discord.js');
 const config = require('../config');
 const { sendLog } = require('../utils/logger');
@@ -29,6 +32,13 @@ function setTicketCount(count) {
   fs.writeFileSync(TICKET_COUNT_PATH, JSON.stringify({ count }, null, 2));
 }
 
+const VC_BUTTON_IDS = [
+  'vc_rename', 'vc_limit', 'vc_lock', 'vc_unlock', 'vc_hide',
+  'vc_unhide', 'vc_waiting', 'vc_trust', 'vc_reject', 'vc_delete',
+];
+
+const VC_MODAL_IDS = ['vc_rename_modal', 'vc_limit_modal', 'vc_trust_modal', 'vc_reject_modal'];
+
 module.exports = {
   name: Events.InteractionCreate,
 
@@ -46,8 +56,23 @@ module.exports = {
       if (interaction.isButton()) {
         if (interaction.customId === 'open_ticket') {
           await handleTicketOpen(interaction, client);
-        } else if (interaction.customId === 'close_ticket') {
+          return;
+        }
+        if (interaction.customId === 'close_ticket') {
           await handleTicketClose(interaction, client);
+          return;
+        }
+        if (VC_BUTTON_IDS.includes(interaction.customId)) {
+          await handleVcButton(interaction, client);
+          return;
+        }
+      }
+
+      // --- Modal handling ---
+      if (interaction.isModalSubmit()) {
+        if (VC_MODAL_IDS.includes(interaction.customId)) {
+          await handleVcModal(interaction, client);
+          return;
         }
       }
     } catch (err) {
@@ -56,13 +81,16 @@ module.exports = {
   },
 };
 
+// ═══════════════════════════════════════
+// TICKET HANDLERS
+// ═══════════════════════════════════════
+
 async function handleTicketOpen(interaction, client) {
   const guild = interaction.guild;
   const user = interaction.user;
 
   const sanitizedName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-  // Check for existing open ticket
   const existingChannel = guild.channels.cache.find(
     (ch) =>
       ch.name === `ticket-${sanitizedName}` &&
@@ -77,7 +105,6 @@ async function handleTicketOpen(interaction, client) {
 
   await interaction.deferReply({ ephemeral: true });
 
-  // Increment ticket counter
   const ticketNumber = getTicketCount() + 1;
   setTicketCount(ticketNumber);
 
@@ -154,7 +181,6 @@ async function handleTicketOpen(interaction, client) {
 
   await ticketChannel.send({ embeds: [welcomeEmbed], components: [closeRow] });
 
-  // Log ticket opened
   const logEmbed = new EmbedBuilder()
     .setTitle('Ticket Opened')
     .setColor(0x57f287)
@@ -173,7 +199,6 @@ async function handleTicketClose(interaction, client) {
   const guild = interaction.guild;
   const closer = interaction.member;
 
-  // Only members with mod permissions can close
   if (
     !closer.permissions.has(PermissionFlagsBits.ManageMessages) &&
     !closer.permissions.has(PermissionFlagsBits.KickMembers) &&
@@ -192,7 +217,6 @@ async function handleTicketClose(interaction, client) {
 
   const ticketChannel = interaction.channel;
 
-  // Fetch ALL messages (paginate)
   const allMessages = [];
   let lastId;
   while (true) {
@@ -205,10 +229,8 @@ async function handleTicketClose(interaction, client) {
     if (batch.size < 100) break;
   }
 
-  // Sort oldest first
   allMessages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
 
-  // Determine who opened the ticket from channel topic
   let openedByTag = 'Unknown';
   let openedById = null;
   if (ticketChannel.topic) {
@@ -235,7 +257,6 @@ async function handleTicketClose(interaction, client) {
 
   const transcriptBuffer = generateTranscript(allMessages, ticketInfo);
 
-  // Send transcript to transcript channel
   if (config.transcriptChannel) {
     const transcriptEmbed = new EmbedBuilder()
       .setTitle('\uD83D\uDCC4 Ticket Transcript')
@@ -258,7 +279,6 @@ async function handleTicketClose(interaction, client) {
     }
   }
 
-  // Log ticket closed
   const logEmbed = new EmbedBuilder()
     .setTitle('Ticket Closed')
     .setColor(0xed4245)
@@ -271,7 +291,6 @@ async function handleTicketClose(interaction, client) {
     .setTimestamp();
   await sendLog(client, config.ticketLogChannel, logEmbed);
 
-  // Delete channel after 5 seconds
   setTimeout(async () => {
     try {
       await ticketChannel.delete();
@@ -279,4 +298,284 @@ async function handleTicketClose(interaction, client) {
       console.error('[TicketClose] Failed to delete channel:', err.message);
     }
   }, 5000);
+}
+
+// ═══════════════════════════════════════
+// VC CONTROL PANEL HANDLERS
+// ═══════════════════════════════════════
+
+function validateVcCreator(interaction, client, skipInVcCheck) {
+  const channelId = interaction.channelId;
+  const vcData = client.tempVCs.get(channelId);
+
+  if (!vcData) {
+    interaction.reply({
+      content: '\u274C This voice channel session has expired. Please leave and rejoin \u2795 Create VC to get a new one.',
+      ephemeral: true,
+    });
+    return null;
+  }
+
+  if (interaction.user.id !== vcData.creatorId) {
+    interaction.reply({
+      content: '\u274C Only the voice channel creator can use these controls.',
+      ephemeral: true,
+    });
+    return null;
+  }
+
+  const voiceChannel = interaction.guild.channels.cache.get(channelId);
+  if (!voiceChannel) {
+    interaction.reply({
+      content: '\u274C Voice channel not found.',
+      ephemeral: true,
+    });
+    return null;
+  }
+
+  if (!skipInVcCheck && !voiceChannel.members.has(interaction.user.id)) {
+    interaction.reply({
+      content: '\u274C You must be in the voice channel to use controls.',
+      ephemeral: true,
+    });
+    return null;
+  }
+
+  return { vcData, voiceChannel };
+}
+
+async function handleVcButton(interaction, client) {
+  const id = interaction.customId;
+
+  // Modals must be shown before deferring
+  if (id === 'vc_rename' || id === 'vc_limit' || id === 'vc_trust' || id === 'vc_reject') {
+    const result = validateVcCreator(interaction, client, id === 'vc_delete');
+    if (!result) return;
+
+    if (id === 'vc_limit' && result.vcData.type === 'duo') {
+      return interaction.reply({ content: '\u274C Duo VCs are locked to 2 users.', ephemeral: true });
+    }
+
+    const modal = buildVcModal(id);
+    return interaction.showModal(modal);
+  }
+
+  const result = validateVcCreator(interaction, client, id === 'vc_delete');
+  if (!result) return;
+
+  const { vcData, voiceChannel } = result;
+  const guild = interaction.guild;
+
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    switch (id) {
+      case 'vc_lock':
+        await voiceChannel.permissionOverwrites.edit(guild.id, { Connect: false });
+        await interaction.editReply('\uD83D\uDD12 Voice channel locked. No new users can join.');
+        break;
+
+      case 'vc_unlock':
+        await voiceChannel.permissionOverwrites.edit(guild.id, { Connect: null });
+        await interaction.editReply('\uD83D\uDD13 Voice channel unlocked.');
+        break;
+
+      case 'vc_hide':
+        await voiceChannel.permissionOverwrites.edit(guild.id, { ViewChannel: false });
+        await interaction.editReply('\uD83D\uDC41\uFE0F Voice channel hidden. It won\'t appear in the channel list.');
+        break;
+
+      case 'vc_unhide':
+        await voiceChannel.permissionOverwrites.edit(guild.id, { ViewChannel: null });
+        await interaction.editReply('\uD83D\uDC41\uFE0F Voice channel is now visible.');
+        break;
+
+      case 'vc_waiting':
+        await voiceChannel.permissionOverwrites.edit(guild.id, { ViewChannel: true, Connect: false });
+        await interaction.editReply('\u231B Waiting room enabled. Users can see but not join.');
+        break;
+
+      case 'vc_delete':
+        await interaction.editReply('\uD83D\uDDD1\uFE0F Deleting your voice channel...');
+        client.tempVCs.delete(voiceChannel.id);
+        await voiceChannel.delete().catch(() => {});
+        break;
+    }
+  } catch (err) {
+    console.error(`[VC Control] Error handling ${id}:`, err.message);
+    await interaction.editReply('\u274C An error occurred while processing your request.').catch(() => {});
+  }
+}
+
+function buildVcModal(buttonId) {
+  if (buttonId === 'vc_rename') {
+    return new ModalBuilder()
+      .setCustomId('vc_rename_modal')
+      .setTitle('Rename Voice Channel')
+      .addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('new_name')
+            .setLabel('New Channel Name')
+            .setPlaceholder('Enter a new name...')
+            .setMinLength(1)
+            .setMaxLength(100)
+            .setRequired(true)
+            .setStyle(TextInputStyle.Short),
+        ),
+      );
+  }
+
+  if (buttonId === 'vc_limit') {
+    return new ModalBuilder()
+      .setCustomId('vc_limit_modal')
+      .setTitle('Set User Limit')
+      .addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('user_limit')
+            .setLabel('User Limit (0 = unlimited)')
+            .setPlaceholder('Enter a number between 0 and 99')
+            .setMinLength(1)
+            .setMaxLength(2)
+            .setRequired(true)
+            .setStyle(TextInputStyle.Short),
+        ),
+      );
+  }
+
+  if (buttonId === 'vc_trust') {
+    return new ModalBuilder()
+      .setCustomId('vc_trust_modal')
+      .setTitle('Trust a User')
+      .addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('user_id')
+            .setLabel('User ID')
+            .setPlaceholder("Paste the user's Discord ID")
+            .setMinLength(17)
+            .setMaxLength(20)
+            .setRequired(true)
+            .setStyle(TextInputStyle.Short),
+        ),
+      );
+  }
+
+  if (buttonId === 'vc_reject') {
+    return new ModalBuilder()
+      .setCustomId('vc_reject_modal')
+      .setTitle('Reject a User')
+      .addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('user_id')
+            .setLabel('User ID')
+            .setPlaceholder("Paste the user's Discord ID")
+            .setMinLength(17)
+            .setMaxLength(20)
+            .setRequired(true)
+            .setStyle(TextInputStyle.Short),
+        ),
+      );
+  }
+
+  return null;
+}
+
+async function handleVcModal(interaction, client) {
+  const id = interaction.customId;
+  const channelId = interaction.channelId;
+  const vcData = client.tempVCs.get(channelId);
+
+  if (!vcData) {
+    return interaction.reply({
+      content: '\u274C This voice channel session has expired. Please leave and rejoin \u2795 Create VC to get a new one.',
+      ephemeral: true,
+    });
+  }
+
+  if (interaction.user.id !== vcData.creatorId) {
+    return interaction.reply({
+      content: '\u274C Only the voice channel creator can use these controls.',
+      ephemeral: true,
+    });
+  }
+
+  const voiceChannel = interaction.guild.channels.cache.get(channelId);
+  if (!voiceChannel) {
+    return interaction.reply({ content: '\u274C Voice channel not found.', ephemeral: true });
+  }
+
+  if (!voiceChannel.members.has(interaction.user.id)) {
+    return interaction.reply({
+      content: '\u274C You must be in the voice channel to use controls.',
+      ephemeral: true,
+    });
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    if (id === 'vc_rename_modal') {
+      const newName = interaction.fields.getTextInputValue('new_name');
+      await voiceChannel.setName(newName);
+      await interaction.editReply(`\u2705 Channel renamed to **${newName}**`);
+      return;
+    }
+
+    if (id === 'vc_limit_modal') {
+      const input = interaction.fields.getTextInputValue('user_limit');
+      const limit = parseInt(input, 10);
+      if (isNaN(limit) || limit < 0 || limit > 99) {
+        return interaction.editReply('\u274C Please enter a valid number between 0 and 99.');
+      }
+      await voiceChannel.setUserLimit(limit);
+      if (limit === 0) {
+        await interaction.editReply('\u2705 User limit removed (unlimited).');
+      } else {
+        await interaction.editReply(`\u2705 User limit set to **${limit}**.`);
+      }
+      return;
+    }
+
+    if (id === 'vc_trust_modal') {
+      const userId = interaction.fields.getTextInputValue('user_id').trim();
+      let member;
+      try {
+        member = await interaction.guild.members.fetch(userId);
+      } catch {
+        return interaction.editReply('\u274C User not found.');
+      }
+      await voiceChannel.permissionOverwrites.edit(member, {
+        ViewChannel: true,
+        Connect: true,
+        Speak: true,
+      });
+      await interaction.editReply(`\u2705 ${member.user} can now join your channel even if it's locked/hidden.`);
+      return;
+    }
+
+    if (id === 'vc_reject_modal') {
+      const userId = interaction.fields.getTextInputValue('user_id').trim();
+      let member;
+      try {
+        member = await interaction.guild.members.fetch(userId);
+      } catch {
+        return interaction.editReply('\u274C User not found.');
+      }
+      if (member.voice.channelId === voiceChannel.id) {
+        await member.voice.disconnect('Rejected by VC owner').catch(() => {});
+      }
+      await voiceChannel.permissionOverwrites.edit(member, {
+        ViewChannel: false,
+        Connect: false,
+      });
+      await interaction.editReply(`\uD83D\uDEAB ${member.user} has been rejected from your channel.`);
+      return;
+    }
+  } catch (err) {
+    console.error(`[VC Modal] Error handling ${id}:`, err.message);
+    await interaction.editReply('\u274C An error occurred while processing your request.').catch(() => {});
+  }
 }
