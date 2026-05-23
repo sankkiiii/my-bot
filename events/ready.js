@@ -5,6 +5,7 @@ const config = require('../config');
 
 const TICKET_COUNT_PATH = path.join(__dirname, '..', 'data', 'ticketCount.json');
 const NOPREFIX_PATH = path.join(__dirname, '..', 'data', 'noprefix.json');
+const PRESENCE_PATH = path.join(__dirname, '..', 'data', 'presence.json');
 
 module.exports = {
   name: 'ready',
@@ -12,10 +13,47 @@ module.exports = {
   async execute(client) {
     try {
       console.log(`[Ready] Logged in as ${client.user.tag}`);
-      client.user.setPresence({
-        activities: [{ name: 'your server \uD83D\uDC40', type: ActivityType.Watching }],
-        status: 'online',
-      });
+
+      // --- Load saved presence or set default ---
+      let presenceRestored = false;
+      try {
+        if (fs.existsSync(PRESENCE_PATH)) {
+          const saved = JSON.parse(fs.readFileSync(PRESENCE_PATH, 'utf-8'));
+          const typeMap = {
+            PLAYING: ActivityType.Playing,
+            WATCHING: ActivityType.Watching,
+            LISTENING: ActivityType.Listening,
+            COMPETING: ActivityType.Competing,
+          };
+          if (saved.type && saved.type !== 'CLEAR' && saved.text) {
+            client.user.setPresence({
+              activities: [{ name: saved.text, type: typeMap[saved.type] }],
+              status: saved.status || 'online',
+            });
+            console.log(`[Ready] Restored presence: ${saved.type} ${saved.text}`);
+            presenceRestored = true;
+          }
+        }
+      } catch (err) {
+        console.log('[Ready] No saved presence found, using default.');
+      }
+
+      if (!presenceRestored) {
+        client.user.setPresence({
+          activities: [{ name: 'your server \uD83D\uDC40', type: ActivityType.Watching }],
+          status: 'online',
+        });
+      }
+
+      // --- Ensure presence file exists ---
+      try {
+        if (!fs.existsSync(PRESENCE_PATH)) {
+          fs.writeFileSync(PRESENCE_PATH, JSON.stringify({ type: null, text: null, status: 'online' }, null, 2));
+          console.log('[Ready] Created data/presence.json');
+        }
+      } catch (err) {
+        console.error('[Ready] Failed to init presence file:', err.message);
+      }
 
       // --- Ensure ticket counter file exists ---
       try {
