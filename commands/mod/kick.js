@@ -1,6 +1,5 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, CommandInteraction } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, CommandInteraction } = require('discord.js');
 const config = require('../../config');
-const { sendLog } = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -70,18 +69,6 @@ module.exports = {
 
       await member.kick(reason);
 
-      const embed = new EmbedBuilder()
-        .setTitle('Member Kicked')
-        .setColor(0xffa500)
-        .addFields(
-          { name: 'Action', value: 'Kick', inline: true },
-          { name: 'User', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
-          { name: 'Moderator', value: `${executor.tag}`, inline: true },
-          { name: 'Reason', value: reason },
-        )
-        .setTimestamp();
-
-      await sendLog(client, config.modLogChannel, embed);
       await replyFn(`**${targetUser.tag}** has been kicked. Reason: ${reason}`);
     } catch (err) {
       console.error('[Kick]', err);
