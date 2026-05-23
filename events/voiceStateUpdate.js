@@ -110,7 +110,7 @@ module.exports = {
         let tempChannel;
         try {
           tempChannel = await guild.channels.create({
-            name: `${member.user.username}'s VC`,
+            name: `${member.displayName}'s VC`,
             type: ChannelType.GuildVoice,
             parent: config.tempVcCategory || undefined,
             permissionOverwrites: [
