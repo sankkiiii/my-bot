@@ -1,6 +1,6 @@
 # My Bot — Discord Bot
 
-A feature-rich Discord bot built with **Discord.js v14** and **Node.js**. Designed for a single private server with moderation, ticket system, temporary voice channels, no-prefix system, and comprehensive logging.
+A feature-rich Discord bot built with **Discord.js v14** and **Node.js**. Designed for a single private server with moderation, ticket system, temporary voice channels, no-prefix system, and utility commands.
 
 ---
 
@@ -22,7 +22,7 @@ A feature-rich Discord bot built with **Discord.js v14** and **Node.js**. Design
 - [Feature Guide — Temporary Voice Channels](#feature-guide--temporary-voice-channels)
 - [Feature Guide — Rich Presence](#feature-guide--rich-presence-rpc)
 - [Feature Guide — Bot Status](#feature-guide--bot-status-status)
-- [Feature Guide — Logging](#feature-guide--logging)
+- [Feature Guide — Utility Commands](#feature-guide--utility-commands)
 - [Persistence & Restarts](#persistence--restarts)
 - [Troubleshooting](#troubleshooting)
 - [Tech Stack](#tech-stack)
@@ -33,15 +33,15 @@ A feature-rich Discord bot built with **Discord.js v14** and **Node.js**. Design
 
 | Feature | Description |
 |---------|-------------|
-| **Moderation** | Ban, kick, mute, unmute, warn, purge — with permission checks, hierarchy validation, and mod logging |
+| **Moderation** | Ban, kick, mute, unmute, warn, purge — with permission checks and hierarchy validation |
 | **No-Prefix** | Selected users (+ bot owner) can run commands without the `!` prefix |
 | **Ticket System** | TicketTool-style panels, private channels, staff auto-detection, HTML transcripts |
 | **Temp Voice Channels** | Voice Master-style hub VCs (unlimited) + duo VCs (max 2) with auto-cleanup |
-| **VC Control Panel** | TempVoice-style control panel with 10 buttons (rename, limit, lock, hide, etc.) inside every temp VC |
+| **VC Control Panel** | TempVoice-style control panel with 12 buttons (rename, limit, lock, hide, kick, ban, etc.) + user select menus inside every temp VC |
+| **Utility Commands** | Avatar, banner, server icon/banner, server info, user info, purge bots/user — with @mention, username, or ID lookup |
 | **Rich Presence** | Change bot activity/status via `/rpc`, persists across restarts |
 | **Bot Status** | Live stats dashboard via `/status` — ping, uptime, memory, server count, and more |
 | **Bot Owner Bypass** | Owner ID bypasses all permission checks on every command |
-| **Logging** | Rich embed logs for moderation, joins/leaves, message edits/deletes, and tickets |
 
 ---
 
@@ -57,6 +57,21 @@ A feature-rich Discord bot built with **Discord.js v14** and **Node.js**. Design
 | `/unmute @user [reason]` or `!unmute @user [reason]` | Timeout Members | Remove timeout from a member. |
 | `/warn @user [reason]` or `!warn @user [reason]` | Timeout Members | Warn a member via DM. |
 | `/purge [amount]` or `!purge [amount]` | Manage Messages | Bulk delete 1–100 messages in the current channel. |
+
+### Utility Commands
+
+| Command | Permission Required | Description |
+|---------|-------------------|-------------|
+| `/av [user/query]` or `!av [user/query]` | — | Show a user's avatar (server + global) with format download buttons |
+| `/banner [user/query]` or `!banner [user/query]` | — | Show a user's profile banner with format download buttons |
+| `/servericon` or `!servericon` | — | Show the server icon with format download buttons |
+| `/serverbanner` or `!serverbanner` | — | Show the server banner with format download buttons |
+| `/serverinfo` or `!serverinfo` | — | Show detailed server information (members, channels, roles, boosts, etc.) |
+| `/userinfo [user/query]` or `!userinfo [user/query]` | — | Show detailed user information (roles, badges, join dates, etc.) |
+| `/purgebots [amount]` or `!purgebots [amount]` | Manage Messages | Delete last X bot messages in the channel (default: 50, max: 100) |
+| `/purgeuser <user/query> [amount]` or `!purgeuser <user/query> [amount]` | Manage Messages | Delete last X messages from a specific user (default: 50, max: 100) |
+
+> **User lookup:** `/av`, `/banner`, `/userinfo`, and `/purgeuser` accept users by @mention, username search, or user ID.
 
 ### Ticket Commands
 
@@ -104,16 +119,24 @@ my-bot/
 │   │   ├── noprefix.js       # No-prefix management command
 │   │   ├── rpc.js            # Rich presence control
 │   │   └── status.js         # Bot stats dashboard
+│   ├── util/
+│   │   ├── av.js            # User avatar display
+│   │   ├── banner.js        # User banner display
+│   │   ├── sicon.js         # Server icon display
+│   │   ├── sbanner.js       # Server banner display
+│   │   ├── serverinfo.js    # Server information
+│   │   ├── userinfo.js      # User information
+│   │   ├── purgebots.js     # Purge bot messages
+│   │   └── purgeuser.js     # Purge user messages
 │   └── tickets/
 │       └── panel.js
 ├── events/
 │   ├── ready.js              # Bot status + startup cleanup + presence restore
 │   ├── messageCreate.js      # Prefix/no-prefix commands + message logging
-│   ├── interactionCreate.js  # Slash commands + ticket/VC button interactions + VC modals
-│   ├── voiceStateUpdate.js   # Hub VC + Duo VC create/delete + control panel send
-│   └── guildMemberAdd.js     # Join/leave logging
+│   ├── interactionCreate.js  # Slash commands + ticket/VC button interactions + VC modals + select menus
+│   └── voiceStateUpdate.js   # Hub VC + Duo VC create/delete + control panel send
 ├── utils/
-│   ├── logger.js             # sendLog() helper
+│   ├── resolveUser.js        # Resolve user by @mention, username, or ID
 │   └── transcript.js         # HTML transcript generator
 └── data/
     ├── ticketCount.json      # Persistent ticket counter (auto-created)
@@ -192,9 +215,6 @@ TOKEN=your-bot-token-here
 CLIENT_ID=your-application-id
 GUILD_ID=your-server-id
 PREFIX=!
-MOD_LOG_CHANNEL=channel-id
-JOIN_LOG_CHANNEL=channel-id
-MESSAGE_LOG_CHANNEL=channel-id
 TICKET_LOG_CHANNEL=channel-id
 TRANSCRIPT_CHANNEL=channel-id
 TICKET_CATEGORY=category-id
@@ -210,9 +230,6 @@ OWNER_ID=your-discord-user-id
 | `CLIENT_ID` | Yes | Your bot's Application ID |
 | `GUILD_ID` | Yes | Your Discord server ID |
 | `PREFIX` | No | Command prefix (default: `!`) |
-| `MOD_LOG_CHANNEL` | Yes | Channel ID for moderation logs |
-| `JOIN_LOG_CHANNEL` | Yes | Channel ID for join/leave logs |
-| `MESSAGE_LOG_CHANNEL` | Yes | Channel ID for message edit/delete logs |
 | `TICKET_LOG_CHANNEL` | Yes | Channel ID for ticket open/close logs |
 | `TRANSCRIPT_CHANNEL` | Yes | Channel ID where ticket transcripts are sent |
 | `TICKET_CATEGORY` | Yes | Category ID for ticket channels |
@@ -273,8 +290,17 @@ You should see:
 [Deploy] Queued: noprefix
 [Deploy] Queued: rpc
 [Deploy] Queued: status
+[Deploy] Queued: vcpanel
 [Deploy] Queued: panel
-[Deploy] Registering 10 slash command(s) to guild ...
+[Deploy] Queued: av
+[Deploy] Queued: banner
+[Deploy] Queued: purgebots
+[Deploy] Queued: purgeuser
+[Deploy] Queued: serverbanner
+[Deploy] Queued: servericon
+[Deploy] Queued: serverinfo
+[Deploy] Queued: userinfo
+[Deploy] Registering 19 slash command(s) to guild ...
 [Deploy] Successfully registered all slash commands.
 ```
 
@@ -296,12 +322,20 @@ You should see:
 [Commands] Loaded: noprefix
 [Commands] Loaded: rpc
 [Commands] Loaded: status
+[Commands] Loaded: vcpanel
 [Commands] Loaded: panel
+[Commands] Loaded: av
+[Commands] Loaded: banner
+[Commands] Loaded: purgebots
+[Commands] Loaded: purgeuser
+[Commands] Loaded: serverbanner
+[Commands] Loaded: servericon
+[Commands] Loaded: serverinfo
+[Commands] Loaded: userinfo
 [Events] Loaded: ready
 [Events] Loaded: messageCreate
 [Events] Loaded: interactionCreate
 [Events] Loaded: voiceStateUpdate
-[Events] Loaded: guildMemberAdd
 [Ready] Logged in as YourBot#1234
 [Ready] Ticket counter loaded: 0
 [Ready] No-prefix users loaded: 0
@@ -463,32 +497,27 @@ Every moderation command checks **three things** before executing:
 **Ban** — `/ban @user [reason]` or `!ban @user [reason]`
 - DMs the user the ban reason before banning
 - Permanently bans the user from the server
-- Logs to `#mod-log` with moderator, target, and reason
+|
 
 **Kick** — `/kick @user [reason]` or `!kick @user [reason]`
 - DMs the user the kick reason before kicking
 - Removes the user from the server (they can rejoin with an invite)
-- Logs to `#mod-log`
 
 **Mute (Timeout)** — `/mute @user [minutes] [reason]` or `!mute @user [minutes] [reason]`
 - Uses Discord's native timeout feature (not a mute role)
 - Duration in minutes, maximum 40320 minutes (28 days — Discord limit)
 - User cannot send messages, react, or join voice while timed out
-- Logs to `#mod-log` with duration
 
 **Unmute** — `/unmute @user [reason]` or `!unmute @user [reason]`
 - Removes timeout from a user
-- Logs to `#mod-log`
 
 **Warn** — `/warn @user [reason]` or `!warn @user [reason]`
 - Sends a DM to the user with the warning reason
 - No server action taken (informational only)
-- Logs to `#mod-log`
 
 **Purge** — `/purge [amount]` or `!purge [amount]`
 - Deletes 1–100 messages in the current channel
 - Only works on messages less than 14 days old (Discord API limit)
-- Logs to `#mod-log` with message count and channel
 
 ### Slash Command Visibility
 
@@ -762,7 +791,7 @@ Duo VCs use sequential superscript numbers with gap filling:
 
 ### VC Control Panel
 
-When a temp VC is created (both hub and duo), the bot sends a **control panel embed** with **10 buttons** into the VC's built-in text chat. Only the channel creator can use the buttons.
+When a temp VC is created (both hub and duo), the bot sends a **control panel embed** with **12 buttons** into the VC's built-in text chat. Only the channel creator can use the buttons.
 
 | Button | What It Does |
 |--------|--------------|
@@ -773,9 +802,13 @@ When a temp VC is created (both hub and duo), the bot sends a **control panel em
 | 👁️ Hide | Denies @everyone ViewChannel — hides from channel list |
 | 👁️ Unhide | Removes ViewChannel deny — makes visible again |
 | ⌛ Waiting | Enables waiting room — users can see but not join |
-| ➕ Trust | Opens a modal to allow a specific user by ID (overrides lock/hide) |
-| 🚫 Reject | Opens a modal to block + disconnect a user by ID |
+| ➕ Trust | Shows a user select menu to allow a user (overrides lock/hide) |
+| 🚫 Reject | Shows a user select menu to block + disconnect a user |
+| 👢 Kick | Shows a user select menu to kick a user from the VC + deny rejoin |
+| 🔨 Ban | Shows a user select menu to permanently ban a user from the VC |
 | 🗑️ Delete | Deletes the voice channel immediately (red button) |
+
+> **Trust, Reject, Kick, and Ban** use Discord's native user select menus (searchable dropdown) instead of text input modals.
 
 **Security:**
 - Only the VC creator can use buttons (checked on every click)
@@ -824,60 +857,91 @@ This prevents leftover temp VCs from piling up after crashes or restarts.
 
 ---
 
-## Feature Guide — Logging
+## Feature Guide — Utility Commands
 
-All logs are sent as rich Discord embeds with timestamps and relevant details.
+### Avatar (`/av`)
 
-### Mod Log (`#mod-log`)
+Shows a user's avatar in full size (4096px) with download buttons for PNG, JPG, WEBP, and GIF (if animated).
 
-Triggered by all moderation commands. Each log includes:
-- **Action** (Ban, Kick, Mute, Unmute, Warn, Purge)
-- **Target user** (tag + ID)
-- **Moderator** (who ran the command)
-- **Reason** (if provided)
-- **Duration** (for mute)
-- **Message count** (for purge)
-- **Timestamp**
+- If the user has a different **server avatar** and **global avatar**, both are shown
+- If no user specified, shows the command author's avatar
+- Accepts: `@mention`, username text, or user ID
 
-### Join/Leave Log (`#join-log`)
+### Banner (`/banner`)
 
-**Member joined:**
-- Username and tag
-- Account creation date (account age)
-- Current member count
+Shows a user's profile banner in full size with download format buttons.
 
-**Member left:**
-- Username and tag
-- Roles they had
-- How long they were in the server
+- Fetches user data with `force: true` to get banner info
+- If the user has no banner, replies with an error
+- Accepts: `@mention`, username text, or user ID
 
-### Message Log (`#message-log`)
+### Server Icon & Banner (`/servericon`, `/serverbanner`)
 
-**Message deleted:**
-- Author (tag + ID)
-- Channel
-- Content (or "Unknown" if the message was not cached)
+Shows the server icon or banner in full size with download format buttons.
 
-**Message edited:**
-- Author (tag + ID)
-- Channel
-- Before content
-- After content
+- If the server has no icon/banner, replies with an error
 
-> Bot messages are ignored for both deleted and edited logs.
+### Server Info (`/serverinfo`)
 
-### Ticket Log (`#ticket-log`)
+Shows a detailed embed with server statistics:
 
-**Ticket opened:**
-- Who opened it (tag + ID)
-- Channel name and link
-- Ticket number
+| Field | Details |
+|-------|---------|
+| Owner | Server owner mention |
+| Server ID | Guild ID |
+| Created | Full date with Discord timestamp |
+| Region | Preferred locale |
+| Verified / 2FA | Yes/No |
+| Members | Total, bots, humans (separate counts) |
+| Channels | Text, voice, categories, threads (separate counts) |
+| Roles / Emojis / Stickers | Counts |
+| Boost Level / Boosts | Tier and count |
+| System Channel | Mention or None |
 
-**Ticket closed:**
-- Who closed it (tag + ID)
-- Channel name
-- Who originally opened it
-- Total message count
+### User Info (`/userinfo`)
+
+Shows a detailed embed with user information:
+
+| Field | Details |
+|-------|---------|
+| User ID / Bot | ID and bot status |
+| Account Created / Joined Server | Full dates with Discord timestamps |
+| Display Name / Top Role / Color | Member-specific info |
+| Roles | Up to 20 role mentions (with "+X more" if over 20) |
+| Boosting Since / Timeout Until | Timestamps or None |
+| Avatar | Links to server and global avatars |
+| Badges | Discord badges (Staff, Partner, HypeSquad, etc.) |
+
+### Purge Bots (`/purgebots`)
+
+Deletes bot messages from the current channel.
+
+- Default: 50 messages, max: 100
+- Fetches last 100 messages, filters bot-only, bulk deletes
+- Silently skips messages older than 14 days (Discord API limit)
+- Reply auto-deletes after 5 seconds
+- Requires **Manage Messages** permission
+
+### Purge User (`/purgeuser`)
+
+Deletes messages from a specific user in the current channel.
+
+- Default: 50 messages, max: 100
+- Accepts target user by: `@mention`, username text, or user ID
+- Reply auto-deletes after 5 seconds
+- Requires **Manage Messages** permission
+
+### User Resolution (`resolveUser`)
+
+All user-accepting commands (av, banner, userinfo, purgeuser) use a shared `resolveUser` utility that finds guild members with this priority:
+
+1. **Exact user ID** — 17-19 digit snowflake
+2. **Exact username match** — case insensitive
+3. **Exact display name match** — case insensitive
+4. **Partial username match** — case insensitive
+5. **Partial display name match** — case insensitive
+
+For slash commands, both a native user picker (`user` option) and a text input (`query` option) are available.
 
 ---
 
@@ -977,12 +1041,20 @@ The bot is designed to survive restarts cleanly:
 [Commands] Loaded: noprefix
 [Commands] Loaded: rpc
 [Commands] Loaded: status
+[Commands] Loaded: vcpanel
 [Commands] Loaded: panel
+[Commands] Loaded: av
+[Commands] Loaded: banner
+[Commands] Loaded: purgebots
+[Commands] Loaded: purgeuser
+[Commands] Loaded: serverbanner
+[Commands] Loaded: servericon
+[Commands] Loaded: serverinfo
+[Commands] Loaded: userinfo
 [Events] Loaded: ready
 [Events] Loaded: messageCreate
 [Events] Loaded: interactionCreate
 [Events] Loaded: voiceStateUpdate
-[Events] Loaded: guildMemberAdd
 [Ready] Logged in as YourBot#1234
 [Ready] Restored presence: WATCHING your server 👀
 [Ready] Ticket counter loaded: 15
@@ -1000,8 +1072,7 @@ The bot is designed to survive restarts cleanly:
 | Slash commands not showing up | Run `node deploy-commands.js`. Commands may take a few minutes to appear |
 | `Missing Permissions` errors | Make sure the bot role is **above** the target user's highest role in Server Settings → Roles |
 | `Missing Access` on channels | Verify the bot has permissions to view and send messages in the log channels |
-| Message content logging shows "Unknown" | Enable **Message Content Intent** in the Developer Portal |
-| Member join/leave not logging | Enable **Server Members Intent** in the Developer Portal |
+| Message content not working | Enable **Message Content Intent** in the Developer Portal |
 | `DiscordAPIError: Unknown Channel` | Double-check all channel/category IDs in `.env` |
 | Bot goes offline on VPS | Use PM2 with `pm2 startup` and `pm2 save` for auto-restart |
 | Temp VC not created when joining | Verify `CREATE_VC_CHANNEL` ID matches exactly; bot needs Manage Channels permission |
