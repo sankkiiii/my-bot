@@ -34,7 +34,7 @@ A feature-rich Discord bot built with **Discord.js v14** and **Node.js**. Design
 | **Moderation** | Ban, kick, mute, unmute, warn, purge — with permission checks, hierarchy validation, and mod logging |
 | **No-Prefix** | Selected users (+ bot owner) can run commands without the `!` prefix |
 | **Ticket System** | TicketTool-style panels, private channels, staff auto-detection, HTML transcripts |
-| **Temp Voice Channels** | Voice Master-style auto-created VCs with owner permissions and auto-cleanup |
+| **Temp Voice Channels** | Voice Master-style hub VCs (unlimited) + duo VCs (max 2) with auto-cleanup |
 | **Logging** | Rich embed logs for moderation, joins/leaves, message edits/deletes, and tickets |
 
 ---
@@ -98,7 +98,7 @@ my-bot/
 │   ├── ready.js              # Bot status + startup cleanup
 │   ├── messageCreate.js      # Prefix/no-prefix commands + message logging
 │   ├── interactionCreate.js  # Slash commands + ticket button interactions
-│   ├── voiceStateUpdate.js   # Temp VC create/delete
+│   ├── voiceStateUpdate.js   # Hub VC + Duo VC create/delete
 │   └── guildMemberAdd.js     # Join/leave logging
 ├── utils/
 │   ├── logger.js             # sendLog() helper
@@ -164,6 +164,7 @@ Create the following in your Discord server and copy their IDs:
 | Tickets (category) | Category | `TICKET_CATEGORY` |
 | Temp VCs (category) | Category | `TEMP_VC_CATEGORY` |
 | ➕ Create VC | Voice Channel (inside Temp VCs category) | `CREATE_VC_CHANNEL` |
+| ➕ Create Duo | Voice Channel (inside Temp VCs category) | `CREATE_DUO_CHANNEL` |
 
 Also copy your **Server ID** (right-click server name → Copy Server ID) → `GUILD_ID`
 
@@ -186,6 +187,7 @@ TRANSCRIPT_CHANNEL=channel-id
 TICKET_CATEGORY=category-id
 TEMP_VC_CATEGORY=category-id
 CREATE_VC_CHANNEL=voice-channel-id
+CREATE_DUO_CHANNEL=voice-channel-id
 OWNER_ID=your-discord-user-id
 ```
 
@@ -202,7 +204,8 @@ OWNER_ID=your-discord-user-id
 | `TRANSCRIPT_CHANNEL` | Yes | Channel ID where ticket transcripts are sent |
 | `TICKET_CATEGORY` | Yes | Category ID for ticket channels |
 | `TEMP_VC_CATEGORY` | Yes | Category ID for temporary voice channels |
-| `CREATE_VC_CHANNEL` | Yes | Voice channel ID that triggers temp VC creation |
+| `CREATE_VC_CHANNEL` | Yes | Voice channel ID that triggers hub VC creation (unlimited users) |
+| `CREATE_DUO_CHANNEL` | No | Voice channel ID that triggers duo VC creation (max 2 users) |
 | `OWNER_ID` | No | Your Discord user ID (gives permanent no-prefix access) |
 
 ---
@@ -666,38 +669,88 @@ When a ticket is closed, the bot generates a **self-contained HTML file** styled
 
 ## Feature Guide — Temporary Voice Channels
 
-The Temp VC system works exactly like **Voice Master** bots. Users join a trigger channel, get their own personal voice channel, and it auto-deletes when empty.
+The bot has **two types** of temporary voice channels:
+
+| Type | Trigger Channel | Channel Name | User Limit | Use Case |
+|------|----------------|--------------|------------|----------|
+| **Hub VC** | `➕ Create VC` | `username's VC` | Unlimited | Group calls, gaming, hangouts |
+| **Duo VC** | `➕ Create Duo` | `𝄢・duo ¹`, `𝄢・duo ²`, etc. | 2 | Private 1-on-1 conversations |
+
+Both work like **Voice Master** — join a trigger channel, get your own VC, and it auto-deletes when empty.
 
 ### How to Set Up
 
 1. **Create a Category** in your Discord server (e.g., `Voice Channels` or `Temp VCs`)
 2. **Right-click the category** → Copy ID → paste as `TEMP_VC_CATEGORY` in `.env`
-3. **Create a Voice Channel** inside that category named `➕ Create VC` (or any name you like)
-4. **Right-click the voice channel** → Copy ID → paste as `CREATE_VC_CHANNEL` in `.env`
-5. **Restart the bot**
+3. **Create a Voice Channel** inside that category named `➕ Create VC`
+4. **Right-click** → Copy ID → paste as `CREATE_VC_CHANNEL` in `.env`
+5. **Create another Voice Channel** in the same category named `➕ Create Duo`
+6. **Right-click** → Copy ID → paste as `CREATE_DUO_CHANNEL` in `.env`
+7. **Restart the bot**
 
-### How It Works (User Flow)
+Your category should look like:
+```
+📁 Temp VCs (category)
+  🔊 ➕ Create VC        ← hub trigger (unlimited)
+  🔊 ➕ Create Duo       ← duo trigger (max 2)
+  🔊 Ram's VC            ← auto created (hub)
+  🔊 𝄢・duo ¹           ← auto created (duo)
+  🔊 𝄢・duo ²           ← auto created (duo)
+```
+
+### Hub VC — How It Works
 
 ```
 User joins "➕ Create VC"
         ↓
-Bot creates "username's VC" in the same category
+Bot creates "username's VC" (no user limit)
         ↓
 Bot moves the user into their new VC
         ↓
-User now owns the channel with full control
+User owns the channel (rename, set limit, move users)
         ↓
 When everyone leaves → Bot auto-deletes the channel
 ```
 
+### Duo VC — How It Works
+
+```
+User joins "➕ Create Duo"
+        ↓
+Bot finds the lowest available number (fills gaps)
+        ↓
+Bot creates "𝄢・duo ¹" with user limit of 2
+        ↓
+Bot moves the user into their duo VC
+        ↓
+Only 1 more person can join (enforced by Discord)
+        ↓
+When both leave → Bot auto-deletes the channel
+```
+
+### Duo VC Naming
+
+Duo VCs use sequential superscript numbers with gap filling:
+
+```
+𝄢・duo ¹
+𝄢・duo ²
+𝄢・duo ³
+...
+𝄢・duo ¹⁰
+𝄢・duo ¹¹
+```
+
+**Gap filling**: If `𝄢・duo ¹` and `𝄢・duo ³` exist but `𝄢・duo ²` was deleted, the next duo VC will be `𝄢・duo ²` (fills the gap instead of going to `𝄢・duo ⁴`).
+
 ### What the VC Creator Can Do
 
-The bot grants `ManageChannels` and `MoveMembers` permissions on the created VC, so the creator can:
+The bot grants `ManageChannels` and `MoveMembers` permissions on both hub and duo VCs:
 
 | Action | How |
 |--------|-----|
 | **Rename** their VC | Right-click channel → Edit Channel → change name |
-| **Set user limit** | Right-click channel → Edit Channel → set User Limit (e.g., 5) |
+| **Set user limit** | Right-click channel → Edit Channel → set User Limit |
 | **Move users** in/out | Drag and drop users into or out of the channel |
 | **Disconnect users** | Right-click a user → Disconnect |
 | **Set bitrate** | Edit Channel → change bitrate for audio quality |
@@ -706,22 +759,24 @@ The bot grants `ManageChannels` and `MoveMembers` permissions on the created VC,
 
 | Scenario | What Happens |
 |----------|-------------|
-| User joins "Create VC" | New VC created, user moved in |
-| User leaves their temp VC | If VC is now empty, it's deleted |
+| User joins "Create VC" | New hub VC created (unlimited), user moved in |
+| User joins "Create Duo" | New duo VC created (limit 2), user moved in |
+| User leaves any temp VC | If VC is now empty, it's deleted (both types) |
 | User moves from temp VC to another channel | If old VC is now empty, it's deleted |
-| User creates VC then immediately disconnects | Empty VC is detected and deleted |
+| User creates VC/duo then immediately disconnects | Empty channel detected and deleted |
 | Bot fails to move the user | The empty VC is cleaned up automatically |
-| Multiple users join "Create VC" at once | Each gets their own VC — no conflicts |
-| User already has a temp VC and joins "Create VC" again | A second VC is created (not blocked) |
+| Multiple users join trigger channels at once | Each gets their own VC — no conflicts |
+| Duo VC is full (2 users) | Discord enforces the limit automatically |
 | Bot restarts while temp VCs exist | On startup, bot scans the category and deletes any empty VCs |
-| `CREATE_VC_CHANNEL` not set in `.env` | Bot logs a warning and skips temp VC functionality |
-| Someone tries to trigger deletion of "Create VC" | The trigger channel is always protected — bot never deletes it |
+| `CREATE_VC_CHANNEL` not set | Hub VC feature skipped |
+| `CREATE_DUO_CHANNEL` not set | Duo VC feature skipped |
+| Both trigger channels are always protected | Bot never deletes the trigger channels themselves |
 
 ### Startup Cleanup
 
 When the bot starts (or restarts), it automatically:
 1. Scans all voice channels inside `TEMP_VC_CATEGORY`
-2. Finds any that are **empty** and are **not** the `CREATE_VC_CHANNEL`
+2. Finds any that are **empty** and are **not** `CREATE_VC_CHANNEL` or `CREATE_DUO_CHANNEL`
 3. Deletes them
 4. Logs how many were cleaned up
 

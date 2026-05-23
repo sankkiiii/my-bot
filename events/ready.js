@@ -57,7 +57,8 @@ module.exports = {
               (ch) =>
                 ch.parentId === config.tempVcCategory &&
                 ch.type === ChannelType.GuildVoice &&
-                ch.id !== config.createVcChannel,
+                ch.id !== config.createVcChannel &&
+                ch.id !== config.createDuoChannel,
             );
 
             for (const [, channel] of channels) {
