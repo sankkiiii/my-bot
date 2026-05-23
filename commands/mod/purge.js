@@ -68,7 +68,11 @@ module.exports = {
         .setTimestamp();
 
       await sendLog(client, config.modLogChannel, embed);
-      await replyFn(`Deleted **${deleted.size}** messages.`);
+      try {
+        await replyFn(`Deleted **${deleted.size}** messages.`);
+      } catch {
+        await channel.send(`Deleted **${deleted.size}** messages.`).catch(() => {});
+      }
     } catch (err) {
       console.error('[Purge]', err);
     }

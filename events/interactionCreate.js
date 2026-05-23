@@ -199,7 +199,10 @@ async function handleTicketClose(interaction, client) {
   const guild = interaction.guild;
   const closer = interaction.member;
 
+  const isOwner = config.ownerId && closer.user.id === config.ownerId;
+
   if (
+    !isOwner &&
     !closer.permissions.has(PermissionFlagsBits.ManageMessages) &&
     !closer.permissions.has(PermissionFlagsBits.KickMembers) &&
     !closer.permissions.has(PermissionFlagsBits.BanMembers)
@@ -304,7 +307,7 @@ async function handleTicketClose(interaction, client) {
 // VC CONTROL PANEL HANDLERS
 // ═══════════════════════════════════════
 
-function validateVcCreator(interaction, skipInVcCheck) {
+async function validateVcCreator(interaction, skipInVcCheck) {
   const tempVCs = interaction.client.tempVCs;
   const channelId = interaction.channelId;
 
@@ -318,7 +321,7 @@ function validateVcCreator(interaction, skipInVcCheck) {
   const vcData = tempVCs?.get(channelId);
 
   if (!vcData) {
-    interaction.reply({
+    await interaction.reply({
       content: '\u274C This VC session expired. Leave and rejoin \u2795 Create VC.',
       ephemeral: true,
     });
@@ -326,7 +329,7 @@ function validateVcCreator(interaction, skipInVcCheck) {
   }
 
   if (interaction.user.id !== vcData.creatorId) {
-    interaction.reply({
+    await interaction.reply({
       content: '\u274C Only the voice channel creator can use these controls.',
       ephemeral: true,
     });
@@ -335,7 +338,7 @@ function validateVcCreator(interaction, skipInVcCheck) {
 
   const voiceChannel = interaction.guild.channels.cache.get(channelId);
   if (!voiceChannel) {
-    interaction.reply({
+    await interaction.reply({
       content: '\u274C Voice channel not found.',
       ephemeral: true,
     });
@@ -344,7 +347,7 @@ function validateVcCreator(interaction, skipInVcCheck) {
 
   const creatorInVC = interaction.member.voice?.channelId === channelId;
   if (!skipInVcCheck && !creatorInVC) {
-    interaction.reply({
+    await interaction.reply({
       content: '\u274C You must be connected to your voice channel to use controls.',
       ephemeral: true,
     });
@@ -369,7 +372,7 @@ async function handleVcButton(interaction) {
 
   // Modals must be shown before deferring
   if (id === 'vc_rename' || id === 'vc_limit' || id === 'vc_trust' || id === 'vc_reject') {
-    const result = validateVcCreator(interaction, id === 'vc_delete');
+    const result = await validateVcCreator(interaction, id === 'vc_delete');
     if (!result) return;
 
     if (id === 'vc_limit' && result.vcData.type === 'duo') {
@@ -380,7 +383,7 @@ async function handleVcButton(interaction) {
     return interaction.showModal(modal);
   }
 
-  const result = validateVcCreator(interaction, id === 'vc_delete');
+  const result = await validateVcCreator(interaction, id === 'vc_delete');
   if (!result) return;
 
   const { vcData, voiceChannel } = result;
