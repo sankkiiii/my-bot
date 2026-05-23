@@ -1,15 +1,18 @@
 const { SlashCommandBuilder, PermissionFlagsBits, CommandInteraction } = require('discord.js');
 const config = require('../../config');
+const resolveUser = require('../../utils/resolveUser');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('ban')
     .setDescription('Ban a member from the server')
-    .addUserOption((opt) => opt.setName('user').setDescription('The user to ban').setRequired(true))
+    .addUserOption((opt) => opt.setName('user').setDescription('Select user from list').setRequired(false))
+    .addStringOption((opt) => opt.setName('query').setDescription('Or type username / user ID').setRequired(false))
     .addStringOption((opt) => opt.setName('reason').setDescription('Reason for the ban').setRequired(false))
     .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
 
   name: 'ban',
+  aliases: ['forceban', 'hackban'],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
@@ -17,19 +20,48 @@ module.exports = {
     const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
 
     try {
-      let targetUser, reason, guild, executor, executorMember, replyFn;
+      let member, targetUser, reason, guild, executor, executorMember, replyFn;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
         guild = interaction.guild;
         executor = interaction.user;
         executorMember = interaction.member;
-        targetUser = interaction.options.getUser('user');
-        reason = interaction.options.getString('reason') || 'No reason provided';
         replyFn = (content) => interaction.reply({ content, ephemeral: true });
 
         if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.BanMembers)) {
           return interaction.reply({ content: '\u274C You need the **Ban Members** permission to use this command.', ephemeral: true });
+        }
+
+        const userOption = interaction.options.getUser('user');
+        const query = interaction.options.getString('query');
+        reason = interaction.options.getString('reason') || 'No reason provided';
+
+        if (!userOption && !query) {
+          return interaction.reply({ content: '\u274C Please provide a user (select or type username/ID).', ephemeral: true });
+        }
+
+        if (userOption) {
+          member = await guild.members.fetch(userOption.id).catch(() => null);
+          targetUser = userOption;
+        } else {
+          member = await resolveUser(query, guild);
+          if (member) {
+            targetUser = member.user;
+          } else {
+            // Try ID-only ban for users not in server
+            const cleaned = query.replace(/[<@!>]/g, '').trim();
+            if (/^\d{17,19}$/.test(cleaned)) {
+              try {
+                const user = await client.users.fetch(cleaned);
+                await guild.members.ban(user, { reason });
+                return replyFn(`**${user.tag}** has been banned (not in server). Reason: ${reason}`);
+              } catch {
+                return replyFn('\u274C Could not find or ban that user.');
+              }
+            }
+            return replyFn('\u274C Could not find that user.');
+          }
         }
       } else {
         const message = interactionOrMessage;
@@ -42,18 +74,33 @@ module.exports = {
           return message.reply('\u274C You need the **Ban Members** permission to use this command.');
         }
 
-        targetUser = message.mentions.users.first();
-        if (!targetUser) return message.reply('Please mention a user to ban.');
+        if (!args[0]) return message.reply('Please provide a user to ban.');
+
+        const input = args[0];
+        member = await resolveUser(input, guild);
         reason = args.slice(1).join(' ') || 'No reason provided';
         replyFn = (content) => message.reply(content);
+
+        if (!member) {
+          // Try ID-only ban for users not in server
+          const cleaned = input.replace(/[<@!>]/g, '').trim();
+          if (/^\d{17,19}$/.test(cleaned)) {
+            try {
+              const user = await client.users.fetch(cleaned);
+              await guild.members.ban(user, { reason });
+              return replyFn(`**${user.tag}** has been banned (not in server). Reason: ${reason}`);
+            } catch {
+              return replyFn('\u274C Could not find or ban that user.');
+            }
+          }
+          return replyFn('\u274C Could not find that user.');
+        }
+        targetUser = member.user;
       }
 
       if (!guild.members.me.permissions.has(PermissionFlagsBits.BanMembers)) {
         return replyFn('\u274C I don\'t have the **Ban Members** permission to do this.');
       }
-
-      const member = await guild.members.fetch(targetUser.id).catch(() => null);
-      if (!member) return replyFn('Could not find that member in this server.');
 
       if (!isOwner && member.roles.highest.position >= executorMember.roles.highest.position) {
         return replyFn('\u274C You cannot moderate someone with an equal or higher role than you.');

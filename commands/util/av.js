@@ -20,6 +20,7 @@ module.exports = {
     ),
 
   name: 'av',
+  aliases: ['avatar', 'pfp', 'icon'],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
