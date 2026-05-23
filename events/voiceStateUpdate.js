@@ -64,6 +64,8 @@ function buildControlPanel() {
       { name: '\uD83D\uDEAB Reject User', value: 'Block a user', inline: true },
       { name: '\u2795 Trust User', value: 'Allow a user', inline: true },
       { name: '\uD83D\uDDD1\uFE0F Delete VC', value: 'Delete channel', inline: true },
+      { name: '\uD83D\uDC62 Kick VC', value: 'Remove a user from the VC', inline: true },
+      { name: '\uD83D\uDD28 Ban VC', value: 'Ban a user from rejoining the VC', inline: true },
     )
     .setFooter({ text: 'Controls are only usable by the channel creator' });
 
@@ -83,13 +85,18 @@ function buildControlPanel() {
     new ButtonBuilder().setCustomId('vc_delete').setLabel('\uD83D\uDDD1\uFE0F Delete').setStyle(ButtonStyle.Danger),
   );
 
-  return { embed, row1, row2 };
+  const row3 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('vc_kick').setLabel('\uD83D\uDC62 Kick from VC').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('vc_ban').setLabel('\uD83D\uDD28 Ban from VC').setStyle(ButtonStyle.Danger),
+  );
+
+  return { embed, row1, row2, row3 };
 }
 
 async function sendControlPanel(channel) {
   try {
-    const { embed, row1, row2 } = buildControlPanel();
-    await channel.send({ embeds: [embed], components: [row1, row2] });
+    const { embed, row1, row2, row3 } = buildControlPanel();
+    await channel.send({ embeds: [embed], components: [row1, row2, row3] });
   } catch (err) {
     console.error('[TempVC] Failed to send control panel:', err.message);
   }
@@ -138,14 +145,16 @@ module.exports = {
           await member.voice.setChannel(tempChannel);
         } catch (err) {
           console.error('[TempVC] Failed to move member to hub:', err.message);
-          if (tempChannel.members.size === 0) {
+          const humanMembers = tempChannel.members.filter(m => !m.user.bot);
+          if (humanMembers.size === 0) {
             tempVCs.delete(tempChannel.id);
             await tempChannel.delete().catch(() => {});
           }
           return;
         }
 
-        if (tempChannel.members.size === 0) {
+        const hubHumanMembers = tempChannel.members.filter(m => !m.user.bot);
+        if (hubHumanMembers.size === 0) {
           tempVCs.delete(tempChannel.id);
           await tempChannel.delete().catch(() => {});
         } else {
@@ -193,14 +202,16 @@ module.exports = {
           await member.voice.setChannel(duoChannel);
         } catch (err) {
           console.error('[DuoVC] Failed to move member to duo:', err.message);
-          if (duoChannel.members.size === 0) {
+          const humanMembers = duoChannel.members.filter(m => !m.user.bot);
+          if (humanMembers.size === 0) {
             tempVCs.delete(duoChannel.id);
             await duoChannel.delete().catch(() => {});
           }
           return;
         }
 
-        if (duoChannel.members.size === 0) {
+        const duoHumanMembers = duoChannel.members.filter(m => !m.user.bot);
+        if (duoHumanMembers.size === 0) {
           tempVCs.delete(duoChannel.id);
           await duoChannel.delete().catch(() => {});
         } else {
@@ -216,7 +227,8 @@ module.exports = {
       ) {
         if (tempVCs.has(oldState.channelId)) {
           const channel = oldState.guild.channels.cache.get(oldState.channelId);
-          if (channel && channel.members.size === 0) {
+          const humanMembers = channel ? channel.members.filter(m => !m.user.bot) : null;
+          if (channel && humanMembers && humanMembers.size === 0) {
             tempVCs.delete(oldState.channelId);
             await channel.delete().catch((err) =>
               console.error('[TempVC] Failed to delete channel:', err.message),

@@ -12,6 +12,7 @@ const {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
+  UserSelectMenuBuilder,
 } = require('discord.js');
 const config = require('../config');
 const { generateTranscript } = require('../utils/transcript');
@@ -44,9 +45,12 @@ function setTicketCount(count) {
 const VC_BUTTON_IDS = [
   'vc_rename', 'vc_limit', 'vc_lock', 'vc_unlock', 'vc_hide',
   'vc_unhide', 'vc_waiting', 'vc_trust', 'vc_reject', 'vc_delete',
+  'vc_kick', 'vc_ban',
 ];
 
-const VC_MODAL_IDS = ['vc_rename_modal', 'vc_limit_modal', 'vc_trust_modal', 'vc_reject_modal'];
+const VC_MODAL_IDS = ['vc_rename_modal', 'vc_limit_modal'];
+
+const VC_SELECT_IDS = ['vc_trust_select', 'vc_reject_select', 'vc_kick_select', 'vc_ban_select'];
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -81,6 +85,14 @@ module.exports = {
           if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({ content: '\u274C An error occurred.', ephemeral: true }).catch(() => {});
           }
+        }
+      }
+
+      // --- User select menu handling ---
+      if (interaction.isUserSelectMenu()) {
+        if (VC_SELECT_IDS.includes(interaction.customId)) {
+          await handleVcSelectMenu(interaction);
+          return;
         }
       }
 
@@ -355,7 +367,8 @@ function findUserVc(tempVCs, userId, interactionChannelId, userVoiceChannelId) {
 async function handleVcButton(interaction) {
   const id = interaction.customId;
   const tempVCs = interaction.client.tempVCs;
-  const modalButtons = ['vc_rename', 'vc_limit', 'vc_trust', 'vc_reject'];
+  const modalButtons = ['vc_rename', 'vc_limit'];
+  const selectButtons = ['vc_trust', 'vc_reject', 'vc_kick', 'vc_ban'];
 
   console.log('=== VC BUTTON CLICKED ===');
   console.log('customId:', id);
@@ -365,9 +378,9 @@ async function handleVcButton(interaction) {
   console.log('tempVCs Map size:', tempVCs?.size);
   console.log('========================');
 
-  // Defer immediately for non-modal buttons (must respond within 3s)
-  // Modal buttons use showModal() as the response instead
-  if (!modalButtons.includes(id)) {
+  // Defer immediately for non-modal/non-select buttons (must respond within 3s)
+  // Modal buttons use showModal(), select buttons use reply() with select menu
+  if (!modalButtons.includes(id) && !selectButtons.includes(id)) {
     await interaction.deferReply({ ephemeral: true });
   }
 
@@ -443,41 +456,59 @@ async function handleVcButton(interaction) {
     }
 
     if (id === 'vc_trust') {
-      const modal = new ModalBuilder()
-        .setCustomId('vc_trust_modal')
-        .setTitle('Trust a User')
-        .addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId('user_id')
-              .setLabel('User ID')
-              .setPlaceholder("Paste the user's Discord ID")
-              .setMinLength(17)
-              .setMaxLength(20)
-              .setRequired(true)
-              .setStyle(TextInputStyle.Short),
-          ),
-        );
-      return interaction.showModal(modal);
+      const selectMenu = new UserSelectMenuBuilder()
+        .setCustomId('vc_trust_select')
+        .setPlaceholder('Select a user to trust...')
+        .setMinValues(1)
+        .setMaxValues(1);
+      const row = new ActionRowBuilder().addComponents(selectMenu);
+      return interaction.reply({
+        content: '\u2795 Select a user to give access to your VC:',
+        components: [row],
+        ephemeral: true,
+      });
     }
 
     if (id === 'vc_reject') {
-      const modal = new ModalBuilder()
-        .setCustomId('vc_reject_modal')
-        .setTitle('Reject a User')
-        .addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId('user_id')
-              .setLabel('User ID')
-              .setPlaceholder("Paste the user's Discord ID")
-              .setMinLength(17)
-              .setMaxLength(20)
-              .setRequired(true)
-              .setStyle(TextInputStyle.Short),
-          ),
-        );
-      return interaction.showModal(modal);
+      const selectMenu = new UserSelectMenuBuilder()
+        .setCustomId('vc_reject_select')
+        .setPlaceholder('Select a user to reject...')
+        .setMinValues(1)
+        .setMaxValues(1);
+      const row = new ActionRowBuilder().addComponents(selectMenu);
+      return interaction.reply({
+        content: '\uD83D\uDEAB Select a user to reject from your VC:',
+        components: [row],
+        ephemeral: true,
+      });
+    }
+
+    if (id === 'vc_kick') {
+      const selectMenu = new UserSelectMenuBuilder()
+        .setCustomId('vc_kick_select')
+        .setPlaceholder('Select a user to kick...')
+        .setMinValues(1)
+        .setMaxValues(1);
+      const row = new ActionRowBuilder().addComponents(selectMenu);
+      return interaction.reply({
+        content: '\uD83D\uDC62 Select a user to kick from your VC:',
+        components: [row],
+        ephemeral: true,
+      });
+    }
+
+    if (id === 'vc_ban') {
+      const selectMenu = new UserSelectMenuBuilder()
+        .setCustomId('vc_ban_select')
+        .setPlaceholder('Select a user to ban...')
+        .setMinValues(1)
+        .setMaxValues(1);
+      const row = new ActionRowBuilder().addComponents(selectMenu);
+      return interaction.reply({
+        content: '\uD83D\uDD28 Select a user to ban from your VC:',
+        components: [row],
+        ephemeral: true,
+      });
     }
 
     const vc = interaction.guild.channels.cache.get(vcChannelId);
@@ -588,43 +619,144 @@ async function handleVcModal(interaction) {
       return;
     }
 
-    if (id === 'vc_trust_modal') {
-      const userId = interaction.fields.getTextInputValue('user_id').trim();
-      let member;
-      try {
-        member = await interaction.guild.members.fetch(userId);
-      } catch {
-        return interaction.editReply('\u274C User not found.');
-      }
-      await voiceChannel.permissionOverwrites.edit(member, {
+  } catch (err) {
+    console.error(`[VC Modal] Error handling ${id}:`, err.message);
+    await interaction.editReply('\u274C An error occurred while processing your request.').catch(() => {});
+  }
+}
+
+// ═══════════════════════════════════════
+// VC USER SELECT MENU HANDLER
+// ═══════════════════════════════════════
+
+async function handleVcSelectMenu(interaction) {
+  const id = interaction.customId;
+  const tempVCs = interaction.client.tempVCs;
+
+  // Find the user's temp VC
+  const result = findUserVc(
+    tempVCs,
+    interaction.user.id,
+    interaction.channelId,
+    interaction.member.voice?.channelId,
+  );
+
+  if (!result) {
+    return interaction.update({
+      content: '\u274C VC session expired. Leave and rejoin \u2795 Create VC.',
+      components: [],
+    });
+  }
+
+  const { vcChannelId } = result;
+
+  if (interaction.user.id !== result.vcData.creatorId) {
+    return interaction.update({
+      content: '\u274C Only the VC creator can use these controls.',
+      components: [],
+    });
+  }
+
+  const selectedUser = interaction.users.first();
+  if (!selectedUser) {
+    return interaction.update({ content: '\u274C No user selected.', components: [] });
+  }
+
+  const member = interaction.guild.members.cache.get(selectedUser.id)
+    || await interaction.guild.members.fetch(selectedUser.id).catch(() => null);
+
+  if (!member) {
+    return interaction.update({ content: '\u274C User not found.', components: [] });
+  }
+
+  const vc = interaction.guild.channels.cache.get(vcChannelId);
+  if (!vc) {
+    return interaction.update({ content: '\u274C Voice channel not found.', components: [] });
+  }
+
+  try {
+    if (id === 'vc_trust_select') {
+      await vc.permissionOverwrites.edit(member.id, {
         ViewChannel: true,
         Connect: true,
         Speak: true,
       });
-      await interaction.editReply(`\u2705 ${member.user} can now join your channel even if it's locked/hidden.`);
-      return;
+      return interaction.update({
+        content: `\u2705 ${member.displayName} can now join your VC even if locked/hidden.`,
+        components: [],
+      });
     }
 
-    if (id === 'vc_reject_modal') {
-      const userId = interaction.fields.getTextInputValue('user_id').trim();
-      let member;
-      try {
-        member = await interaction.guild.members.fetch(userId);
-      } catch {
-        return interaction.editReply('\u274C User not found.');
-      }
-      if (member.voice.channelId === voiceChannel.id) {
+    if (id === 'vc_reject_select') {
+      if (member.voice?.channelId === vcChannelId) {
         await member.voice.disconnect('Rejected by VC owner').catch(() => {});
       }
-      await voiceChannel.permissionOverwrites.edit(member, {
+      await vc.permissionOverwrites.edit(member.id, {
         ViewChannel: false,
         Connect: false,
       });
-      await interaction.editReply(`\uD83D\uDEAB ${member.user} has been rejected from your channel.`);
-      return;
+      return interaction.update({
+        content: `\uD83D\uDEAB ${member.displayName} has been rejected from your VC.`,
+        components: [],
+      });
+    }
+
+    if (id === 'vc_kick_select') {
+      if (member.id === interaction.user.id) {
+        return interaction.update({ content: '\u274C You cannot kick yourself.', components: [] });
+      }
+      if (member.voice?.channelId !== vcChannelId) {
+        return interaction.update({
+          content: '\u274C That user is not in your voice channel.',
+          components: [],
+        });
+      }
+      await member.voice.disconnect('Kicked from VC by owner');
+      await vc.permissionOverwrites.edit(member.id, {
+        Connect: false,
+        ViewChannel: false,
+      });
+      return interaction.update({
+        content: `\uD83D\uDC62 ${member.displayName} has been kicked from your VC.`,
+        components: [],
+      });
+    }
+
+    if (id === 'vc_ban_select') {
+      if (member.id === interaction.user.id) {
+        return interaction.update({ content: '\u274C You cannot ban yourself.', components: [] });
+      }
+      if (member.voice?.channelId === vcChannelId) {
+        await member.voice.disconnect('Banned from VC by owner').catch(() => {});
+      }
+      await vc.permissionOverwrites.edit(member.id, {
+        Connect: false,
+        ViewChannel: false,
+        Speak: false,
+      });
+      try {
+        await member.send({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle('\uD83D\uDD28 Banned from Voice Channel')
+              .setDescription(`You have been banned from **${vc.name}** in **${interaction.guild.name}**`)
+              .setColor(0xED4245)
+              .addFields(
+                { name: 'Banned By', value: interaction.user.tag },
+              ),
+          ],
+        });
+      } catch {}
+      return interaction.update({
+        content: `\uD83D\uDD28 ${member.displayName} has been banned from your VC.`,
+        components: [],
+      });
     }
   } catch (err) {
-    console.error(`[VC Modal] Error handling ${id}:`, err.message);
-    await interaction.editReply('\u274C An error occurred while processing your request.').catch(() => {});
+    console.error('[VC Select Error]', err);
+    return interaction.update({
+      content: '\u274C Something went wrong. Please try again.',
+      components: [],
+    }).catch(() => {});
   }
 }
