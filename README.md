@@ -130,8 +130,8 @@ Create the following in your Discord server and copy their IDs:
 | Tickets (category) | Category | `TICKET_CATEGORY` |
 | Temp VCs (category) | Category | `TEMP_VC_CATEGORY` |
 | ➕ Create VC | Voice Channel (inside Temp VCs category) | `CREATE_VC_CHANNEL` |
-| Staff | Role | `STAFF_ROLE` |
-| Muted | Role (optional) | `MUTED_ROLE` |
+
+> **No staff role needed!** The bot automatically detects staff by checking Discord permissions (Manage Messages, Kick Members, or Ban Members).
 
 Also copy your **Server ID** → `GUILD_ID`
 
@@ -150,8 +150,6 @@ TRANSCRIPT_CHANNEL=channel-id
 TICKET_CATEGORY=category-id
 TEMP_VC_CATEGORY=category-id
 CREATE_VC_CHANNEL=voice-channel-id
-STAFF_ROLE=role-id
-MUTED_ROLE=role-id
 ```
 
 ---
@@ -461,9 +459,9 @@ The ticket system works like **TicketTool.xyz** — a persistent panel with a bu
 4. **Right-click** → Copy ID → paste as `TRANSCRIPT_CHANNEL` in `.env`
 5. **Create a Text Channel** for ticket logs (e.g., `#ticket-log`)
 6. **Right-click** → Copy ID → paste as `TICKET_LOG_CHANNEL` in `.env`
-7. **Create a Role** for staff (e.g., `Staff`)
-8. **Right-click the role** → Copy ID → paste as `STAFF_ROLE` in `.env`
-9. **Start the bot**, then run `/panel` or `!panel` in the channel where you want the ticket panel
+7. **Start the bot**, then run `/panel` or `!panel` in the channel where you want the ticket panel
+
+> **Note:** No staff role is needed! Any role with **Manage Messages**, **Kick Members**, or **Ban Members** permission will automatically see tickets and be able to close them.
 
 #### How It Works (Full Flow)
 
@@ -475,7 +473,7 @@ Bot sends a beautiful embed with "📩 Open Ticket" button
 User clicks the button
         ↓
 Bot creates #ticket-username (private channel)
-  → Only the user + Staff role + Bot can see it
+  → Only the user + roles with mod permissions + Bot can see it
   → Channel topic set to opener's user ID
         ↓
 Bot sends welcome embed with "🔒 Close Ticket" button
@@ -511,8 +509,10 @@ The panel sent by `/panel` includes:
 |-----|------------|
 | @everyone | Cannot see the channel |
 | Ticket opener | View, Send Messages, Read History, Attach Files |
-| Staff role | View, Send Messages, Read History, Manage Messages, Attach Files |
-| Bot | View, Send Messages, Read History, Manage Messages |
+| Any role with Manage Messages / Kick / Ban | View, Send Messages, Read History, Manage Messages, Attach Files |
+| Bot | View, Send Messages, Read History, Manage Messages, Manage Channels |
+
+> The bot automatically scans all server roles and gives ticket access to any role that has **Manage Messages**, **Kick Members**, or **Ban Members** permission. No manual staff role configuration needed.
 
 #### Ticket Numbering
 
@@ -553,9 +553,9 @@ If a user tries to open a ticket while they already have one open, the bot repli
 
 #### Who Can Close Tickets
 
-- **Only members with the Staff role** can click the "Close Ticket" button
-- If a non-staff member clicks it, they get:
-  > ❌ Only staff members can close tickets.
+- Any member with **Manage Messages**, **Kick Members**, or **Ban Members** permission can close tickets
+- If a member without these permissions clicks the close button, they get:
+  > ❌ You need **Manage Messages**, **Kick Members**, or **Ban Members** permission to close tickets.
 
 ---
 

@@ -13,6 +13,4 @@ module.exports = {
   ticketCategory: process.env.TICKET_CATEGORY,
   tempVcCategory: process.env.TEMP_VC_CATEGORY,
   createVcChannel: process.env.CREATE_VC_CHANNEL,
-  staffRole: process.env.STAFF_ROLE,
-  mutedRole: process.env.MUTED_ROLE,
 };

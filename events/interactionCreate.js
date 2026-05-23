@@ -100,20 +100,6 @@ async function handleTicketOpen(interaction, client) {
           PermissionFlagsBits.AttachFiles,
         ],
       },
-      ...(config.staffRole
-        ? [
-            {
-              id: config.staffRole,
-              allow: [
-                PermissionFlagsBits.ViewChannel,
-                PermissionFlagsBits.SendMessages,
-                PermissionFlagsBits.ReadMessageHistory,
-                PermissionFlagsBits.ManageMessages,
-                PermissionFlagsBits.AttachFiles,
-              ],
-            },
-          ]
-        : []),
       {
         id: client.user.id,
         allow: [
@@ -121,8 +107,27 @@ async function handleTicketOpen(interaction, client) {
           PermissionFlagsBits.SendMessages,
           PermissionFlagsBits.ReadMessageHistory,
           PermissionFlagsBits.ManageMessages,
+          PermissionFlagsBits.ManageChannels,
         ],
       },
+      ...guild.roles.cache
+        .filter(
+          (role) =>
+            role.id !== guild.id &&
+            (role.permissions.has(PermissionFlagsBits.ManageMessages) ||
+              role.permissions.has(PermissionFlagsBits.KickMembers) ||
+              role.permissions.has(PermissionFlagsBits.BanMembers)),
+        )
+        .map((role) => ({
+          id: role.id,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory,
+            PermissionFlagsBits.ManageMessages,
+            PermissionFlagsBits.AttachFiles,
+          ],
+        })),
     ],
   });
 
@@ -168,10 +173,14 @@ async function handleTicketClose(interaction, client) {
   const guild = interaction.guild;
   const closer = interaction.member;
 
-  // Only staff can close
-  if (config.staffRole && !closer.roles.cache.has(config.staffRole)) {
+  // Only members with mod permissions can close
+  if (
+    !closer.permissions.has(PermissionFlagsBits.ManageMessages) &&
+    !closer.permissions.has(PermissionFlagsBits.KickMembers) &&
+    !closer.permissions.has(PermissionFlagsBits.BanMembers)
+  ) {
     return interaction.reply({
-      content: '\u274C Only staff members can close tickets.',
+      content: '\u274C You need **Manage Messages**, **Kick Members**, or **Ban Members** permission to close tickets.',
       ephemeral: true,
     });
   }
