@@ -1,6 +1,5 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, CommandInteraction } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, CommandInteraction } = require('discord.js');
 const config = require('../../config');
-const { sendLog } = require('../../utils/logger');
 
 const MAX_TIMEOUT_MS = 28 * 24 * 60 * 60 * 1000; // 28 days
 
@@ -77,19 +76,6 @@ module.exports = {
 
       await member.timeout(durationMs, reason);
 
-      const embed = new EmbedBuilder()
-        .setTitle('Member Muted')
-        .setColor(0xffcc00)
-        .addFields(
-          { name: 'Action', value: 'Mute (Timeout)', inline: true },
-          { name: 'User', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
-          { name: 'Moderator', value: `${executor.tag}`, inline: true },
-          { name: 'Duration', value: `${durationMinutes} minute(s)`, inline: true },
-          { name: 'Reason', value: reason },
-        )
-        .setTimestamp();
-
-      await sendLog(client, config.modLogChannel, embed);
       await replyFn(`**${targetUser.tag}** has been muted for ${durationMinutes} minute(s). Reason: ${reason}`);
     } catch (err) {
       console.error('[Mute]', err);

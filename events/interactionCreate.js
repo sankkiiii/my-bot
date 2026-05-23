@@ -14,8 +14,17 @@ const {
   TextInputStyle,
 } = require('discord.js');
 const config = require('../config');
-const { sendLog } = require('../utils/logger');
 const { generateTranscript } = require('../utils/transcript');
+
+async function sendLog(client, channelId, embed) {
+  if (!channelId) return;
+  try {
+    const channel = await client.channels.fetch(channelId);
+    if (channel) await channel.send({ embeds: [embed] });
+  } catch (err) {
+    console.error('[Log] Failed to send log:', err.message);
+  }
+}
 
 const TICKET_COUNT_PATH = path.join(__dirname, '..', 'data', 'ticketCount.json');
 

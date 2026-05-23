@@ -1,6 +1,5 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, CommandInteraction } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, CommandInteraction } = require('discord.js');
 const config = require('../../config');
-const { sendLog } = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -57,18 +56,6 @@ module.exports = {
 
       await member.timeout(null, reason);
 
-      const embed = new EmbedBuilder()
-        .setTitle('Member Unmuted')
-        .setColor(0x00cc00)
-        .addFields(
-          { name: 'Action', value: 'Unmute', inline: true },
-          { name: 'User', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
-          { name: 'Moderator', value: `${executor.tag}`, inline: true },
-          { name: 'Reason', value: reason },
-        )
-        .setTimestamp();
-
-      await sendLog(client, config.modLogChannel, embed);
       await replyFn(`**${targetUser.tag}** has been unmuted. Reason: ${reason}`);
     } catch (err) {
       console.error('[Unmute]', err);

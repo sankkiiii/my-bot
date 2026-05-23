@@ -1,6 +1,5 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, CommandInteraction } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, CommandInteraction } = require('discord.js');
 const config = require('../../config');
-const { sendLog } = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -56,18 +55,6 @@ module.exports = {
 
       const deleted = await channel.bulkDelete(amount, true);
 
-      const embed = new EmbedBuilder()
-        .setTitle('Messages Purged')
-        .setColor(0x5865f2)
-        .addFields(
-          { name: 'Action', value: 'Purge', inline: true },
-          { name: 'Channel', value: `${channel.name} (${channel.id})`, inline: true },
-          { name: 'Moderator', value: `${executor.tag}`, inline: true },
-          { name: 'Messages Deleted', value: `${deleted.size}` },
-        )
-        .setTimestamp();
-
-      await sendLog(client, config.modLogChannel, embed);
       try {
         await replyFn(`Deleted **${deleted.size}** messages.`);
       } catch {
