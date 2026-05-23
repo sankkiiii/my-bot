@@ -1,7 +1,13 @@
+const fs = require('fs');
+const path = require('path');
 const { Client, Collection, GatewayIntentBits, Partials } = require('discord.js');
 const config = require('./config');
 const { loadCommands } = require('./handlers/commandHandler');
 const { loadEvents } = require('./handlers/eventHandler');
+
+// Ensure data/ directory exists
+const dataDir = path.join(__dirname, 'data');
+fs.mkdirSync(dataDir, { recursive: true });
 
 const client = new Client({
   intents: [
@@ -16,6 +22,7 @@ const client = new Client({
 });
 
 client.commands = new Collection();
+client.tempVCs = new Map();
 
 loadCommands(client);
 loadEvents(client);

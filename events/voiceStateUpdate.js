@@ -1,44 +1,73 @@
 const { Events, ChannelType, PermissionFlagsBits } = require('discord.js');
 const config = require('../config');
 
-// In-memory map: channelId → creatorId
-const tempChannels = new Map();
-
 module.exports = {
   name: Events.VoiceStateUpdate,
 
   async execute(oldState, newState, client) {
     try {
+      if (!config.createVcChannel) return;
+
       // --- User joined the "Create VC" channel ---
       if (newState.channelId === config.createVcChannel) {
         const guild = newState.guild;
         const member = newState.member;
 
-        const tempChannel = await guild.channels.create({
-          name: `${member.user.username}'s VC`,
-          type: ChannelType.GuildVoice,
-          parent: config.tempVcCategory || undefined,
-          permissionOverwrites: [
-            {
-              id: member.id,
-              allow: [PermissionFlagsBits.ManageChannels, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
-            },
-          ],
-        });
+        let tempChannel;
+        try {
+          tempChannel = await guild.channels.create({
+            name: `${member.user.username}'s VC`,
+            type: ChannelType.GuildVoice,
+            parent: config.tempVcCategory || undefined,
+            permissionOverwrites: [
+              {
+                id: member.id,
+                allow: [
+                  PermissionFlagsBits.ManageChannels,
+                  PermissionFlagsBits.MoveMembers,
+                  PermissionFlagsBits.Connect,
+                  PermissionFlagsBits.Speak,
+                ],
+              },
+            ],
+          });
+        } catch (err) {
+          console.error('[TempVC] Failed to create channel:', err.message);
+          return;
+        }
 
-        tempChannels.set(tempChannel.id, member.id);
+        client.tempVCs.set(tempChannel.id, { creatorId: member.id, guildId: guild.id });
 
-        await member.voice.setChannel(tempChannel);
+        try {
+          await member.voice.setChannel(tempChannel);
+        } catch (err) {
+          console.error('[TempVC] Failed to move member:', err.message);
+          // User left before we could move them — delete the empty VC
+          if (tempChannel.members.size === 0) {
+            client.tempVCs.delete(tempChannel.id);
+            await tempChannel.delete().catch(() => {});
+          }
+          return;
+        }
+
+        // Edge case: user left during the move — channel is now empty
+        if (tempChannel.members.size === 0) {
+          client.tempVCs.delete(tempChannel.id);
+          await tempChannel.delete().catch(() => {});
+        }
       }
 
-      // --- User left a channel — check if it's a temp VC that's now empty ---
-      if (oldState.channelId && tempChannels.has(oldState.channelId)) {
-        const channel = oldState.guild.channels.cache.get(oldState.channelId);
-        if (channel && channel.members.size === 0) {
-          tempChannels.delete(oldState.channelId);
-          await channel.delete().catch((err) =>
-            console.error('[TempVC] Failed to delete channel:', err.message),
-          );
+      // --- User left or moved from a channel — check if it was a temp VC ---
+      if (oldState.channelId && oldState.channelId !== config.createVcChannel) {
+        // Check our tracked map first
+        if (client.tempVCs.has(oldState.channelId)) {
+          const channel = oldState.guild.channels.cache.get(oldState.channelId);
+          if (channel && channel.members.size === 0) {
+            client.tempVCs.delete(oldState.channelId);
+            await channel.delete().catch((err) =>
+              console.error('[TempVC] Failed to delete channel:', err.message),
+            );
+          }
         }
       }
     } catch (err) {

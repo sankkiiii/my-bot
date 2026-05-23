@@ -42,15 +42,18 @@ module.exports = {
         replyFn = (content) => message.reply(content);
       }
 
+      const client = isSlash ? argsOrClient : clientOrUndefined;
+
       const embed = new EmbedBuilder()
         .setTitle('\uD83D\uDCCB Support Tickets')
-        .setDescription('Click the button below to open a support ticket.\nOur staff will assist you shortly.')
+        .setDescription('Need help? Click the button below to open a support ticket.\nOur staff team will assist you as soon as possible.')
         .setColor(0x5865f2)
-        .setFooter({ text: guild.name });
+        .setThumbnail(guild.iconURL({ dynamic: true }))
+        .setFooter({ text: `${guild.name} \u2022 ${client ? client.user.tag : 'Bot'}` });
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId('ticket_open')
+          .setCustomId('open_ticket')
           .setLabel('\uD83D\uDCE9 Open Ticket')
           .setStyle(ButtonStyle.Primary),
       );

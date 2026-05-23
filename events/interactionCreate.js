@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const {
   Events,
   EmbedBuilder,
@@ -11,6 +13,21 @@ const {
 const config = require('../config');
 const { sendLog } = require('../utils/logger');
 const { generateTranscript } = require('../utils/transcript');
+
+const TICKET_COUNT_PATH = path.join(__dirname, '..', 'data', 'ticketCount.json');
+
+function getTicketCount() {
+  try {
+    const data = JSON.parse(fs.readFileSync(TICKET_COUNT_PATH, 'utf-8'));
+    return data.count || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function setTicketCount(count) {
+  fs.writeFileSync(TICKET_COUNT_PATH, JSON.stringify({ count }, null, 2));
+}
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -27,9 +44,9 @@ module.exports = {
 
       // --- Button handling ---
       if (interaction.isButton()) {
-        if (interaction.customId === 'ticket_open') {
+        if (interaction.customId === 'open_ticket') {
           await handleTicketOpen(interaction, client);
-        } else if (interaction.customId === 'ticket_close') {
+        } else if (interaction.customId === 'close_ticket') {
           await handleTicketClose(interaction, client);
         }
       }
@@ -43,43 +60,89 @@ async function handleTicketOpen(interaction, client) {
   const guild = interaction.guild;
   const user = interaction.user;
 
-  // Prevent duplicate tickets
+  const sanitizedName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  // Check for existing open ticket
   const existingChannel = guild.channels.cache.find(
-    (ch) => ch.name === `ticket-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}` && ch.parentId === config.ticketCategory,
+    (ch) =>
+      ch.name === `ticket-${sanitizedName}` &&
+      ch.parentId === config.ticketCategory,
   );
   if (existingChannel) {
-    return interaction.reply({ content: `You already have an open ticket: ${existingChannel}`, ephemeral: true });
+    return interaction.reply({
+      content: `\u274C You already have an open ticket: ${existingChannel}`,
+      ephemeral: true,
+    });
   }
 
   await interaction.deferReply({ ephemeral: true });
 
+  // Increment ticket counter
+  const ticketNumber = getTicketCount() + 1;
+  setTicketCount(ticketNumber);
+
   const ticketChannel = await guild.channels.create({
-    name: `ticket-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+    name: `ticket-${sanitizedName}`,
     type: ChannelType.GuildText,
+    topic: `Opened by: ${user.id}`,
     parent: config.ticketCategory || undefined,
     permissionOverwrites: [
-      { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-      { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+      {
+        id: guild.roles.everyone.id,
+        deny: [PermissionFlagsBits.ViewChannel],
+      },
+      {
+        id: user.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.AttachFiles,
+        ],
+      },
       ...(config.staffRole
-        ? [{ id: config.staffRole, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }]
+        ? [
+            {
+              id: config.staffRole,
+              allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.ReadMessageHistory,
+                PermissionFlagsBits.ManageMessages,
+                PermissionFlagsBits.AttachFiles,
+              ],
+            },
+          ]
         : []),
-      { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ReadMessageHistory] },
+      {
+        id: client.user.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.ManageMessages,
+        ],
+      },
     ],
   });
 
   const welcomeEmbed = new EmbedBuilder()
     .setTitle('\uD83C\uDFAB Ticket Opened')
-    .setDescription(`Hey ${user}, welcome to your ticket!\nPlease describe your issue and a staff member will be with you shortly.`)
+    .setDescription(
+      `Hey ${user}, thanks for opening a ticket!\nPlease describe your issue in detail and a staff member will assist you shortly.`,
+    )
     .setColor(0x57f287)
     .addFields(
       { name: 'Opened By', value: `${user.tag}`, inline: true },
-      { name: 'Ticket', value: ticketChannel.name, inline: true },
+      { name: 'Ticket', value: `#${ticketNumber}`, inline: true },
+      { name: 'Status', value: '\uD83D\uDFE2 Open', inline: true },
     )
+    .setFooter({ text: 'Only staff can close this ticket' })
     .setTimestamp();
 
   const closeRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId('ticket_close')
+      .setCustomId('close_ticket')
       .setLabel('\uD83D\uDD12 Close Ticket')
       .setStyle(ButtonStyle.Danger),
   );
@@ -92,7 +155,8 @@ async function handleTicketOpen(interaction, client) {
     .setColor(0x57f287)
     .addFields(
       { name: 'Opened By', value: `${user.tag} (${user.id})` },
-      { name: 'Channel', value: ticketChannel.name },
+      { name: 'Channel', value: `<#${ticketChannel.id}> (${ticketChannel.name})` },
+      { name: 'Ticket #', value: `${ticketNumber}` },
     )
     .setTimestamp();
   await sendLog(client, config.ticketLogChannel, logEmbed);
@@ -106,14 +170,20 @@ async function handleTicketClose(interaction, client) {
 
   // Only staff can close
   if (config.staffRole && !closer.roles.cache.has(config.staffRole)) {
-    return interaction.reply({ content: 'Only staff members can close tickets.', ephemeral: true });
+    return interaction.reply({
+      content: '\u274C Only staff members can close tickets.',
+      ephemeral: true,
+    });
   }
 
-  await interaction.reply({ content: 'Closing ticket...' });
+  await interaction.reply({
+    content: '\uD83D\uDD12 Closing ticket and generating transcript...',
+    ephemeral: true,
+  });
 
   const ticketChannel = interaction.channel;
 
-  // Fetch all messages (paginate)
+  // Fetch ALL messages (paginate)
   const allMessages = [];
   let lastId;
   while (true) {
@@ -129,14 +199,29 @@ async function handleTicketClose(interaction, client) {
   // Sort oldest first
   allMessages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
 
-  // Determine who opened the ticket (from channel name)
-  const openedByName = ticketChannel.name.replace('ticket-', '') || 'Unknown';
+  // Determine who opened the ticket from channel topic
+  let openedByTag = 'Unknown';
+  let openedById = null;
+  if (ticketChannel.topic) {
+    const match = ticketChannel.topic.match(/Opened by:\s*(\d+)/);
+    if (match) {
+      openedById = match[1];
+      try {
+        const opener = await client.users.fetch(openedById);
+        openedByTag = opener.tag;
+      } catch {
+        openedByTag = `User ${openedById}`;
+      }
+    }
+  }
 
   const ticketInfo = {
     ticketName: ticketChannel.name,
-    openedBy: openedByName,
+    openedBy: openedByTag,
     closedBy: closer.user.tag,
     guildName: guild.name,
+    guildIconUrl: guild.iconURL({ extension: 'png', size: 128 }) || '',
+    botTag: client.user.tag,
   };
 
   const transcriptBuffer = generateTranscript(allMessages, ticketInfo);
@@ -144,17 +229,20 @@ async function handleTicketClose(interaction, client) {
   // Send transcript to transcript channel
   if (config.transcriptChannel) {
     const transcriptEmbed = new EmbedBuilder()
-      .setTitle('Ticket Transcript')
-      .setColor(0x5865f2)
+      .setTitle('\uD83D\uDCC4 Ticket Transcript')
+      .setColor(0xfee75c)
       .addFields(
         { name: 'Ticket', value: ticketChannel.name, inline: true },
-        { name: 'Opened By', value: openedByName, inline: true },
+        { name: 'Opened By', value: openedByTag, inline: true },
         { name: 'Closed By', value: closer.user.tag, inline: true },
-        { name: 'Total Messages', value: `${allMessages.length}` },
+        { name: 'Total Messages', value: `${allMessages.length}`, inline: true },
+        { name: 'Date', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
       )
       .setTimestamp();
 
-    const attachment = new AttachmentBuilder(transcriptBuffer, { name: `${ticketChannel.name}.html` });
+    const attachment = new AttachmentBuilder(transcriptBuffer, {
+      name: `transcript-${ticketChannel.name}.html`,
+    });
     const transcriptCh = await client.channels.fetch(config.transcriptChannel).catch(() => null);
     if (transcriptCh) {
       await transcriptCh.send({ embeds: [transcriptEmbed], files: [attachment] });
@@ -168,6 +256,8 @@ async function handleTicketClose(interaction, client) {
     .addFields(
       { name: 'Closed By', value: `${closer.user.tag} (${closer.user.id})` },
       { name: 'Channel', value: ticketChannel.name },
+      { name: 'Opened By', value: openedByTag },
+      { name: 'Total Messages', value: `${allMessages.length}` },
     )
     .setTimestamp();
   await sendLog(client, config.ticketLogChannel, logEmbed);
