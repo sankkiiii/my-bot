@@ -25,10 +25,12 @@ All moderation actions are logged to `#mod-log` with rich embeds.
 - On close, the bot generates a **self-contained HTML transcript** (dark theme, inline CSS), sends it to `#transcripts`, logs to `#ticket-log`, and deletes the channel after 5 seconds.
 
 ### Temporary Voice Channels
-- A designated "Create VC" voice channel acts as a trigger.
-- When a user joins it, the bot creates a personal voice channel (`username's VC`) and moves them in.
-- The creator gets `ManageChannels` permission on their VC (rename, set user limit, etc.).
+- Works like **Voice Master** — a designated "Create VC" voice channel acts as a trigger.
+- When a user joins it, the bot instantly creates a personal voice channel (`username's VC`) and moves them in.
+- The creator gets `ManageChannels` + `MoveMembers` permissions on their VC (rename, set user limit, drag users in/out).
 - When the channel empties, it is automatically deleted.
+- Survives bot restarts — on startup, the bot cleans up any leftover empty temp VCs.
+- Multiple users can each have their own temp VC simultaneously.
 
 ### Logging
 | Log Channel | Events |
@@ -69,9 +71,11 @@ my-bot/
 │   ├── interactionCreate.js # Slash commands + ticket button interactions
 │   ├── voiceStateUpdate.js # Temp VC create/delete
 │   └── guildMemberAdd.js   # Join/leave logging
-└── utils/
-    ├── logger.js           # sendLog() helper for sending embeds to log channels
-    └── transcript.js       # Generates HTML transcript files for tickets
+├── utils/
+│   ├── logger.js           # sendLog() helper for sending embeds to log channels
+│   └── transcript.js       # Generates HTML transcript files for tickets
+└── data/
+    └── ticketCount.json    # Persistent ticket counter (auto-created)
 ```
 
 ---
@@ -354,6 +358,207 @@ pm2 restart my-bot
 
 ---
 
+## Detailed Feature Guides
+
+### Temporary Voice Channels — Full Setup & Usage
+
+The Temp VC system works exactly like **Voice Master** bots. Users join a trigger channel, get their own personal voice channel, and it auto-deletes when empty.
+
+#### How to Set Up
+
+1. **Create a Category** in your Discord server for temp VCs (e.g., name it `Voice Channels` or `Temp VCs`)
+2. **Right-click the category** → Copy ID → paste it as `TEMP_VC_CATEGORY` in `.env`
+3. **Create a Voice Channel** inside that category named `➕ Create VC` (or any name you like)
+4. **Right-click the voice channel** → Copy ID → paste it as `CREATE_VC_CHANNEL` in `.env`
+5. **Restart the bot** (or start it for the first time)
+
+Your `.env` should have:
+```env
+TEMP_VC_CATEGORY=1234567890123456789
+CREATE_VC_CHANNEL=1234567890123456789
+```
+
+#### How It Works (User Flow)
+
+```
+User joins "➕ Create VC"
+        ↓
+Bot creates "username's VC" in the same category
+        ↓
+Bot moves the user into their new VC
+        ↓
+User now owns the channel with full control
+        ↓
+When everyone leaves → Bot auto-deletes the channel
+```
+
+#### What the VC Creator Can Do
+
+Because the bot grants `ManageChannels` and `MoveMembers` permissions on the created VC, the creator can:
+
+| Action | How |
+|--------|-----|
+| **Rename** their VC | Right-click channel → Edit Channel → change name |
+| **Set user limit** | Right-click channel → Edit Channel → set User Limit (e.g., 5) |
+| **Move users** in/out | Drag and drop users into or out of the channel |
+| **Disconnect users** | Right-click a user → Disconnect |
+| **Set bitrate** | Edit Channel → change bitrate for audio quality |
+
+#### Edge Cases Handled
+
+| Scenario | What Happens |
+|----------|-------------|
+| User joins "Create VC" | New VC created, user moved in |
+| User leaves their temp VC | If VC is now empty, it's deleted |
+| User moves from temp VC to another channel | If old VC is now empty, it's deleted |
+| User creates VC then immediately disconnects | Empty VC is detected and deleted |
+| Bot fails to move the user | The empty VC is cleaned up automatically |
+| Multiple users join "Create VC" at once | Each gets their own VC — no conflicts |
+| User already has a temp VC and joins "Create VC" again | A second VC is created (not blocked) |
+| Bot restarts while temp VCs exist | On startup, bot scans the category and deletes any empty VCs |
+| `CREATE_VC_CHANNEL` not set in `.env` | Bot logs a warning and skips temp VC functionality |
+| Bot never deletes the "Create VC" channel | The trigger channel is always protected |
+
+#### Startup Cleanup
+
+When the bot starts (or restarts), it automatically:
+1. Scans all voice channels inside `TEMP_VC_CATEGORY`
+2. Finds any that are **empty** and are **not** the `CREATE_VC_CHANNEL`
+3. Deletes them
+4. Logs how many were cleaned up
+
+This means if your bot crashes or restarts, leftover temp VCs won't pile up.
+
+#### Console Output Example
+
+```
+[Ready] Logged in as MyBot#1234
+[Ready] Ticket counter loaded: 15
+[Ready] Cleaned up 3 leftover temp VC(s)
+```
+
+#### Troubleshooting Temp VCs
+
+| Issue | Solution |
+|-------|----------|
+| Nothing happens when joining "Create VC" | Check that `CREATE_VC_CHANNEL` in `.env` matches the voice channel ID exactly |
+| Bot creates the VC but doesn't move the user | Bot needs `Move Members` permission in the server |
+| VC is created in the wrong category | Check that `TEMP_VC_CATEGORY` matches the correct category ID |
+| Leftover VCs not cleaned on restart | Make sure the bot has `Manage Channels` permission |
+| "Create VC" channel itself gets deleted | This should never happen — but verify the channel ID is correct in `.env` |
+
+---
+
+### Ticket System — Full Setup & Usage
+
+The ticket system works like **TicketTool.xyz** — a persistent panel with a button, private ticket channels, staff-only close, and HTML transcripts.
+
+#### How to Set Up
+
+1. **Create a Category** for tickets (e.g., `Tickets`)
+2. **Right-click the category** → Copy ID → paste as `TICKET_CATEGORY` in `.env`
+3. **Create a Text Channel** for transcripts (e.g., `#transcripts`)
+4. **Right-click** → Copy ID → paste as `TRANSCRIPT_CHANNEL` in `.env`
+5. **Create a Text Channel** for ticket logs (e.g., `#ticket-log`)
+6. **Right-click** → Copy ID → paste as `TICKET_LOG_CHANNEL` in `.env`
+7. **Create a Role** for staff (e.g., `Staff`)
+8. **Right-click the role** → Copy ID → paste as `STAFF_ROLE` in `.env`
+9. **Start the bot**, then run `/panel` or `!panel` in the channel where you want the ticket panel
+
+#### How It Works (Full Flow)
+
+```
+Staff runs /panel in #support
+        ↓
+Bot sends a beautiful embed with "📩 Open Ticket" button
+        ↓
+User clicks the button
+        ↓
+Bot creates #ticket-username (private channel)
+  → Only the user + Staff role + Bot can see it
+  → Channel topic set to opener's user ID
+        ↓
+Bot sends welcome embed with "🔒 Close Ticket" button
+        ↓
+User describes their issue, staff responds
+        ↓
+Staff clicks "🔒 Close Ticket"
+        ↓
+Bot fetches ALL messages from the channel
+        ↓
+Bot generates a professional HTML transcript
+        ↓
+Bot sends transcript file to #transcripts with details embed
+        ↓
+Bot logs the closure to #ticket-log
+        ↓
+Bot deletes the ticket channel after 5 seconds
+```
+
+#### Panel Embed
+
+The panel sent by `/panel` includes:
+- Title: "📋 Support Tickets"
+- Description: "Need help? Click the button below to open a support ticket."
+- Color: Discord Blurple (#5865F2)
+- Server icon as thumbnail
+- Server name + bot tag in footer
+- A "📩 Open Ticket" button that **never expires** (works forever, even after restarts)
+
+#### Ticket Channel Permissions
+
+| Who | Permissions |
+|-----|------------|
+| @everyone | Cannot see the channel |
+| Ticket opener | View, Send Messages, Read History, Attach Files |
+| Staff role | View, Send Messages, Read History, Manage Messages, Attach Files |
+| Bot | View, Send Messages, Read History, Manage Messages |
+
+#### Ticket Numbering
+
+- Each ticket gets a sequential number (#1, #2, #3...)
+- Stored in `data/ticketCount.json` — persists across restarts
+- Never resets (unless you manually edit the file)
+- Shown in the welcome embed inside the ticket
+
+#### HTML Transcript
+
+When a ticket is closed, the bot generates a **self-contained HTML file** that looks like TicketTool.xyz transcripts:
+
+- Dark Discord-like theme (#36393f background)
+- Server icon and name in header
+- Ticket info: name, opened by, closed by, dates, message count
+- Each message shows: circular avatar, colored username (uses role color), timestamp
+- Bot messages have a subtle different background + blue "BOT" badge
+- Embeds shown as colored left-border blocks
+- Attachments shown with 📎 icon and clickable filename
+- URLs are auto-linked
+- Avatar fallback if Discord CDN fails
+- Footer with bot name and generation timestamp
+- **No external dependencies** — fully self-contained, works offline
+
+#### Persistence
+
+| What | How It Persists |
+|------|----------------|
+| Panel button | Uses static `customId` — works forever without re-sending |
+| Ticket counter | Saved to `data/ticketCount.json` on every ticket creation |
+| Opener info | Stored in channel topic as `Opened by: {userId}` |
+| `data/` folder | Auto-created on bot startup if it doesn't exist |
+
+#### Duplicate Ticket Prevention
+
+If a user tries to open a ticket while they already have one open, the bot replies with:
+> ❌ You already have an open ticket: #ticket-username
+
+#### Who Can Close Tickets
+
+- **Only members with the Staff role** can click the "Close Ticket" button
+- If a non-staff member clicks it, they get:
+  > ❌ Only staff members can close tickets.
+
+---
+
 ## Troubleshooting
 
 | Issue | Solution |
@@ -366,6 +571,10 @@ pm2 restart my-bot
 | Member join/leave not logging | Enable **Server Members Intent** in the Developer Portal |
 | `DiscordAPIError: Unknown Channel` | Double-check all channel/category IDs in `.env` |
 | Bot goes offline on VPS | Use PM2 with `pm2 startup` and `pm2 save` for auto-restart |
+| Temp VC not created when joining | Verify `CREATE_VC_CHANNEL` ID matches exactly; bot needs Manage Channels permission |
+| Ticket panel button stopped working | Old panels use `ticket_open` — run `/panel` again to send a new panel with the updated `open_ticket` ID |
+| Ticket counter reset to 0 | Check that `data/ticketCount.json` exists and isn't being deleted on deploy |
+| Transcript file is empty | Make sure the bot has Read Message History permission in the ticket channel |
 
 ---
 
