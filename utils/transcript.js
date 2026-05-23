@@ -5,6 +5,7 @@
  *   ticketName: string,
  *   openedBy: string,
  *   closedBy: string,
+ *   reason?: string,
  *   guildName: string,
  *   guildIconUrl?: string,
  *   botTag?: string,
@@ -299,6 +300,7 @@ function generateTranscript(messages, ticketInfo) {
       <div class="meta">
         <strong>Ticket:</strong> ${escapeHtml(ticketInfo.ticketName)}<br>
         <strong>Opened by:</strong> ${escapeHtml(ticketInfo.openedBy)}<br>
+        <strong>Reason:</strong> ${escapeHtml(ticketInfo.reason || 'Not provided')}<br>
         <strong>Closed by:</strong> ${escapeHtml(ticketInfo.closedBy)}<br>
         <strong>Date opened:</strong> ${messages.length > 0 ? formatTimestamp(messages[0].createdAt) : 'N/A'}<br>
         <strong>Date closed:</strong> ${formatTimestamp(Date.now())}<br>

@@ -6,19 +6,19 @@ const {
 const resolveUser = require('../../utils/resolveUser');
 
 const flagsMap = {
-  Staff: '\uD83D\uDC68\u200D\uD83D\uDCBC Discord Staff',
-  Partner: '\uD83E\uDD1D Partnered Server Owner',
-  Hypesquad: '\uD83C\uDFE0 HypeSquad Events',
-  BugHunterLevel1: '\uD83D\uDC1B Bug Hunter Level 1',
-  BugHunterLevel2: '\uD83D\uDC1B Bug Hunter Level 2',
-  HypeSquadOnlineHouse1: '\uD83C\uDFE0 HypeSquad Bravery',
-  HypeSquadOnlineHouse2: '\uD83C\uDFE0 HypeSquad Brilliance',
-  HypeSquadOnlineHouse3: '\uD83C\uDFE0 HypeSquad Balance',
-  PremiumEarlySupporter: '\u2B50 Early Supporter',
-  VerifiedBot: '\u2705 Verified Bot',
-  VerifiedDeveloper: '\uD83D\uDD28 Early Verified Bot Developer',
-  CertifiedModerator: '\uD83D\uDEE1\uFE0F Discord Certified Moderator',
-  ActiveDeveloper: '\uD83D\uDC68\u200D\uD83D\uDCBB Active Developer',
+  Staff: '👨‍💼 Discord Staff',
+  Partner: '🤝 Partnered Server Owner',
+  Hypesquad: '🏠 HypeSquad Events',
+  BugHunterLevel1: '🐛 Bug Hunter Level 1',
+  BugHunterLevel2: '🐛 Bug Hunter Level 2',
+  HypeSquadOnlineHouse1: '🏠 HypeSquad Bravery',
+  HypeSquadOnlineHouse2: '🏠 HypeSquad Brilliance',
+  HypeSquadOnlineHouse3: '🏠 HypeSquad Balance',
+  PremiumEarlySupporter: '⭐ Early Supporter',
+  VerifiedBot: '✅ Verified Bot',
+  VerifiedDeveloper: '🔨 Early Verified Bot Developer',
+  CertifiedModerator: '🛡️ Discord Certified Moderator',
+  ActiveDeveloper: '👨‍💻 Active Developer',
 };
 
 module.exports = {
@@ -59,7 +59,7 @@ module.exports = {
         }
 
         if (!member) {
-          return interaction.reply({ content: '\u274C Could not find that user. Try their @mention, username, or user ID.', ephemeral: true });
+          return interaction.reply({ content: '❌ Could not find that user. Try their @mention, username, or user ID.', ephemeral: true });
         }
       } else {
         const message = interactionOrMessage;
@@ -79,7 +79,7 @@ module.exports = {
         }
 
         if (!member) {
-          return message.reply('\u274C Could not find that user. Try their @mention, username, or user ID.');
+          return message.reply('❌ Could not find that user. Try their @mention, username, or user ID.');
         }
       }
 
@@ -94,49 +94,51 @@ module.exports = {
         .sort((a, b) => b.position - a.position)
         .map((r) => r.toString());
       const rolesDisplay = roles.length > 0
-        ? roles.slice(0, 20).join(' ') + (roles.length > 20 ? ` +${roles.length - 20} more` : '')
+        ? roles.slice(0, 15).join(' ') + (roles.length > 15 ? ` +${roles.length - 15} more` : '')
         : 'None';
 
       const badges = user.flags?.toArray()
         .map((f) => flagsMap[f])
-        .filter(Boolean)
-        .join('\n') || 'None';
+        .filter(Boolean) || [];
 
-      const boostingSince = member.premiumSince
-        ? `<t:${Math.floor(member.premiumSinceTimestamp / 1000)}:F>`
-        : 'None';
+      // Build compact description
+      const description = [
+        `🆔 **${user.id}**  •  🤖 Bot: ${user.bot ? 'Yes' : 'No'}`,
+        `📅 Created: <t:${createdTimestamp}:R> (<t:${createdTimestamp}:D>)`,
+        `📥 Joined: <t:${joinedTimestamp}:R> (<t:${joinedTimestamp}:D>)`,
+      ].join('\n');
 
-      const timeoutUntil = member.communicationDisabledUntil
-        ? `<t:${Math.floor(member.communicationDisabledUntilTimestamp / 1000)}:F>`
-        : 'None';
+      // Build fields array — only add fields that have real values
+      const fields = [
+        { name: '🎭 Display Name', value: member.displayName, inline: true },
+        { name: '🌈 Top Role', value: `${member.roles.highest}`, inline: true },
+        { name: '🎨 Color', value: member.displayHexColor, inline: true },
+        { name: `📋 Roles (${roles.length})`, value: rolesDisplay, inline: false },
+      ];
 
-      const serverAvatar = member.displayAvatarURL({ size: 4096, dynamic: true });
-      const globalAvatar = user.displayAvatarURL({ size: 4096, dynamic: true });
-      const avatarLinks = serverAvatar !== globalAvatar
-        ? `[Server](${serverAvatar}) | [Global](${globalAvatar})`
-        : `[Link](${globalAvatar})`;
+      // Boosting — only if actively boosting
+      if (member.premiumSince) {
+        const boostTimestamp = Math.floor(member.premiumSinceTimestamp / 1000);
+        fields.push({ name: '🚀 Boosting', value: `<t:${boostTimestamp}:R>`, inline: true });
+      }
+
+      // Timeout — only if currently timed out
+      if (member.communicationDisabledUntil) {
+        const timeoutTimestamp = Math.floor(member.communicationDisabledUntilTimestamp / 1000);
+        fields.push({ name: '⏰ Timeout', value: `<t:${timeoutTimestamp}:R>`, inline: true });
+      }
+
+      // Badges — only if user has any
+      if (badges.length > 0) {
+        fields.push({ name: '🏷️ Badges', value: badges.join('\n'), inline: false });
+      }
 
       const embed = new EmbedBuilder()
-        .setTitle(`${member.displayName} (${user.tag})`)
+        .setTitle(`${member.displayName} (${user.username})`)
         .setThumbnail(member.displayAvatarURL({ size: 256, dynamic: true }))
         .setColor(color)
-        .addFields(
-          { name: '\uD83C\uDD94 User ID', value: user.id, inline: true },
-          { name: '\uD83E\uDD16 Bot', value: user.bot ? 'Yes' : 'No', inline: true },
-          { name: '\uD83D\uDCC5 Account Created', value: `<t:${createdTimestamp}:F>`, inline: true },
-          { name: '\uD83D\uDCE5 Joined Server', value: `<t:${joinedTimestamp}:F>`, inline: true },
-          { name: '\u200B', value: '\u200B', inline: false },
-          { name: '\uD83C\uDFAD Display Name', value: member.displayName, inline: true },
-          { name: '\uD83C\uDF08 Top Role', value: `${member.roles.highest}`, inline: true },
-          { name: '\uD83C\uDFA8 Color', value: member.displayHexColor, inline: true },
-          { name: '\u200B', value: '\u200B', inline: false },
-          { name: `\uD83D\uDCCB Roles (${roles.length})`, value: rolesDisplay, inline: false },
-          { name: '\u200B', value: '\u200B', inline: false },
-          { name: '\uD83D\uDE80 Boosting Since', value: boostingSince, inline: true },
-          { name: '\u23F0 Timeout Until', value: timeoutUntil, inline: true },
-          { name: '\uD83D\uDDBC\uFE0F Avatar', value: avatarLinks, inline: true },
-          { name: '\uD83C\uDFF7\uFE0F Badges', value: badges, inline: true },
-        )
+        .setDescription(description)
+        .addFields(fields)
         .setFooter({ text: `Requested by ${requester.username}`, iconURL: requester.displayAvatarURL({ dynamic: true }) })
         .setTimestamp();
 

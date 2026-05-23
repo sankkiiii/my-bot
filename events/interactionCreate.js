@@ -49,6 +49,7 @@ const VC_BUTTON_IDS = [
 ];
 
 const VC_MODAL_IDS = ['vc_rename_modal', 'vc_limit_modal'];
+const TICKET_MODAL_ID = 'ticket_reason_modal';
 
 const VC_SELECT_IDS = ['vc_trust_select', 'vc_reject_select', 'vc_kick_select', 'vc_ban_select'];
 
@@ -69,7 +70,7 @@ module.exports = {
       if (interaction.isButton()) {
         try {
           if (interaction.customId === 'open_ticket') {
-            await handleTicketOpen(interaction, client);
+            await handleTicketOpenButton(interaction, client);
             return;
           }
           if (interaction.customId === 'close_ticket') {
@@ -98,6 +99,10 @@ module.exports = {
 
       // --- Modal handling ---
       if (interaction.isModalSubmit()) {
+        if (interaction.customId === TICKET_MODAL_ID) {
+          await handleTicketModalSubmit(interaction, client);
+          return;
+        }
         if (VC_MODAL_IDS.includes(interaction.customId)) {
           await handleVcModal(interaction);
           return;
@@ -113,12 +118,13 @@ module.exports = {
 // TICKET HANDLERS
 // ═══════════════════════════════════════
 
-async function handleTicketOpen(interaction, client) {
+async function handleTicketOpenButton(interaction, client) {
   const guild = interaction.guild;
   const user = interaction.user;
 
   const sanitizedName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '');
 
+  // Check for existing ticket BEFORE showing modal
   const existingChannel = guild.channels.cache.find(
     (ch) =>
       ch.name === `ticket-${sanitizedName}` &&
@@ -131,7 +137,44 @@ async function handleTicketOpen(interaction, client) {
     });
   }
 
+  // Show reason modal
+  const modal = new ModalBuilder()
+    .setCustomId('ticket_reason_modal')
+    .setTitle('Open a Support Ticket');
+
+  const reasonInput = new TextInputBuilder()
+    .setCustomId('ticket_reason_input')
+    .setLabel('Reason for opening this ticket')
+    .setStyle(TextInputStyle.Paragraph)
+    .setPlaceholder('Please describe your issue in detail...')
+    .setMinLength(10)
+    .setMaxLength(500)
+    .setRequired(true);
+
+  modal.addComponents(new ActionRowBuilder().addComponents(reasonInput));
+  return interaction.showModal(modal);
+}
+
+async function handleTicketModalSubmit(interaction, client) {
   await interaction.deferReply({ ephemeral: true });
+
+  const guild = interaction.guild;
+  const user = interaction.user;
+  const reason = interaction.fields.getTextInputValue('ticket_reason_input');
+
+  const sanitizedName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  // Double-check for existing ticket (race condition guard)
+  const existingChannel = guild.channels.cache.find(
+    (ch) =>
+      ch.name === `ticket-${sanitizedName}` &&
+      ch.parentId === config.ticketCategory,
+  );
+  if (existingChannel) {
+    return interaction.editReply({
+      content: `\u274C You already have an open ticket: ${existingChannel}`,
+    });
+  }
 
   const ticketNumber = getTicketCount() + 1;
   setTicketCount(ticketNumber);
@@ -139,7 +182,7 @@ async function handleTicketOpen(interaction, client) {
   const ticketChannel = await guild.channels.create({
     name: `ticket-${sanitizedName}`,
     type: ChannelType.GuildText,
-    topic: `Opened by: ${user.id}`,
+    topic: `Opened by: ${user.id} | Reason: ${reason}`,
     parent: config.ticketCategory || undefined,
     permissionOverwrites: [
       {
@@ -188,14 +231,12 @@ async function handleTicketOpen(interaction, client) {
 
   const welcomeEmbed = new EmbedBuilder()
     .setTitle('\uD83C\uDFAB Ticket Opened')
-    .setDescription(
-      `Hey ${user}, thanks for opening a ticket!\nPlease describe your issue in detail and a staff member will assist you shortly.`,
-    )
     .setColor(0x57f287)
     .addFields(
-      { name: 'Opened By', value: `${user.tag}`, inline: true },
-      { name: 'Ticket', value: `#${ticketNumber}`, inline: true },
-      { name: 'Status', value: '\uD83D\uDFE2 Open', inline: true },
+      { name: '\uD83D\uDC64 Opened by', value: `${user}`, inline: true },
+      { name: '\uD83C\uDFAB Ticket', value: `#${ticketNumber}`, inline: true },
+      { name: '\uD83D\uDCCB Reason', value: reason, inline: false },
+      { name: '\uD83D\uDFE2 Status', value: 'Open', inline: true },
     )
     .setFooter({ text: 'Only staff can close this ticket' })
     .setTimestamp();
@@ -216,6 +257,7 @@ async function handleTicketOpen(interaction, client) {
       { name: 'Opened By', value: `${user.tag} (${user.id})` },
       { name: 'Channel', value: `<#${ticketChannel.id}> (${ticketChannel.name})` },
       { name: 'Ticket #', value: `${ticketNumber}` },
+      { name: 'Reason', value: reason },
     )
     .setTimestamp();
   await sendLog(client, config.ticketLogChannel, logEmbed);
@@ -277,10 +319,20 @@ async function handleTicketClose(interaction, client) {
     }
   }
 
+  // Extract reason from topic: "Opened by: {id} | Reason: {text}"
+  let ticketReason = 'Not provided';
+  if (ticketChannel.topic) {
+    const reasonPart = ticketChannel.topic.split(' | ').find((p) => p.startsWith('Reason:'));
+    if (reasonPart) {
+      ticketReason = reasonPart.replace('Reason: ', '');
+    }
+  }
+
   const ticketInfo = {
     ticketName: ticketChannel.name,
     openedBy: openedByTag,
     closedBy: closer.user.tag,
+    reason: ticketReason,
     guildName: guild.name,
     guildIconUrl: guild.iconURL({ extension: 'png', size: 128 }) || '',
     botTag: client.user.tag,
