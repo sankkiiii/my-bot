@@ -20,6 +20,8 @@ A feature-rich Discord bot built with **Discord.js v14** and **Node.js**. Design
 - [Feature Guide — No-Prefix System](#feature-guide--no-prefix-system)
 - [Feature Guide — Ticket System](#feature-guide--ticket-system)
 - [Feature Guide — Temporary Voice Channels](#feature-guide--temporary-voice-channels)
+- [Feature Guide — Rich Presence](#feature-guide--rich-presence-rpc)
+- [Feature Guide — Bot Status](#feature-guide--bot-status-status)
 - [Feature Guide — Logging](#feature-guide--logging)
 - [Persistence & Restarts](#persistence--restarts)
 - [Troubleshooting](#troubleshooting)
@@ -35,6 +37,10 @@ A feature-rich Discord bot built with **Discord.js v14** and **Node.js**. Design
 | **No-Prefix** | Selected users (+ bot owner) can run commands without the `!` prefix |
 | **Ticket System** | TicketTool-style panels, private channels, staff auto-detection, HTML transcripts |
 | **Temp Voice Channels** | Voice Master-style hub VCs (unlimited) + duo VCs (max 2) with auto-cleanup |
+| **VC Control Panel** | TempVoice-style control panel with 10 buttons (rename, limit, lock, hide, etc.) inside every temp VC |
+| **Rich Presence** | Change bot activity/status via `/rpc`, persists across restarts |
+| **Bot Status** | Live stats dashboard via `/status` — ping, uptime, memory, server count, and more |
+| **Bot Owner Bypass** | Owner ID bypasses all permission checks on every command |
 | **Logging** | Rich embed logs for moderation, joins/leaves, message edits/deletes, and tickets |
 
 ---
@@ -65,6 +71,10 @@ A feature-rich Discord bot built with **Discord.js v14** and **Node.js**. Design
 | `/noprefix add @user` or `!noprefix add @user` | Administrator | Give a user no-prefix access. |
 | `/noprefix remove @user` or `!noprefix remove @user` | Administrator | Remove no-prefix access from a user. |
 | `/noprefix list` or `!noprefix list` | Administrator | List all no-prefix users. |
+| `/rpc <type> [text] [status]` or `!rpc <type> [text]` | Administrator | Change the bot's rich presence (activity/status). |
+| `/status` or `!status` | Administrator | Show the bot's live stats (ping, uptime, memory, etc.). |
+
+> **Bot Owner Bypass:** The bot owner (`OWNER_ID` in `.env`) can use ALL commands regardless of their Discord permissions.
 
 > **All commands work as both slash commands (`/command`) and prefix commands (`!command`).**
 
@@ -91,21 +101,24 @@ my-bot/
 │   │   ├── unmute.js
 │   │   ├── warn.js
 │   │   ├── purge.js
-│   │   └── noprefix.js       # No-prefix management command
+│   │   ├── noprefix.js       # No-prefix management command
+│   │   ├── rpc.js            # Rich presence control
+│   │   └── status.js         # Bot stats dashboard
 │   └── tickets/
 │       └── panel.js
 ├── events/
-│   ├── ready.js              # Bot status + startup cleanup
+│   ├── ready.js              # Bot status + startup cleanup + presence restore
 │   ├── messageCreate.js      # Prefix/no-prefix commands + message logging
-│   ├── interactionCreate.js  # Slash commands + ticket button interactions
-│   ├── voiceStateUpdate.js   # Hub VC + Duo VC create/delete
+│   ├── interactionCreate.js  # Slash commands + ticket/VC button interactions + VC modals
+│   ├── voiceStateUpdate.js   # Hub VC + Duo VC create/delete + control panel send
 │   └── guildMemberAdd.js     # Join/leave logging
 ├── utils/
 │   ├── logger.js             # sendLog() helper
 │   └── transcript.js         # HTML transcript generator
 └── data/
     ├── ticketCount.json      # Persistent ticket counter (auto-created)
-    └── noprefix.json         # No-prefix user list (auto-created)
+    ├── noprefix.json         # No-prefix user list (auto-created)
+    └── presence.json         # Saved bot presence/activity (auto-created)
 ```
 
 ---
@@ -257,9 +270,11 @@ You should see:
 [Deploy] Queued: unmute
 [Deploy] Queued: warn
 [Deploy] Queued: purge
-[Deploy] Queued: panel
 [Deploy] Queued: noprefix
-[Deploy] Registering 8 slash command(s) to guild ...
+[Deploy] Queued: rpc
+[Deploy] Queued: status
+[Deploy] Queued: panel
+[Deploy] Registering 10 slash command(s) to guild ...
 [Deploy] Successfully registered all slash commands.
 ```
 
@@ -279,6 +294,8 @@ You should see:
 [Commands] Loaded: warn
 [Commands] Loaded: purge
 [Commands] Loaded: noprefix
+[Commands] Loaded: rpc
+[Commands] Loaded: status
 [Commands] Loaded: panel
 [Events] Loaded: ready
 [Events] Loaded: messageCreate
@@ -743,7 +760,30 @@ Duo VCs use sequential superscript numbers with gap filling:
 
 **Gap filling**: If `𝄢・duo ¹` and `𝄢・duo ³` exist but `𝄢・duo ²` was deleted, the next duo VC will be `𝄢・duo ²` (fills the gap instead of going to `𝄢・duo ⁴`).
 
-### What the VC Creator Can Do
+### VC Control Panel
+
+When a temp VC is created (both hub and duo), the bot sends a **control panel embed** with **10 buttons** into the VC's built-in text chat. Only the channel creator can use the buttons.
+
+| Button | What It Does |
+|--------|--------------|
+| 🏷️ Rename | Opens a modal to rename the voice channel |
+| 👥 Set Limit | Opens a modal to set user limit 0–99 (blocked on duo VCs) |
+| 🔒 Lock | Denies @everyone Connect — no new users can join |
+| 🔓 Unlock | Removes the Connect deny — allows joins again |
+| 👁️ Hide | Denies @everyone ViewChannel — hides from channel list |
+| 👁️ Unhide | Removes ViewChannel deny — makes visible again |
+| ⌛ Waiting | Enables waiting room — users can see but not join |
+| ➕ Trust | Opens a modal to allow a specific user by ID (overrides lock/hide) |
+| 🚫 Reject | Opens a modal to block + disconnect a user by ID |
+| 🗑️ Delete | Deletes the voice channel immediately (red button) |
+
+**Security:**
+- Only the VC creator can use buttons (checked on every click)
+- Creator must be connected to the VC to use controls (except Delete)
+- If bot restarts and loses tracking, buttons show a clear "session expired" message
+- All replies are ephemeral (only visible to the person who clicked)
+
+### What the VC Creator Can Also Do
 
 The bot grants `ManageChannels` and `MoveMembers` permissions on both hub and duo VCs:
 
@@ -841,6 +881,74 @@ Triggered by all moderation commands. Each log includes:
 
 ---
 
+## Feature Guide — Rich Presence (`/rpc`)
+
+Change the bot's activity and online status at any time.
+
+### Slash Command
+
+```
+/rpc type:Playing text:with your commands status:Online
+/rpc type:Watching text:over the server
+/rpc type:Clear
+```
+
+### Prefix Command
+
+```
+!rpc playing with your commands
+!rpc watching over the server
+!rpc listening to music
+!rpc competing in tournaments
+!rpc clear
+```
+
+### Activity Types
+
+| Type | Display |
+|------|---------|
+| Playing | Playing **your text** |
+| Watching | Watching **your text** |
+| Listening | Listening to **your text** |
+| Competing | Competing in **your text** |
+| Clear | Removes all activity |
+
+### Online Status Options (slash only)
+
+| Status | Display |
+|--------|---------|
+| Online | Green dot |
+| Idle | Yellow moon |
+| DND | Red circle |
+| Invisible | Appears offline |
+
+### Persistence
+
+The current presence is saved to `data/presence.json` and automatically restored when the bot restarts. If no saved presence exists, the bot defaults to **Watching your server**.
+
+---
+
+## Feature Guide — Bot Status (`/status`)
+
+Shows a live stats embed with:
+
+| Field | Description |
+|-------|-------------|
+| API Ping | Discord WebSocket latency |
+| Latency | Message round-trip time |
+| Uptime | Time since bot started (Xd Xh Xm Xs) |
+| Memory | Heap usage (used/total MB) |
+| Servers | Number of guilds the bot is in |
+| Users | Total member count across all guilds |
+| Channels | Total cached channels |
+| Commands | Number of registered commands |
+| Status | Current online status |
+| Activity | Current presence activity |
+| Node.js | Runtime version |
+| discord.js | Library version |
+
+---
+
 ## Persistence & Restarts
 
 The bot is designed to survive restarts cleanly:
@@ -852,8 +960,10 @@ The bot is designed to survive restarts cleanly:
 | Ticket opener info | Stored in channel topic as `Opened by: {userId}` |
 | No-prefix user list | Saved to `data/noprefix.json` on every add/remove |
 | Owner no-prefix | Hardcoded via `OWNER_ID` in `.env` |
+| Bot presence/activity | Saved to `data/presence.json`, restored on startup |
 | `data/` folder | Auto-created on bot startup if it doesn't exist |
 | Temp VC cleanup | On startup, bot deletes empty leftover VCs in the category |
+| VC control panel | Buttons work forever while the VC exists; session expires on bot restart |
 
 ### Console Output on Startup
 
@@ -865,6 +975,8 @@ The bot is designed to survive restarts cleanly:
 [Commands] Loaded: warn
 [Commands] Loaded: purge
 [Commands] Loaded: noprefix
+[Commands] Loaded: rpc
+[Commands] Loaded: status
 [Commands] Loaded: panel
 [Events] Loaded: ready
 [Events] Loaded: messageCreate
@@ -872,6 +984,7 @@ The bot is designed to survive restarts cleanly:
 [Events] Loaded: voiceStateUpdate
 [Events] Loaded: guildMemberAdd
 [Ready] Logged in as YourBot#1234
+[Ready] Restored presence: WATCHING your server 👀
 [Ready] Ticket counter loaded: 15
 [Ready] No-prefix users loaded: 3
 [Ready] No leftover temp VCs to clean up
@@ -892,6 +1005,9 @@ The bot is designed to survive restarts cleanly:
 | `DiscordAPIError: Unknown Channel` | Double-check all channel/category IDs in `.env` |
 | Bot goes offline on VPS | Use PM2 with `pm2 startup` and `pm2 save` for auto-restart |
 | Temp VC not created when joining | Verify `CREATE_VC_CHANNEL` ID matches exactly; bot needs Manage Channels permission |
+| VC control buttons say "session expired" | This happens after a bot restart — create a new VC |
+| VC buttons say "not connected" | Make sure you're connected to the voice channel (not just viewing the text chat) |
+| `/rpc` not changing presence | Verify bot has the correct intents; check console for errors |
 | Ticket panel button stopped working | Run `/panel` again to send a new panel |
 | Ticket counter reset to 0 | Check that `data/ticketCount.json` exists and isn't deleted on deploy |
 | Transcript file is empty | Make sure the bot has Read Message History permission in ticket channels |
