@@ -12,7 +12,7 @@ module.exports = {
   once: true,
   async execute(client) {
     try {
-      console.log(`[Ready] Logged in as ${client.user.tag}`);
+      console.log(`[Ready] Logged in as ${client.user.username}`);
 
       // --- Load saved presence or set default ---
       let presenceRestored = false;

@@ -84,7 +84,7 @@ module.exports = {
 
       await member.timeout(null, reason);
 
-      await replyFn(`**${targetUser.tag}** has been unmuted. Reason: ${reason}`);
+      await replyFn(`**${targetUser.username}** has been unmuted. Reason: ${reason}`);
     } catch (err) {
       console.error('[Unmute]', err);
     }

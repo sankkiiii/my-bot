@@ -254,7 +254,7 @@ async function handleTicketModalSubmit(interaction, client) {
     .setTitle('Ticket Opened')
     .setColor(0x57f287)
     .addFields(
-      { name: 'Opened By', value: `${user.tag} (${user.id})` },
+      { name: 'Opened By', value: `${user.username} (${user.id})` },
       { name: 'Channel', value: `<#${ticketChannel.id}> (${ticketChannel.name})` },
       { name: 'Ticket #', value: `${ticketNumber}` },
       { name: 'Reason', value: reason },
@@ -312,7 +312,7 @@ async function handleTicketClose(interaction, client) {
       openedById = match[1];
       try {
         const opener = await client.users.fetch(openedById);
-        openedByTag = opener.tag;
+        openedByTag = opener.username;
       } catch {
         openedByTag = `User ${openedById}`;
       }
@@ -331,11 +331,11 @@ async function handleTicketClose(interaction, client) {
   const ticketInfo = {
     ticketName: ticketChannel.name,
     openedBy: openedByTag,
-    closedBy: closer.user.tag,
+    closedBy: closer.user.username,
     reason: ticketReason,
     guildName: guild.name,
     guildIconUrl: guild.iconURL({ extension: 'png', size: 128 }) || '',
-    botTag: client.user.tag,
+    botTag: client.user.username,
   };
 
   const transcriptBuffer = generateTranscript(allMessages, ticketInfo);
@@ -347,7 +347,7 @@ async function handleTicketClose(interaction, client) {
       .addFields(
         { name: 'Ticket', value: ticketChannel.name, inline: true },
         { name: 'Opened By', value: openedByTag, inline: true },
-        { name: 'Closed By', value: closer.user.tag, inline: true },
+        { name: 'Closed By', value: closer.user.username, inline: true },
         { name: 'Total Messages', value: `${allMessages.length}`, inline: true },
         { name: 'Date', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
       )
@@ -366,7 +366,7 @@ async function handleTicketClose(interaction, client) {
     .setTitle('Ticket Closed')
     .setColor(0xed4245)
     .addFields(
-      { name: 'Closed By', value: `${closer.user.tag} (${closer.user.id})` },
+      { name: 'Closed By', value: `${closer.user.username} (${closer.user.id})` },
       { name: 'Channel', value: ticketChannel.name },
       { name: 'Opened By', value: openedByTag },
       { name: 'Total Messages', value: `${allMessages.length}` },
@@ -421,14 +421,6 @@ async function handleVcButton(interaction) {
   const tempVCs = interaction.client.tempVCs;
   const modalButtons = ['vc_rename', 'vc_limit'];
   const selectButtons = ['vc_trust', 'vc_reject', 'vc_kick', 'vc_ban'];
-
-  console.log('=== VC BUTTON CLICKED ===');
-  console.log('customId:', id);
-  console.log('channelId:', interaction.channelId);
-  console.log('userId:', interaction.user.id);
-  console.log('voiceState channelId:', interaction.member.voice?.channelId);
-  console.log('tempVCs Map size:', tempVCs?.size);
-  console.log('========================');
 
   // Defer immediately for non-modal/non-select buttons (must respond within 3s)
   // Modal buttons use showModal(), select buttons use reply() with select menu
@@ -794,7 +786,7 @@ async function handleVcSelectMenu(interaction) {
               .setDescription(`You have been banned from **${vc.name}** in **${interaction.guild.name}**`)
               .setColor(0xED4245)
               .addFields(
-                { name: 'Banned By', value: interaction.user.tag },
+                { name: 'Banned By', value: interaction.user.username },
               ),
           ],
         });

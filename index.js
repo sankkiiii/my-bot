@@ -28,4 +28,12 @@ console.log('[Index] tempVCs Map initialized');
 loadCommands(client);
 loadEvents(client);
 
+// Global crash handlers — prevent silent process exits in production
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught Exception:', err);
+});
+
 client.login(config.token);
