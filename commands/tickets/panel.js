@@ -44,6 +44,21 @@ module.exports = {
 
       const client = isSlash ? argsOrClient : clientOrUndefined;
 
+      // Check for existing panel in this channel
+      try {
+        const messages = await channel.messages.fetch({ limit: 20 });
+        const existingPanel = messages.find(
+          (m) =>
+            m.author.id === client.user.id &&
+            m.components?.[0]?.components?.some((c) => c.customId === 'open_ticket'),
+        );
+        if (existingPanel) {
+          return replyFn('\u26A0\uFE0F A ticket panel already exists in this channel.');
+        }
+      } catch (err) {
+        console.error('[Panel] Failed to check for existing panel:', err.message);
+      }
+
       const embed = new EmbedBuilder()
         .setTitle('\uD83D\uDCCB Support Tickets')
         .setDescription('Need help? Click the button below to open a support ticket.\nOur staff team will assist you as soon as possible.')
