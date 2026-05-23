@@ -3,7 +3,7 @@ const {
   EmbedBuilder,
   CommandInteraction,
 } = require('discord.js');
-const resolveUser = require('../../utils/resolveUser');
+const resolveUserGlobal = require('../../utils/resolveUserGlobal');
 
 const flagsMap = {
   Staff: '👨‍💼 Discord Staff',
@@ -40,7 +40,7 @@ module.exports = {
     const client = isSlash ? argsOrClient : clientOrUndefined;
 
     try {
-      let member, guild, replyFn, requester;
+      let resolved, guild, replyFn, requester;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
@@ -52,15 +52,19 @@ module.exports = {
         const queryOption = interaction.options.getString('query');
 
         if (userOption) {
-          member = await guild.members.fetch(userOption.id).catch(() => null);
+          const member = await guild.members.fetch(userOption.id).catch(() => null);
+          const user = await client.users.fetch(userOption.id, { force: true }).catch(() => null);
+          resolved = { member, user: user || userOption, inGuild: !!member };
         } else if (queryOption) {
-          member = await resolveUser(queryOption, guild);
+          resolved = await resolveUserGlobal(queryOption, guild, client);
         } else {
-          member = await guild.members.fetch(interaction.user.id);
+          const member = interaction.member;
+          const user = await client.users.fetch(interaction.user.id, { force: true });
+          resolved = { member, user, inGuild: true };
         }
 
-        if (!member) {
-          return interaction.reply({ content: '❌ Could not find that user. Try their @mention, username, or user ID.', ephemeral: true });
+        if (!resolved.user) {
+          return interaction.reply({ content: '\u274C Could not find that user. Try their @mention, username, or user ID.', ephemeral: true });
         }
       } else {
         const message = interactionOrMessage;
@@ -69,25 +73,72 @@ module.exports = {
         requester = message.author;
         replyFn = (opts) => message.reply(opts);
 
-        const input = message.mentions.members.first()
-          ? message.mentions.members.first().id
-          : args.join(' ');
+        const input = message.mentions.users.first()?.id || args.join(' ');
 
-        if (input) {
-          member = await resolveUser(input, guild);
+        if (!input || input === '') {
+          const member = message.member;
+          const user = await client.users.fetch(message.author.id, { force: true });
+          resolved = { member, user, inGuild: true };
         } else {
-          member = await guild.members.fetch(message.author.id);
+          resolved = await resolveUserGlobal(input, message.guild, client);
         }
 
-        if (!member) {
-          return message.reply('❌ Could not find that user. Try their @mention, username, or user ID.');
+        if (!resolved.user) {
+          return message.reply('\u274C Could not find that user. Try their @mention, username, or user ID.');
         }
       }
 
-      const user = await client.users.fetch(member.id, { force: true });
+      const { member, user, inGuild } = resolved;
+
+      // Fetch user with force to get full profile data (banner, badges, etc.)
+      const fetchedUser = await client.users.fetch(user.id, { force: true });
+
+      // Get badges
+      const badges = fetchedUser.flags?.toArray()
+        .map((f) => flagsMap[f])
+        .filter(Boolean) || [];
+
+      // ═══════════════════════════════════════
+      // NON-MEMBER EMBED (user not in server)
+      // ═══════════════════════════════════════
+      if (!inGuild) {
+        const createdTimestamp = Math.floor(fetchedUser.createdTimestamp / 1000);
+
+        const description = [
+          '\u26A0\uFE0F This user is not in this server.',
+          'Showing global Discord profile only.',
+          '',
+          `🆔 **${fetchedUser.id}**  •  🤖 Bot: ${fetchedUser.bot ? 'Yes' : 'No'}`,
+          `📅 Created: <t:${createdTimestamp}:R> (<t:${createdTimestamp}:D>)`,
+        ].join('\n');
+
+        const fields = [];
+
+        if (badges.length > 0) {
+          fields.push({ name: '🏷️ Badges', value: badges.join('\n'), inline: false });
+        }
+
+        const embed = new EmbedBuilder()
+          .setTitle(`${fetchedUser.username} (Not in server)`)
+          .setThumbnail(fetchedUser.displayAvatarURL({ size: 256, dynamic: true }))
+          .setColor(0x5865F2)
+          .setDescription(description)
+          .setFooter({ text: `Requested by ${requester.username} • Not a server member`, iconURL: requester.displayAvatarURL({ dynamic: true }) })
+          .setTimestamp();
+
+        if (fields.length > 0) {
+          embed.addFields(fields);
+        }
+
+        return replyFn({ embeds: [embed] });
+      }
+
+      // ═══════════════════════════════════════
+      // MEMBER EMBED (user is in server)
+      // ═══════════════════════════════════════
       const color = member.displayColor || 0x5865F2;
 
-      const createdTimestamp = Math.floor(user.createdTimestamp / 1000);
+      const createdTimestamp = Math.floor(fetchedUser.createdTimestamp / 1000);
       const joinedTimestamp = Math.floor(member.joinedTimestamp / 1000);
 
       const roles = member.roles.cache
@@ -98,13 +149,9 @@ module.exports = {
         ? roles.slice(0, 15).join(' ') + (roles.length > 15 ? ` +${roles.length - 15} more` : '')
         : 'None';
 
-      const badges = user.flags?.toArray()
-        .map((f) => flagsMap[f])
-        .filter(Boolean) || [];
-
       // Build compact description
       const description = [
-        `🆔 **${user.id}**  •  🤖 Bot: ${user.bot ? 'Yes' : 'No'}`,
+        `🆔 **${fetchedUser.id}**  •  🤖 Bot: ${fetchedUser.bot ? 'Yes' : 'No'}`,
         `📅 Created: <t:${createdTimestamp}:R> (<t:${createdTimestamp}:D>)`,
         `📥 Joined: <t:${joinedTimestamp}:R> (<t:${joinedTimestamp}:D>)`,
       ].join('\n');
@@ -135,7 +182,7 @@ module.exports = {
       }
 
       const embed = new EmbedBuilder()
-        .setTitle(`${member.displayName} (${user.username})`)
+        .setTitle(`${member.displayName} (${fetchedUser.username})`)
         .setThumbnail(member.displayAvatarURL({ size: 256, dynamic: true }))
         .setColor(color)
         .setDescription(description)
