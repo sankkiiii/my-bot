@@ -18,22 +18,28 @@ module.exports = {
     const client = isSlash ? argsOrClient : clientOrUndefined;
 
     try {
-      let amount, channel, executor, replyFn;
+      let amount, channel, executor, guild, replyFn;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
         channel = interaction.channel;
+        guild = interaction.guild;
         executor = interaction.user;
         amount = interaction.options.getInteger('amount');
         replyFn = (content) => interaction.reply({ content, ephemeral: true });
+
+        if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+          return interaction.reply({ content: '\u274C You need the **Manage Messages** permission to use this command.', ephemeral: true });
+        }
       } else {
         const message = interactionOrMessage;
         const args = argsOrClient;
         channel = message.channel;
+        guild = message.guild;
         executor = message.author;
 
         if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-          return message.reply('You do not have permission to manage messages.');
+          return message.reply('\u274C You need the **Manage Messages** permission to use this command.');
         }
 
         amount = parseInt(args[0], 10);
@@ -41,6 +47,10 @@ module.exports = {
           return message.reply('Please provide a number between 1 and 100.');
         }
         replyFn = (content) => message.reply(content);
+      }
+
+      if (!guild.members.me.permissions.has(PermissionFlagsBits.ManageMessages)) {
+        return replyFn('\u274C I don\'t have the **Manage Messages** permission to do this.');
       }
 
       const deleted = await channel.bulkDelete(amount, true);

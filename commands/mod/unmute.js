@@ -26,6 +26,10 @@ module.exports = {
         targetUser = interaction.options.getUser('user');
         reason = interaction.options.getString('reason') || 'No reason provided';
         replyFn = (content) => interaction.reply({ content, ephemeral: true });
+
+        if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+          return interaction.reply({ content: '\u274C You need the **Timeout Members** permission to use this command.', ephemeral: true });
+        }
       } else {
         const message = interactionOrMessage;
         const args = argsOrClient;
@@ -33,13 +37,17 @@ module.exports = {
         executor = message.author;
 
         if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-          return message.reply('You do not have permission to unmute members.');
+          return message.reply('\u274C You need the **Timeout Members** permission to use this command.');
         }
 
         targetUser = message.mentions.users.first();
         if (!targetUser) return message.reply('Please mention a user to unmute.');
         reason = args.slice(1).join(' ') || 'No reason provided';
         replyFn = (content) => message.reply(content);
+      }
+
+      if (!guild.members.me.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        return replyFn('\u274C I don\'t have the **Timeout Members** permission to do this.');
       }
 
       const member = await guild.members.fetch(targetUser.id).catch(() => null);

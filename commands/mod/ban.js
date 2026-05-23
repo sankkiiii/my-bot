@@ -17,23 +17,29 @@ module.exports = {
     const client = isSlash ? argsOrClient : clientOrUndefined;
 
     try {
-      let targetUser, reason, guild, executor, replyFn;
+      let targetUser, reason, guild, executor, executorMember, replyFn;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
         guild = interaction.guild;
         executor = interaction.user;
+        executorMember = interaction.member;
         targetUser = interaction.options.getUser('user');
         reason = interaction.options.getString('reason') || 'No reason provided';
         replyFn = (content) => interaction.reply({ content, ephemeral: true });
+
+        if (!interaction.member.permissions.has(PermissionFlagsBits.BanMembers)) {
+          return interaction.reply({ content: '\u274C You need the **Ban Members** permission to use this command.', ephemeral: true });
+        }
       } else {
         const message = interactionOrMessage;
         const args = argsOrClient;
         guild = message.guild;
         executor = message.author;
+        executorMember = message.member;
 
         if (!message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
-          return message.reply('You do not have permission to ban members.');
+          return message.reply('\u274C You need the **Ban Members** permission to use this command.');
         }
 
         targetUser = message.mentions.users.first();
@@ -42,9 +48,20 @@ module.exports = {
         replyFn = (content) => message.reply(content);
       }
 
+      if (!guild.members.me.permissions.has(PermissionFlagsBits.BanMembers)) {
+        return replyFn('\u274C I don\'t have the **Ban Members** permission to do this.');
+      }
+
       const member = await guild.members.fetch(targetUser.id).catch(() => null);
       if (!member) return replyFn('Could not find that member in this server.');
-      if (!member.bannable) return replyFn('I cannot ban this user. They may have a higher role than me.');
+
+      if (member.roles.highest.position >= executorMember.roles.highest.position) {
+        return replyFn('\u274C You cannot moderate someone with an equal or higher role than you.');
+      }
+
+      if (member.roles.highest.position >= guild.members.me.roles.highest.position) {
+        return replyFn('\u274C I cannot moderate this user as their role is higher than or equal to mine.');
+      }
 
       try {
         await targetUser.send(`You have been **banned** from **${guild.name}**.\n**Reason:** ${reason}`);

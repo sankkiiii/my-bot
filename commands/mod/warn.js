@@ -26,6 +26,10 @@ module.exports = {
         targetUser = interaction.options.getUser('user');
         reason = interaction.options.getString('reason') || 'No reason provided';
         replyFn = (content) => interaction.reply({ content, ephemeral: true });
+
+        if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+          return interaction.reply({ content: '\u274C You need the **Timeout Members** permission to use this command.', ephemeral: true });
+        }
       } else {
         const message = interactionOrMessage;
         const args = argsOrClient;
@@ -33,7 +37,7 @@ module.exports = {
         executor = message.author;
 
         if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-          return message.reply('You do not have permission to warn members.');
+          return message.reply('\u274C You need the **Timeout Members** permission to use this command.');
         }
 
         targetUser = message.mentions.users.first();
