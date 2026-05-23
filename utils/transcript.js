@@ -40,7 +40,7 @@ function generateTranscript(messages, ticketInfo) {
 
   for (const msg of messages) {
     const avatarUrl = msg.author.displayAvatarURL({ extension: 'png', size: 64 });
-    const username = escapeHtml(msg.author.tag || `${msg.author.username}#${msg.author.discriminator}`);
+    const username = escapeHtml(msg.author.username);
     const isBot = msg.author.bot;
     const timestamp = formatTimestamp(msg.createdAt);
 

@@ -67,7 +67,7 @@ module.exports = {
         .setDescription('Need help? Click the button below to open a support ticket.\nOur staff team will assist you as soon as possible.')
         .setColor(0x5865f2)
         .setThumbnail(guild.iconURL({ dynamic: true }))
-        .setFooter({ text: `${guild.name} \u2022 ${client ? client.user.tag : 'Bot'}` });
+        .setFooter({ text: `${guild.name} \u2022 ${client ? client.user.username : 'Bot'}` });
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()

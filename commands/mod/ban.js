@@ -55,7 +55,7 @@ module.exports = {
               try {
                 const user = await client.users.fetch(cleaned);
                 await guild.members.ban(user, { reason });
-                return replyFn(`**${user.tag}** has been banned (not in server). Reason: ${reason}`);
+                return replyFn(`**${user.username}** has been banned (not in server). Reason: ${reason}`);
               } catch {
                 return replyFn('\u274C Could not find or ban that user.');
               }
@@ -88,7 +88,7 @@ module.exports = {
             try {
               const user = await client.users.fetch(cleaned);
               await guild.members.ban(user, { reason });
-              return replyFn(`**${user.tag}** has been banned (not in server). Reason: ${reason}`);
+              return replyFn(`**${user.username}** has been banned (not in server). Reason: ${reason}`);
             } catch {
               return replyFn('\u274C Could not find or ban that user.');
             }
@@ -116,7 +116,7 @@ module.exports = {
 
       await member.ban({ reason });
 
-      await replyFn(`**${targetUser.tag}** has been banned. Reason: ${reason}`);
+      await replyFn(`**${targetUser.username}** has been banned. Reason: ${reason}`);
     } catch (err) {
       console.error('[Ban]', err);
     }

@@ -96,7 +96,7 @@ module.exports = {
 
       await member.kick(reason);
 
-      await replyFn(`**${targetUser.tag}** has been kicked. Reason: ${reason}`);
+      await replyFn(`**${targetUser.username}** has been kicked. Reason: ${reason}`);
     } catch (err) {
       console.error('[Kick]', err);
     }

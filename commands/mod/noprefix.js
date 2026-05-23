@@ -7,6 +7,7 @@ const {
   CommandInteraction,
 } = require('discord.js');
 const config = require('../../config');
+const resolveUser = require('../../utils/resolveUser');
 
 const NOPREFIX_PATH = path.join(__dirname, '..', '..', 'data', 'noprefix.json');
 
@@ -88,14 +89,19 @@ module.exports = {
         subcommand = (args[0] || '').toLowerCase();
 
         if (!['add', 'remove', 'list'].includes(subcommand)) {
-          return replyFn('\u274C Usage: `!noprefix add @user` / `!noprefix remove @user` / `!noprefix list`');
+          return replyFn('\u274C Usage: `!noprefix add <user>` / `!noprefix remove <user>` / `!noprefix list`');
         }
 
         if (subcommand === 'add' || subcommand === 'remove') {
-          targetUser = message.mentions.users.first();
-          if (!targetUser) {
-            return replyFn('\u274C Please mention a user.');
+          const userInput = args.slice(1).join(' ');
+          if (!userInput) {
+            return replyFn('\u274C Please provide a user (@mention, username, or ID).');
           }
+          const member = await resolveUser(userInput, guild);
+          if (!member) {
+            return replyFn('\u274C Could not find that user. Try @mention, username, or user ID.');
+          }
+          targetUser = member.user;
         }
       }
 
@@ -140,7 +146,7 @@ module.exports = {
         if (config.ownerId) {
           try {
             const owner = await client.users.fetch(config.ownerId);
-            ownerLine = `${owner.tag} (${config.ownerId})`;
+            ownerLine = `${owner.username} (${config.ownerId})`;
           } catch {
             ownerLine = `User ${config.ownerId}`;
           }
@@ -154,7 +160,7 @@ module.exports = {
           for (const userId of data.users) {
             try {
               const u = await client.users.fetch(userId);
-              lines.push(`${u.tag} (${userId})`);
+              lines.push(`${u.username} (${userId})`);
             } catch {
               lines.push(`User ${userId}`);
             }

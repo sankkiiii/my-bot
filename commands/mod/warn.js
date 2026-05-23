@@ -79,7 +79,7 @@ module.exports = {
         await targetUser.send(`You have been **warned** in **${guild.name}**.\n**Reason:** ${reason}`);
       } catch (_) { /* DMs may be disabled */ }
 
-      await replyFn(`**${targetUser.tag}** has been warned. Reason: ${reason}`);
+      await replyFn(`**${targetUser.username}** has been warned. Reason: ${reason}`);
     } catch (err) {
       console.error('[Warn]', err);
     }

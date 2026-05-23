@@ -64,7 +64,7 @@ function buildStatusEmbed(client, ping, latency, user) {
       { name: '\uD83D\uDD27 Node.js', value: process.version, inline: true },
       { name: '\uD83D\uDCE6 discord.js', value: `v${djsVersion}`, inline: true },
     )
-    .setFooter({ text: `Requested by ${user.tag}` })
+    .setFooter({ text: `Requested by ${user.username}` })
     .setTimestamp();
 }
 

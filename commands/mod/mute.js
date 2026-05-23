@@ -8,11 +8,12 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('mute')
     .setDescription('Timeout (mute) a member')
-    .addUserOption((opt) => opt.setName('user').setDescription('Select user from list').setRequired(false))
-    .addStringOption((opt) => opt.setName('query').setDescription('Or type username / user ID').setRequired(false))
+    // Required options MUST come before optional ones (Discord API requirement)
     .addIntegerOption((opt) =>
       opt.setName('duration').setDescription('Duration in minutes').setRequired(true).setMinValue(1).setMaxValue(40320),
     )
+    .addUserOption((opt) => opt.setName('user').setDescription('Select user from list').setRequired(false))
+    .addStringOption((opt) => opt.setName('query').setDescription('Or type username / user ID').setRequired(false))
     .addStringOption((opt) => opt.setName('reason').setDescription('Reason for the mute').setRequired(false))
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
 
@@ -105,7 +106,7 @@ module.exports = {
 
       await member.timeout(durationMs, reason);
 
-      await replyFn(`**${targetUser.tag}** has been muted for ${durationMinutes} minute(s). Reason: ${reason}`);
+      await replyFn(`**${targetUser.username}** has been muted for ${durationMinutes} minute(s). Reason: ${reason}`);
     } catch (err) {
       console.error('[Mute]', err);
     }
