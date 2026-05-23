@@ -6,7 +6,7 @@ const {
   ActionRowBuilder,
   CommandInteraction,
 } = require('discord.js');
-const resolveUser = require('../../utils/resolveUser');
+const resolveUserGlobal = require('../../utils/resolveUserGlobal');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -27,11 +27,11 @@ module.exports = {
     const client = isSlash ? argsOrClient : clientOrUndefined;
 
     try {
-      let member, guild, replyFn, requester;
+      let resolved, replyFn, requester;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
-        guild = interaction.guild;
+        const guild = interaction.guild;
         requester = interaction.user.username;
         replyFn = (opts) => interaction.reply(opts);
 
@@ -39,40 +39,46 @@ module.exports = {
         const queryOption = interaction.options.getString('query');
 
         if (userOption) {
-          member = await guild.members.fetch(userOption.id).catch(() => null);
+          const member = await guild.members.fetch(userOption.id).catch(() => null);
+          const user = await client.users.fetch(userOption.id, { force: true }).catch(() => null);
+          resolved = { member, user: user || userOption, inGuild: !!member };
         } else if (queryOption) {
-          member = await resolveUser(queryOption, guild);
+          resolved = await resolveUserGlobal(queryOption, guild, client);
         } else {
-          member = await guild.members.fetch(interaction.user.id);
+          const member = interaction.member;
+          const user = await client.users.fetch(interaction.user.id, { force: true });
+          resolved = { member, user, inGuild: true };
         }
 
-        if (!member) {
+        if (!resolved.user) {
           return interaction.reply({ content: '\u274C Could not find that user. Try their @mention, username, or user ID.', ephemeral: true });
         }
       } else {
         const message = interactionOrMessage;
         const args = argsOrClient;
-        guild = message.guild;
         requester = message.author.username;
         replyFn = (opts) => message.reply(opts);
 
-        const input = message.mentions.members.first()
-          ? message.mentions.members.first().id
-          : args.join(' ');
+        const input = message.mentions.users.first()?.id || args.join(' ');
 
-        if (input) {
-          member = await resolveUser(input, guild);
+        if (!input || input === '') {
+          const member = message.member;
+          const user = await client.users.fetch(message.author.id, { force: true });
+          resolved = { member, user, inGuild: true };
         } else {
-          member = await guild.members.fetch(message.author.id);
+          resolved = await resolveUserGlobal(input, message.guild, client);
         }
 
-        if (!member) {
+        if (!resolved.user) {
           return message.reply('\u274C Could not find that user. Try their @mention, username, or user ID.');
         }
       }
 
-      const fetchedUser = await client.users.fetch(member.id, { force: true });
-      const displayName = member.displayName;
+      const { member, user, inGuild } = resolved;
+
+      // Always fetch with force:true to get banner data
+      const fetchedUser = await client.users.fetch(user.id, { force: true });
+      const displayName = inGuild ? member.displayName : user.username;
 
       if (!fetchedUser.banner) {
         return replyFn({ content: `\u274C **${displayName}** does not have a profile banner.`, ephemeral: true });
@@ -86,6 +92,10 @@ module.exports = {
         .setColor(color)
         .setImage(bannerUrl)
         .setFooter({ text: `Requested by ${requester}` });
+
+      if (!inGuild) {
+        embed.setDescription('\u26A0\uFE0F This user is not in the server \u2014 showing global profile only.');
+      }
 
       const buttons = [];
       const baseUrl = bannerUrl.split('?')[0];
