@@ -20,6 +20,7 @@ module.exports = {
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
     const client = isSlash ? argsOrClient : clientOrUndefined;
+    const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
 
     try {
       let targetUser, durationMinutes, reason, guild, executor, executorMember, replyFn;
@@ -34,7 +35,7 @@ module.exports = {
         reason = interaction.options.getString('reason') || 'No reason provided';
         replyFn = (content) => interaction.reply({ content, ephemeral: true });
 
-        if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
           return interaction.reply({ content: '\u274C You need the **Timeout Members** permission to use this command.', ephemeral: true });
         }
       } else {
@@ -44,7 +45,7 @@ module.exports = {
         executor = message.author;
         executorMember = message.member;
 
-        if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
           return message.reply('\u274C You need the **Timeout Members** permission to use this command.');
         }
 
@@ -66,7 +67,7 @@ module.exports = {
       const member = await guild.members.fetch(targetUser.id).catch(() => null);
       if (!member) return replyFn('Could not find that member in this server.');
 
-      if (member.roles.highest.position >= executorMember.roles.highest.position) {
+      if (!isOwner && member.roles.highest.position >= executorMember.roles.highest.position) {
         return replyFn('\u274C You cannot moderate someone with an equal or higher role than you.');
       }
 

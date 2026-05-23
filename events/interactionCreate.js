@@ -54,24 +54,31 @@ module.exports = {
 
       // --- Button handling ---
       if (interaction.isButton()) {
-        if (interaction.customId === 'open_ticket') {
-          await handleTicketOpen(interaction, client);
-          return;
-        }
-        if (interaction.customId === 'close_ticket') {
-          await handleTicketClose(interaction, client);
-          return;
-        }
-        if (VC_BUTTON_IDS.includes(interaction.customId)) {
-          await handleVcButton(interaction, client);
-          return;
+        try {
+          if (interaction.customId === 'open_ticket') {
+            await handleTicketOpen(interaction, client);
+            return;
+          }
+          if (interaction.customId === 'close_ticket') {
+            await handleTicketClose(interaction, client);
+            return;
+          }
+          if (VC_BUTTON_IDS.includes(interaction.customId)) {
+            await handleVcButton(interaction);
+            return;
+          }
+        } catch (err) {
+          console.error('[Button Error]', err);
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: '\u274C An error occurred.', ephemeral: true }).catch(() => {});
+          }
         }
       }
 
       // --- Modal handling ---
       if (interaction.isModalSubmit()) {
         if (VC_MODAL_IDS.includes(interaction.customId)) {
-          await handleVcModal(interaction, client);
+          await handleVcModal(interaction);
           return;
         }
       }
@@ -199,7 +206,10 @@ async function handleTicketClose(interaction, client) {
   const guild = interaction.guild;
   const closer = interaction.member;
 
+  const isOwner = config.ownerId && closer.user.id === config.ownerId;
+
   if (
+    !isOwner &&
     !closer.permissions.has(PermissionFlagsBits.ManageMessages) &&
     !closer.permissions.has(PermissionFlagsBits.KickMembers) &&
     !closer.permissions.has(PermissionFlagsBits.BanMembers)
@@ -304,189 +314,183 @@ async function handleTicketClose(interaction, client) {
 // VC CONTROL PANEL HANDLERS
 // ═══════════════════════════════════════
 
-function validateVcCreator(interaction, client, skipInVcCheck) {
-  const channelId = interaction.channelId;
-  const vcData = client.tempVCs.get(channelId);
+async function handleVcButton(interaction) {
+  const id = interaction.customId;
+  const tempVCs = interaction.client.tempVCs;
+  const modalButtons = ['vc_rename', 'vc_limit', 'vc_trust', 'vc_reject'];
+
+  console.log('=== VC BUTTON CLICKED ===');
+  console.log('customId:', id);
+  console.log('channelId:', interaction.channelId);
+  console.log('userId:', interaction.user.id);
+  console.log('voiceState channelId:', interaction.member.voice?.channelId);
+  console.log('tempVCs Map size:', tempVCs?.size);
+  console.log('lookup result:', tempVCs?.get(interaction.channelId));
+  console.log('========================');
+
+  // Defer immediately for non-modal buttons (must respond within 3s)
+  // Modal buttons use showModal() as the response instead
+  if (!modalButtons.includes(id)) {
+    await interaction.deferReply({ ephemeral: true });
+  }
+
+  // Helper to reply based on deferred state
+  const errorReply = (msg) => {
+    if (interaction.deferred) {
+      return interaction.editReply({ content: msg });
+    }
+    return interaction.reply({ content: msg, ephemeral: true });
+  };
+
+  // --- Validation checks ---
+  const vcData = tempVCs?.get(interaction.channelId);
 
   if (!vcData) {
-    interaction.reply({
-      content: '\u274C This voice channel session has expired. Please leave and rejoin \u2795 Create VC to get a new one.',
-      ephemeral: true,
-    });
-    return null;
+    return errorReply('\u274C VC session expired. Leave and rejoin \u2795 Create VC.');
   }
 
   if (interaction.user.id !== vcData.creatorId) {
-    interaction.reply({
-      content: '\u274C Only the voice channel creator can use these controls.',
-      ephemeral: true,
-    });
-    return null;
+    return errorReply('\u274C Only the voice channel creator can use these controls.');
   }
 
-  const voiceChannel = interaction.guild.channels.cache.get(channelId);
-  if (!voiceChannel) {
-    interaction.reply({
-      content: '\u274C Voice channel not found.',
-      ephemeral: true,
-    });
-    return null;
+  const creatorInVC = interaction.member.voice?.channelId === interaction.channelId;
+  if (!creatorInVC && id !== 'vc_delete') {
+    return errorReply('\u274C You must be connected to your voice channel to use controls.');
   }
 
-  if (!skipInVcCheck && !voiceChannel.members.has(interaction.user.id)) {
-    interaction.reply({
-      content: '\u274C You must be in the voice channel to use controls.',
-      ephemeral: true,
-    });
-    return null;
-  }
-
-  return { vcData, voiceChannel };
-}
-
-async function handleVcButton(interaction, client) {
-  const id = interaction.customId;
-
-  // Modals must be shown before deferring
-  if (id === 'vc_rename' || id === 'vc_limit' || id === 'vc_trust' || id === 'vc_reject') {
-    const result = validateVcCreator(interaction, client, id === 'vc_delete');
-    if (!result) return;
-
-    if (id === 'vc_limit' && result.vcData.type === 'duo') {
-      return interaction.reply({ content: '\u274C Duo VCs are locked to 2 users.', ephemeral: true });
+  // --- Handle each button ---
+  try {
+    if (id === 'vc_rename') {
+      const modal = new ModalBuilder()
+        .setCustomId('vc_rename_modal')
+        .setTitle('Rename Voice Channel')
+        .addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('new_name')
+              .setLabel('New Channel Name')
+              .setPlaceholder('Enter a new name...')
+              .setMinLength(1)
+              .setMaxLength(100)
+              .setRequired(true)
+              .setStyle(TextInputStyle.Short),
+          ),
+        );
+      return interaction.showModal(modal);
     }
 
-    const modal = buildVcModal(id);
-    return interaction.showModal(modal);
-  }
+    if (id === 'vc_limit') {
+      if (vcData.type === 'duo') {
+        return errorReply('\u274C Duo VCs are locked to 2 users.');
+      }
+      const modal = new ModalBuilder()
+        .setCustomId('vc_limit_modal')
+        .setTitle('Set User Limit')
+        .addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('user_limit')
+              .setLabel('User Limit (0 = unlimited)')
+              .setPlaceholder('Enter a number between 0 and 99')
+              .setMinLength(1)
+              .setMaxLength(2)
+              .setRequired(true)
+              .setStyle(TextInputStyle.Short),
+          ),
+        );
+      return interaction.showModal(modal);
+    }
 
-  const result = validateVcCreator(interaction, client, id === 'vc_delete');
-  if (!result) return;
+    if (id === 'vc_trust') {
+      const modal = new ModalBuilder()
+        .setCustomId('vc_trust_modal')
+        .setTitle('Trust a User')
+        .addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('user_id')
+              .setLabel('User ID')
+              .setPlaceholder("Paste the user's Discord ID")
+              .setMinLength(17)
+              .setMaxLength(20)
+              .setRequired(true)
+              .setStyle(TextInputStyle.Short),
+          ),
+        );
+      return interaction.showModal(modal);
+    }
 
-  const { vcData, voiceChannel } = result;
-  const guild = interaction.guild;
+    if (id === 'vc_reject') {
+      const modal = new ModalBuilder()
+        .setCustomId('vc_reject_modal')
+        .setTitle('Reject a User')
+        .addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('user_id')
+              .setLabel('User ID')
+              .setPlaceholder("Paste the user's Discord ID")
+              .setMinLength(17)
+              .setMaxLength(20)
+              .setRequired(true)
+              .setStyle(TextInputStyle.Short),
+          ),
+        );
+      return interaction.showModal(modal);
+    }
 
-  await interaction.deferReply({ ephemeral: true });
+    const vc = interaction.guild.channels.cache.get(interaction.channelId);
 
-  try {
-    switch (id) {
-      case 'vc_lock':
-        await voiceChannel.permissionOverwrites.edit(guild.id, { Connect: false });
-        await interaction.editReply('\uD83D\uDD12 Voice channel locked. No new users can join.');
-        break;
+    if (id === 'vc_lock') {
+      await vc.permissionOverwrites.edit(interaction.guild.id, { Connect: false });
+      return interaction.editReply({ content: '\uD83D\uDD12 Voice channel locked.' });
+    }
 
-      case 'vc_unlock':
-        await voiceChannel.permissionOverwrites.edit(guild.id, { Connect: null });
-        await interaction.editReply('\uD83D\uDD13 Voice channel unlocked.');
-        break;
+    if (id === 'vc_unlock') {
+      await vc.permissionOverwrites.edit(interaction.guild.id, { Connect: null });
+      return interaction.editReply({ content: '\uD83D\uDD13 Voice channel unlocked.' });
+    }
 
-      case 'vc_hide':
-        await voiceChannel.permissionOverwrites.edit(guild.id, { ViewChannel: false });
-        await interaction.editReply('\uD83D\uDC41\uFE0F Voice channel hidden. It won\'t appear in the channel list.');
-        break;
+    if (id === 'vc_hide') {
+      await vc.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: false });
+      return interaction.editReply({ content: '\uD83D\uDC41\uFE0F Voice channel hidden.' });
+    }
 
-      case 'vc_unhide':
-        await voiceChannel.permissionOverwrites.edit(guild.id, { ViewChannel: null });
-        await interaction.editReply('\uD83D\uDC41\uFE0F Voice channel is now visible.');
-        break;
+    if (id === 'vc_unhide') {
+      await vc.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: null });
+      return interaction.editReply({ content: '\uD83D\uDC41\uFE0F Voice channel is now visible.' });
+    }
 
-      case 'vc_waiting':
-        await voiceChannel.permissionOverwrites.edit(guild.id, { ViewChannel: true, Connect: false });
-        await interaction.editReply('\u231B Waiting room enabled. Users can see but not join.');
-        break;
+    if (id === 'vc_waiting') {
+      await vc.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: true, Connect: false });
+      return interaction.editReply({ content: '\u231B Waiting room enabled.' });
+    }
 
-      case 'vc_delete':
-        await interaction.editReply('\uD83D\uDDD1\uFE0F Deleting your voice channel...');
-        client.tempVCs.delete(voiceChannel.id);
-        await voiceChannel.delete().catch(() => {});
-        break;
+    if (id === 'vc_delete') {
+      tempVCs.delete(interaction.channelId);
+      await interaction.editReply({ content: '\uD83D\uDDD1\uFE0F Deleting your voice channel...' });
+      await vc?.delete().catch(() => {});
+      return;
     }
   } catch (err) {
-    console.error(`[VC Control] Error handling ${id}:`, err.message);
-    await interaction.editReply('\u274C An error occurred while processing your request.').catch(() => {});
+    console.error('[VC Control Error]', err);
+    const msg = '\u274C Something went wrong. Please try again.';
+    if (interaction.deferred || interaction.replied) {
+      return interaction.editReply({ content: msg }).catch(() => {});
+    }
+    return interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
   }
 }
 
-function buildVcModal(buttonId) {
-  if (buttonId === 'vc_rename') {
-    return new ModalBuilder()
-      .setCustomId('vc_rename_modal')
-      .setTitle('Rename Voice Channel')
-      .addComponents(
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId('new_name')
-            .setLabel('New Channel Name')
-            .setPlaceholder('Enter a new name...')
-            .setMinLength(1)
-            .setMaxLength(100)
-            .setRequired(true)
-            .setStyle(TextInputStyle.Short),
-        ),
-      );
-  }
-
-  if (buttonId === 'vc_limit') {
-    return new ModalBuilder()
-      .setCustomId('vc_limit_modal')
-      .setTitle('Set User Limit')
-      .addComponents(
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId('user_limit')
-            .setLabel('User Limit (0 = unlimited)')
-            .setPlaceholder('Enter a number between 0 and 99')
-            .setMinLength(1)
-            .setMaxLength(2)
-            .setRequired(true)
-            .setStyle(TextInputStyle.Short),
-        ),
-      );
-  }
-
-  if (buttonId === 'vc_trust') {
-    return new ModalBuilder()
-      .setCustomId('vc_trust_modal')
-      .setTitle('Trust a User')
-      .addComponents(
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId('user_id')
-            .setLabel('User ID')
-            .setPlaceholder("Paste the user's Discord ID")
-            .setMinLength(17)
-            .setMaxLength(20)
-            .setRequired(true)
-            .setStyle(TextInputStyle.Short),
-        ),
-      );
-  }
-
-  if (buttonId === 'vc_reject') {
-    return new ModalBuilder()
-      .setCustomId('vc_reject_modal')
-      .setTitle('Reject a User')
-      .addComponents(
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId('user_id')
-            .setLabel('User ID')
-            .setPlaceholder("Paste the user's Discord ID")
-            .setMinLength(17)
-            .setMaxLength(20)
-            .setRequired(true)
-            .setStyle(TextInputStyle.Short),
-        ),
-      );
-  }
-
-  return null;
-}
-
-async function handleVcModal(interaction, client) {
+async function handleVcModal(interaction) {
   const id = interaction.customId;
+  const tempVCs = interaction.client.tempVCs;
   const channelId = interaction.channelId;
-  const vcData = client.tempVCs.get(channelId);
+
+  console.log('[VC Modal] customId:', id, 'channelId:', channelId);
+  console.log('[VC Modal] Map size:', tempVCs?.size, 'has channel:', tempVCs?.has(channelId));
+
+  const vcData = tempVCs?.get(channelId);
 
   if (!vcData) {
     return interaction.reply({
@@ -507,9 +511,10 @@ async function handleVcModal(interaction, client) {
     return interaction.reply({ content: '\u274C Voice channel not found.', ephemeral: true });
   }
 
-  if (!voiceChannel.members.has(interaction.user.id)) {
+  const creatorInVC = interaction.member.voice?.channelId === channelId;
+  if (!creatorInVC) {
     return interaction.reply({
-      content: '\u274C You must be in the voice channel to use controls.',
+      content: '\u274C You must be connected to your voice channel to use controls.',
       ephemeral: true,
     });
   }
