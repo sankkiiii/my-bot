@@ -1,44 +1,72 @@
 # My Bot — Discord Bot
 
-A feature-rich Discord bot built with **Discord.js v14** and **Node.js**. Designed for a single private server with moderation, ticket system, temporary voice channels, and comprehensive logging.
+A feature-rich Discord bot built with **Discord.js v14** and **Node.js**. Designed for a single private server with moderation, ticket system, temporary voice channels, no-prefix system, and comprehensive logging.
 
 ---
 
-## Features
+## Table of Contents
 
-### Moderation
-| Command | Description |
+- [Features Overview](#features-overview)
+- [All Commands](#all-commands)
+- [Project Structure](#project-structure)
+- [Prerequisites](#prerequisites)
+- [Discord Setup (Do This First)](#discord-setup-do-this-first)
+- [.env Configuration](#env-configuration)
+- [Setup on Windows](#setup-on-windows)
+- [Setup on VPS](#setup-on-vps-ubuntudebian--oracle-cloud-aws-digitalocean-etc)
+- [PM2 Commands Reference](#pm2-commands-reference)
+- [Updating the Bot](#updating-the-bot)
+- [Feature Guide — Moderation](#feature-guide--moderation)
+- [Feature Guide — No-Prefix System](#feature-guide--no-prefix-system)
+- [Feature Guide — Ticket System](#feature-guide--ticket-system)
+- [Feature Guide — Temporary Voice Channels](#feature-guide--temporary-voice-channels)
+- [Feature Guide — Logging](#feature-guide--logging)
+- [Persistence & Restarts](#persistence--restarts)
+- [Troubleshooting](#troubleshooting)
+- [Tech Stack](#tech-stack)
+
+---
+
+## Features Overview
+
+| Feature | Description |
 |---------|-------------|
-| `/ban` or `!ban` | Ban a member with optional reason. DMs the user before banning. |
-| `/kick` or `!kick` | Kick a member with optional reason. DMs the user before kicking. |
-| `/mute` or `!mute` | Timeout a member for a specified duration (max 28 days). |
-| `/unmute` or `!unmute` | Remove timeout from a member. |
-| `/warn` or `!warn` | Warn a member. DMs the user with the warning. |
-| `/purge` or `!purge` | Bulk delete 1–100 messages in the current channel. |
+| **Moderation** | Ban, kick, mute, unmute, warn, purge — with permission checks, hierarchy validation, and mod logging |
+| **No-Prefix** | Selected users (+ bot owner) can run commands without the `!` prefix |
+| **Ticket System** | TicketTool-style panels, private channels, staff auto-detection, HTML transcripts |
+| **Temp Voice Channels** | Voice Master-style auto-created VCs with owner permissions and auto-cleanup |
+| **Logging** | Rich embed logs for moderation, joins/leaves, message edits/deletes, and tickets |
 
-All moderation actions are logged to `#mod-log` with rich embeds.
+---
 
-### Ticket System
-- Staff runs `/panel` or `!panel` to post a ticket panel embed with an **Open Ticket** button.
-- Users click the button to create a private `ticket-username` channel visible only to them and staff.
-- Staff can close tickets via the **Close Ticket** button inside the ticket channel.
-- On close, the bot generates a **self-contained HTML transcript** (dark theme, inline CSS), sends it to `#transcripts`, logs to `#ticket-log`, and deletes the channel after 5 seconds.
+## All Commands
 
-### Temporary Voice Channels
-- Works like **Voice Master** — a designated "Create VC" voice channel acts as a trigger.
-- When a user joins it, the bot instantly creates a personal voice channel (`username's VC`) and moves them in.
-- The creator gets `ManageChannels` + `MoveMembers` permissions on their VC (rename, set user limit, drag users in/out).
-- When the channel empties, it is automatically deleted.
-- Survives bot restarts — on startup, the bot cleans up any leftover empty temp VCs.
-- Multiple users can each have their own temp VC simultaneously.
+### Moderation Commands
 
-### Logging
-| Log Channel | Events |
-|-------------|--------|
-| `#mod-log` | Ban, kick, mute, unmute, warn, purge |
-| `#join-log` | Member join (with account age), member leave (with roles and time in server) |
-| `#message-log` | Message deleted, message edited (ignores bots) |
-| `#ticket-log` | Ticket opened, ticket closed |
+| Command | Permission Required | Description |
+|---------|-------------------|-------------|
+| `/ban @user [reason]` or `!ban @user [reason]` | Ban Members | Ban a member. DMs them the reason before banning. |
+| `/kick @user [reason]` or `!kick @user [reason]` | Kick Members | Kick a member. DMs them the reason before kicking. |
+| `/mute @user [duration] [reason]` or `!mute @user [duration] [reason]` | Timeout Members | Timeout a member (max 28 days). Duration in minutes. |
+| `/unmute @user [reason]` or `!unmute @user [reason]` | Timeout Members | Remove timeout from a member. |
+| `/warn @user [reason]` or `!warn @user [reason]` | Timeout Members | Warn a member via DM. |
+| `/purge [amount]` or `!purge [amount]` | Manage Messages | Bulk delete 1–100 messages in the current channel. |
+
+### Ticket Commands
+
+| Command | Permission Required | Description |
+|---------|-------------------|-------------|
+| `/panel` or `!panel` | Manage Channels | Send a ticket panel embed with "Open Ticket" button. |
+
+### Admin Commands
+
+| Command | Permission Required | Description |
+|---------|-------------------|-------------|
+| `/noprefix add @user` or `!noprefix add @user` | Administrator | Give a user no-prefix access. |
+| `/noprefix remove @user` or `!noprefix remove @user` | Administrator | Remove no-prefix access from a user. |
+| `/noprefix list` or `!noprefix list` | Administrator | List all no-prefix users. |
+
+> **All commands work as both slash commands (`/command`) and prefix commands (`!command`).**
 
 ---
 
@@ -46,15 +74,15 @@ All moderation actions are logged to `#mod-log` with rich embeds.
 
 ```
 my-bot/
-├── .env                    # Environment variables (secrets + IDs)
+├── .env                      # Environment variables (secrets + IDs)
 ├── .gitignore
-├── config.js               # Loads .env into a config object
-├── index.js                # Entry point — creates client, loads handlers, logs in
-├── deploy-commands.js      # Registers slash commands to your guild
+├── config.js                 # Loads .env into a config object
+├── index.js                  # Entry point — creates client, loads handlers, logs in
+├── deploy-commands.js        # Registers slash commands to your guild
 ├── package.json
 ├── handlers/
-│   ├── commandHandler.js   # Auto-loads all commands from commands/ subfolders
-│   └── eventHandler.js     # Auto-loads all events from events/
+│   ├── commandHandler.js     # Auto-loads all commands from commands/ subfolders
+│   └── eventHandler.js       # Auto-loads all events from events/
 ├── commands/
 │   ├── mod/
 │   │   ├── ban.js
@@ -62,20 +90,22 @@ my-bot/
 │   │   ├── mute.js
 │   │   ├── unmute.js
 │   │   ├── warn.js
-│   │   └── purge.js
+│   │   ├── purge.js
+│   │   └── noprefix.js       # No-prefix management command
 │   └── tickets/
 │       └── panel.js
 ├── events/
-│   ├── ready.js            # Sets bot status on login
-│   ├── messageCreate.js    # Prefix commands + message delete/edit logging
-│   ├── interactionCreate.js # Slash commands + ticket button interactions
-│   ├── voiceStateUpdate.js # Temp VC create/delete
-│   └── guildMemberAdd.js   # Join/leave logging
+│   ├── ready.js              # Bot status + startup cleanup
+│   ├── messageCreate.js      # Prefix/no-prefix commands + message logging
+│   ├── interactionCreate.js  # Slash commands + ticket button interactions
+│   ├── voiceStateUpdate.js   # Temp VC create/delete
+│   └── guildMemberAdd.js     # Join/leave logging
 ├── utils/
-│   ├── logger.js           # sendLog() helper for sending embeds to log channels
-│   └── transcript.js       # Generates HTML transcript files for tickets
+│   ├── logger.js             # sendLog() helper
+│   └── transcript.js         # HTML transcript generator
 └── data/
-    └── ticketCount.json    # Persistent ticket counter (auto-created)
+    ├── ticketCount.json      # Persistent ticket counter (auto-created)
+    └── noprefix.json         # No-prefix user list (auto-created)
 ```
 
 ---
@@ -94,7 +124,7 @@ my-bot/
 1. Go to https://discord.com/developers/applications
 2. Click **New Application** → name it → click **Create**
 3. Go to the **Bot** tab
-4. Click **Reset Token** → copy and save the **Token**
+4. Click **Reset Token** → copy and save the **Token** (you'll need this for `.env`)
 5. Copy the **Application ID** from the General Information tab (this is your `CLIENT_ID`)
 6. Under **Privileged Gateway Intents**, enable:
    - **Server Members Intent**
@@ -102,7 +132,7 @@ my-bot/
 
 ### 2. Invite the Bot to Your Server
 
-Replace `YOUR_CLIENT_ID` with your Application ID and open this URL in your browser:
+Replace `YOUR_CLIENT_ID` with your Application ID and open this URL:
 
 ```
 https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=8&scope=bot%20applications.commands
@@ -116,7 +146,11 @@ Go to **User Settings → App Settings → Advanced → Developer Mode → ON**
 
 This lets you right-click channels, roles, categories, and users to **Copy ID**.
 
-### 4. Create Channels, Categories, and Roles
+### 4. Get Your Owner ID
+
+Right-click your own username in Discord → **Copy User ID**. This goes into `OWNER_ID` in `.env`.
+
+### 5. Create Channels and Categories
 
 Create the following in your Discord server and copy their IDs:
 
@@ -131,11 +165,13 @@ Create the following in your Discord server and copy their IDs:
 | Temp VCs (category) | Category | `TEMP_VC_CATEGORY` |
 | ➕ Create VC | Voice Channel (inside Temp VCs category) | `CREATE_VC_CHANNEL` |
 
-> **No staff role needed!** The bot automatically detects staff by checking Discord permissions (Manage Messages, Kick Members, or Ban Members).
+Also copy your **Server ID** (right-click server name → Copy Server ID) → `GUILD_ID`
 
-Also copy your **Server ID** → `GUILD_ID`
+> **No staff role needed!** The bot automatically detects staff by checking Discord permissions (Manage Messages, Kick Members, or Ban Members). Any role with these permissions will see tickets and can close them.
 
-### 5. Fill in `.env`
+---
+
+## .env Configuration
 
 ```env
 TOKEN=your-bot-token-here
@@ -150,7 +186,24 @@ TRANSCRIPT_CHANNEL=channel-id
 TICKET_CATEGORY=category-id
 TEMP_VC_CATEGORY=category-id
 CREATE_VC_CHANNEL=voice-channel-id
+OWNER_ID=your-discord-user-id
 ```
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `TOKEN` | Yes | Your bot token from the Developer Portal |
+| `CLIENT_ID` | Yes | Your bot's Application ID |
+| `GUILD_ID` | Yes | Your Discord server ID |
+| `PREFIX` | No | Command prefix (default: `!`) |
+| `MOD_LOG_CHANNEL` | Yes | Channel ID for moderation logs |
+| `JOIN_LOG_CHANNEL` | Yes | Channel ID for join/leave logs |
+| `MESSAGE_LOG_CHANNEL` | Yes | Channel ID for message edit/delete logs |
+| `TICKET_LOG_CHANNEL` | Yes | Channel ID for ticket open/close logs |
+| `TRANSCRIPT_CHANNEL` | Yes | Channel ID where ticket transcripts are sent |
+| `TICKET_CATEGORY` | Yes | Category ID for ticket channels |
+| `TEMP_VC_CATEGORY` | Yes | Category ID for temporary voice channels |
+| `CREATE_VC_CHANNEL` | Yes | Voice channel ID that triggers temp VC creation |
+| `OWNER_ID` | No | Your Discord user ID (gives permanent no-prefix access) |
 
 ---
 
@@ -182,7 +235,7 @@ npm install
 
 ### Step 4 — Configure the Bot
 
-Open `.env` in a text editor (Notepad, VS Code, etc.) and fill in all the values from the [Discord Setup](#discord-setup-do-this-first) section above.
+Open `.env` in a text editor (Notepad, VS Code, etc.) and fill in all the values from the [.env Configuration](#env-configuration) section.
 
 ### Step 5 — Register Slash Commands
 
@@ -202,7 +255,8 @@ You should see:
 [Deploy] Queued: warn
 [Deploy] Queued: purge
 [Deploy] Queued: panel
-[Deploy] Registering 7 slash command(s) to guild ...
+[Deploy] Queued: noprefix
+[Deploy] Registering 8 slash command(s) to guild ...
 [Deploy] Successfully registered all slash commands.
 ```
 
@@ -221,34 +275,25 @@ You should see:
 [Commands] Loaded: unmute
 [Commands] Loaded: warn
 [Commands] Loaded: purge
+[Commands] Loaded: noprefix
 [Commands] Loaded: panel
 [Events] Loaded: ready
 [Events] Loaded: messageCreate
-...
+[Events] Loaded: interactionCreate
+[Events] Loaded: voiceStateUpdate
+[Events] Loaded: guildMemberAdd
 [Ready] Logged in as YourBot#1234
+[Ready] Ticket counter loaded: 0
+[Ready] No-prefix users loaded: 0
+[Ready] No leftover temp VCs to clean up
 ```
 
 ### Running in Background on Windows (Optional)
-
-To keep the bot running after closing the terminal, use **PM2**:
 
 ```cmd
 npm install -g pm2
 pm2 start index.js --name my-bot
 pm2 save
-```
-
-To check logs:
-
-```cmd
-pm2 logs my-bot
-```
-
-To stop/restart:
-
-```cmd
-pm2 stop my-bot
-pm2 restart my-bot
 ```
 
 ---
@@ -300,7 +345,7 @@ npm install
 nano .env
 ```
 
-Fill in all the values from the [Discord Setup](#discord-setup-do-this-first) section. Save with `Ctrl+O`, exit with `Ctrl+X`.
+Fill in all the values from the [.env Configuration](#env-configuration) section. Save with `Ctrl+O`, exit with `Ctrl+X`.
 
 ### Step 7 — Register Slash Commands
 
@@ -333,7 +378,9 @@ pm2 startup
 pm2 save
 ```
 
-### PM2 Commands Reference
+---
+
+## PM2 Commands Reference
 
 | Command | Description |
 |---------|-------------|
@@ -345,38 +392,291 @@ pm2 save
 | `pm2 status` | Show all running processes |
 | `pm2 monit` | Interactive monitoring dashboard |
 
-### Updating the Bot on VPS
+---
+
+## Updating the Bot
+
+### On Windows
+
+```cmd
+cd my-bot
+git pull
+npm install
+node deploy-commands.js
+```
+
+Then restart the bot (or `pm2 restart my-bot` if using PM2).
+
+### On VPS
 
 ```bash
 cd my-bot
 git pull
 npm install
+node deploy-commands.js
 pm2 restart my-bot
 ```
 
 ---
 
-## Detailed Feature Guides
+## Feature Guide — Moderation
 
-### Temporary Voice Channels — Full Setup & Usage
+### Permission System
+
+Every moderation command checks **three things** before executing:
+
+1. **User permission** — Does the person running the command have the required Discord permission?
+2. **Bot permission** — Does the bot have the required permission to perform the action?
+3. **Role hierarchy** — Is the target user's highest role lower than both the moderator's and the bot's highest role?
+
+| Command | User Needs | Bot Needs | Hierarchy Check |
+|---------|-----------|-----------|----------------|
+| ban | Ban Members | Ban Members | Yes |
+| kick | Kick Members | Kick Members | Yes |
+| mute | Timeout Members | Timeout Members | Yes |
+| unmute | Timeout Members | Timeout Members | No |
+| warn | Timeout Members | — (just DMs) | No |
+| purge | Manage Messages | Manage Messages | No |
+
+### What Each Command Does
+
+**Ban** — `/ban @user [reason]` or `!ban @user [reason]`
+- DMs the user the ban reason before banning
+- Permanently bans the user from the server
+- Logs to `#mod-log` with moderator, target, and reason
+
+**Kick** — `/kick @user [reason]` or `!kick @user [reason]`
+- DMs the user the kick reason before kicking
+- Removes the user from the server (they can rejoin with an invite)
+- Logs to `#mod-log`
+
+**Mute (Timeout)** — `/mute @user [minutes] [reason]` or `!mute @user [minutes] [reason]`
+- Uses Discord's native timeout feature (not a mute role)
+- Duration in minutes, maximum 40320 minutes (28 days — Discord limit)
+- User cannot send messages, react, or join voice while timed out
+- Logs to `#mod-log` with duration
+
+**Unmute** — `/unmute @user [reason]` or `!unmute @user [reason]`
+- Removes timeout from a user
+- Logs to `#mod-log`
+
+**Warn** — `/warn @user [reason]` or `!warn @user [reason]`
+- Sends a DM to the user with the warning reason
+- No server action taken (informational only)
+- Logs to `#mod-log`
+
+**Purge** — `/purge [amount]` or `!purge [amount]`
+- Deletes 1–100 messages in the current channel
+- Only works on messages less than 14 days old (Discord API limit)
+- Logs to `#mod-log` with message count and channel
+
+### Slash Command Visibility
+
+Discord automatically hides slash commands from users who don't have the required permission. For example, a user without Ban Members permission won't even see `/ban` in the command menu.
+
+### Error Messages
+
+| Situation | Error Message |
+|-----------|--------------|
+| User lacks permission | "You need the **[Permission]** permission to use this command." |
+| Bot lacks permission | "I don't have the **[Permission]** permission to do this." |
+| Target outranks moderator | "You cannot moderate someone with an equal or higher role than you." |
+| Target outranks bot | "I cannot moderate this user as their role is higher than or equal to mine." |
+
+All error messages for slash commands are **ephemeral** (only visible to the person who ran the command).
+
+---
+
+## Feature Guide — No-Prefix System
+
+### What Is No-Prefix?
+
+Normally, prefix commands require `!` before the command name (e.g., `!ban @user`). The no-prefix system lets selected users skip the prefix entirely — just type `ban @user` and it works.
+
+### Who Gets No-Prefix?
+
+| User | How They Get It | Stored Where |
+|------|----------------|--------------|
+| Bot owner | Automatic — set `OWNER_ID` in `.env` | Hardcoded in config |
+| Other users | Admin runs `/noprefix add @user` | `data/noprefix.json` |
+
+### How to Set Up
+
+1. **Set your owner ID** — Add `OWNER_ID=your_discord_user_id` to `.env`
+2. **Restart the bot** — The owner now has permanent no-prefix access
+3. **Add other users** — Run `/noprefix add @user` or `!noprefix add @user`
+
+### Commands
+
+| Command | What It Does |
+|---------|-------------|
+| `/noprefix add @user` | Give a user no-prefix access |
+| `/noprefix remove @user` | Remove no-prefix access from a user |
+| `/noprefix list` | Show all users with no-prefix access |
+
+> Requires **Administrator** permission to use.
+
+### How It Works Internally
+
+```
+User sends a message
+        ↓
+Is it from a bot? → Ignore
+        ↓
+Is it in a DM? → Ignore
+        ↓
+Does it start with the prefix (!)? → Normal prefix command flow
+        ↓
+Is the author the bot owner OR in the no-prefix list?
+  → Yes: Treat the first word as a command name
+  → No: Ignore the message
+        ↓
+Does the command name match a registered command?
+  → Yes: Execute it (all permission checks still apply)
+  → No: Silently ignore (won't respond to random messages)
+```
+
+### Important Notes
+
+- **No-prefix only skips the prefix** — all permission checks still apply. A no-prefix user without Ban Members permission still can't use `ban`.
+- **Changes take effect instantly** — the no-prefix list is read from disk on every message, so `/noprefix add` works immediately without restarting.
+- **The owner cannot be added/removed via commands** — their access is hardcoded via `OWNER_ID` in `.env`.
+- **Bots cannot be added** — the command blocks adding bot users.
+- **If `OWNER_ID` is not set** — the bot logs a warning on startup and owner no-prefix is disabled.
+- **If a no-prefix user types something that isn't a command** (e.g., just "hello") — the bot silently ignores it.
+
+### Examples
+
+```
+Without no-prefix:          With no-prefix:
+!ban @user spamming    →    ban @user spamming
+!kick @user toxic      →    kick @user toxic
+!mute @user 60 reason  →    mute @user 60 reason
+!purge 50              →    purge 50
+!warn @user language   →    warn @user language
+!panel                 →    panel
+!noprefix list         →    noprefix list
+```
+
+---
+
+## Feature Guide — Ticket System
+
+The ticket system works like **TicketTool.xyz** — a persistent panel with a button, private ticket channels, auto staff detection, and professional HTML transcripts.
+
+### How to Set Up
+
+1. **Create a Category** for tickets (e.g., `Tickets`)
+2. **Right-click the category** → Copy ID → paste as `TICKET_CATEGORY` in `.env`
+3. **Create `#transcripts`** text channel → Copy ID → paste as `TRANSCRIPT_CHANNEL`
+4. **Create `#ticket-log`** text channel → Copy ID → paste as `TICKET_LOG_CHANNEL`
+5. **Start the bot**, then run `/panel` or `!panel` in the channel where you want the ticket panel
+
+> **No staff role needed!** Any role with **Manage Messages**, **Kick Members**, or **Ban Members** permission will automatically see tickets and can close them.
+
+### How It Works (Full Flow)
+
+```
+Staff runs /panel in #support
+        ↓
+Bot sends a beautiful embed with "📩 Open Ticket" button
+        ↓
+User clicks the button
+        ↓
+Bot checks for duplicate tickets (one per user)
+        ↓
+Bot creates #ticket-username (private channel)
+  → Only the user + roles with mod permissions + Bot can see it
+  → Channel topic stores opener's user ID for tracking
+  → Ticket gets a sequential number (#1, #2, #3...)
+        ↓
+Bot sends welcome embed with "🔒 Close Ticket" button
+        ↓
+User describes their issue, staff responds
+        ↓
+Staff clicks "🔒 Close Ticket"
+        ↓
+Bot fetches ALL messages from the channel (paginated)
+        ↓
+Bot generates a professional HTML transcript
+        ↓
+Bot sends transcript file to #transcripts with details embed
+        ↓
+Bot logs the closure to #ticket-log
+        ↓
+Bot deletes the ticket channel after 5 seconds
+```
+
+### Panel Embed
+
+The panel sent by `/panel` includes:
+- Title: "📋 Support Tickets"
+- Description: "Need help? Click the button below to open a support ticket."
+- Color: Discord Blurple (#5865F2)
+- Server icon as thumbnail
+- Server name + bot tag in footer
+- A "📩 Open Ticket" button that **never expires** (works forever, even after restarts)
+
+### Ticket Channel Permissions
+
+| Who | Permissions |
+|-----|------------|
+| @everyone | Cannot see the channel |
+| Ticket opener | View, Send Messages, Read History, Attach Files |
+| Any role with Manage Messages / Kick / Ban | View, Send Messages, Read History, Manage Messages, Attach Files |
+| Bot | View, Send Messages, Read History, Manage Messages, Manage Channels |
+
+> The bot automatically scans all server roles on ticket creation and gives access to any role that has **Manage Messages**, **Kick Members**, or **Ban Members** permission.
+
+### Ticket Numbering
+
+- Each ticket gets a sequential number (#1, #2, #3...)
+- Stored in `data/ticketCount.json` — persists across restarts
+- Never resets (unless you manually edit the file)
+- Shown in the welcome embed inside the ticket
+
+### Who Can Close Tickets
+
+- Any member with **Manage Messages**, **Kick Members**, or **Ban Members** permission
+- If someone without these permissions clicks the close button:
+  > "You need **Manage Messages**, **Kick Members**, or **Ban Members** permission to close tickets."
+
+### Duplicate Ticket Prevention
+
+If a user tries to open a ticket while they already have one open:
+> "You already have an open ticket: #ticket-username"
+
+### HTML Transcript
+
+When a ticket is closed, the bot generates a **self-contained HTML file** styled like TicketTool.xyz transcripts:
+
+- **Dark Discord-like theme** (#36393f background, #2f3136 message area)
+- **Server icon and name** in header
+- **Ticket info**: name, opened by, closed by, date opened, date closed, total messages
+- **Message display**: circular avatar (40px), role-colored username, timestamp (DD/MM/YYYY HH:MM)
+- **Bot messages**: subtle different background (#2a2d31) + blue "BOT" badge
+- **Embeds**: colored left-border blocks with title, description, and fields
+- **Attachments**: 📎 icon with clickable filename
+- **URLs**: auto-linked
+- **Avatar fallback**: SVG placeholder if Discord CDN fails
+- **Footer**: bot name and generation timestamp
+- **Fully self-contained**: inline CSS, no external dependencies, works offline
+
+---
+
+## Feature Guide — Temporary Voice Channels
 
 The Temp VC system works exactly like **Voice Master** bots. Users join a trigger channel, get their own personal voice channel, and it auto-deletes when empty.
 
-#### How to Set Up
+### How to Set Up
 
-1. **Create a Category** in your Discord server for temp VCs (e.g., name it `Voice Channels` or `Temp VCs`)
-2. **Right-click the category** → Copy ID → paste it as `TEMP_VC_CATEGORY` in `.env`
+1. **Create a Category** in your Discord server (e.g., `Voice Channels` or `Temp VCs`)
+2. **Right-click the category** → Copy ID → paste as `TEMP_VC_CATEGORY` in `.env`
 3. **Create a Voice Channel** inside that category named `➕ Create VC` (or any name you like)
-4. **Right-click the voice channel** → Copy ID → paste it as `CREATE_VC_CHANNEL` in `.env`
-5. **Restart the bot** (or start it for the first time)
+4. **Right-click the voice channel** → Copy ID → paste as `CREATE_VC_CHANNEL` in `.env`
+5. **Restart the bot**
 
-Your `.env` should have:
-```env
-TEMP_VC_CATEGORY=1234567890123456789
-CREATE_VC_CHANNEL=1234567890123456789
-```
-
-#### How It Works (User Flow)
+### How It Works (User Flow)
 
 ```
 User joins "➕ Create VC"
@@ -390,9 +690,9 @@ User now owns the channel with full control
 When everyone leaves → Bot auto-deletes the channel
 ```
 
-#### What the VC Creator Can Do
+### What the VC Creator Can Do
 
-Because the bot grants `ManageChannels` and `MoveMembers` permissions on the created VC, the creator can:
+The bot grants `ManageChannels` and `MoveMembers` permissions on the created VC, so the creator can:
 
 | Action | How |
 |--------|-----|
@@ -402,7 +702,7 @@ Because the bot grants `ManageChannels` and `MoveMembers` permissions on the cre
 | **Disconnect users** | Right-click a user → Disconnect |
 | **Set bitrate** | Edit Channel → change bitrate for audio quality |
 
-#### Edge Cases Handled
+### Edge Cases Handled
 
 | Scenario | What Happens |
 |----------|-------------|
@@ -415,9 +715,9 @@ Because the bot grants `ManageChannels` and `MoveMembers` permissions on the cre
 | User already has a temp VC and joins "Create VC" again | A second VC is created (not blocked) |
 | Bot restarts while temp VCs exist | On startup, bot scans the category and deletes any empty VCs |
 | `CREATE_VC_CHANNEL` not set in `.env` | Bot logs a warning and skips temp VC functionality |
-| Bot never deletes the "Create VC" channel | The trigger channel is always protected |
+| Someone tries to trigger deletion of "Create VC" | The trigger channel is always protected — bot never deletes it |
 
-#### Startup Cleanup
+### Startup Cleanup
 
 When the bot starts (or restarts), it automatically:
 1. Scans all voice channels inside `TEMP_VC_CATEGORY`
@@ -425,137 +725,102 @@ When the bot starts (or restarts), it automatically:
 3. Deletes them
 4. Logs how many were cleaned up
 
-This means if your bot crashes or restarts, leftover temp VCs won't pile up.
-
-#### Console Output Example
-
-```
-[Ready] Logged in as MyBot#1234
-[Ready] Ticket counter loaded: 15
-[Ready] Cleaned up 3 leftover temp VC(s)
-```
-
-#### Troubleshooting Temp VCs
-
-| Issue | Solution |
-|-------|----------|
-| Nothing happens when joining "Create VC" | Check that `CREATE_VC_CHANNEL` in `.env` matches the voice channel ID exactly |
-| Bot creates the VC but doesn't move the user | Bot needs `Move Members` permission in the server |
-| VC is created in the wrong category | Check that `TEMP_VC_CATEGORY` matches the correct category ID |
-| Leftover VCs not cleaned on restart | Make sure the bot has `Manage Channels` permission |
-| "Create VC" channel itself gets deleted | This should never happen — but verify the channel ID is correct in `.env` |
+This prevents leftover temp VCs from piling up after crashes or restarts.
 
 ---
 
-### Ticket System — Full Setup & Usage
+## Feature Guide — Logging
 
-The ticket system works like **TicketTool.xyz** — a persistent panel with a button, private ticket channels, staff-only close, and HTML transcripts.
+All logs are sent as rich Discord embeds with timestamps and relevant details.
 
-#### How to Set Up
+### Mod Log (`#mod-log`)
 
-1. **Create a Category** for tickets (e.g., `Tickets`)
-2. **Right-click the category** → Copy ID → paste as `TICKET_CATEGORY` in `.env`
-3. **Create a Text Channel** for transcripts (e.g., `#transcripts`)
-4. **Right-click** → Copy ID → paste as `TRANSCRIPT_CHANNEL` in `.env`
-5. **Create a Text Channel** for ticket logs (e.g., `#ticket-log`)
-6. **Right-click** → Copy ID → paste as `TICKET_LOG_CHANNEL` in `.env`
-7. **Start the bot**, then run `/panel` or `!panel` in the channel where you want the ticket panel
+Triggered by all moderation commands. Each log includes:
+- **Action** (Ban, Kick, Mute, Unmute, Warn, Purge)
+- **Target user** (tag + ID)
+- **Moderator** (who ran the command)
+- **Reason** (if provided)
+- **Duration** (for mute)
+- **Message count** (for purge)
+- **Timestamp**
 
-> **Note:** No staff role is needed! Any role with **Manage Messages**, **Kick Members**, or **Ban Members** permission will automatically see tickets and be able to close them.
+### Join/Leave Log (`#join-log`)
 
-#### How It Works (Full Flow)
+**Member joined:**
+- Username and tag
+- Account creation date (account age)
+- Current member count
 
-```
-Staff runs /panel in #support
-        ↓
-Bot sends a beautiful embed with "📩 Open Ticket" button
-        ↓
-User clicks the button
-        ↓
-Bot creates #ticket-username (private channel)
-  → Only the user + roles with mod permissions + Bot can see it
-  → Channel topic set to opener's user ID
-        ↓
-Bot sends welcome embed with "🔒 Close Ticket" button
-        ↓
-User describes their issue, staff responds
-        ↓
-Staff clicks "🔒 Close Ticket"
-        ↓
-Bot fetches ALL messages from the channel
-        ↓
-Bot generates a professional HTML transcript
-        ↓
-Bot sends transcript file to #transcripts with details embed
-        ↓
-Bot logs the closure to #ticket-log
-        ↓
-Bot deletes the ticket channel after 5 seconds
-```
+**Member left:**
+- Username and tag
+- Roles they had
+- How long they were in the server
 
-#### Panel Embed
+### Message Log (`#message-log`)
 
-The panel sent by `/panel` includes:
-- Title: "📋 Support Tickets"
-- Description: "Need help? Click the button below to open a support ticket."
-- Color: Discord Blurple (#5865F2)
-- Server icon as thumbnail
-- Server name + bot tag in footer
-- A "📩 Open Ticket" button that **never expires** (works forever, even after restarts)
+**Message deleted:**
+- Author (tag + ID)
+- Channel
+- Content (or "Unknown" if the message was not cached)
 
-#### Ticket Channel Permissions
+**Message edited:**
+- Author (tag + ID)
+- Channel
+- Before content
+- After content
 
-| Who | Permissions |
-|-----|------------|
-| @everyone | Cannot see the channel |
-| Ticket opener | View, Send Messages, Read History, Attach Files |
-| Any role with Manage Messages / Kick / Ban | View, Send Messages, Read History, Manage Messages, Attach Files |
-| Bot | View, Send Messages, Read History, Manage Messages, Manage Channels |
+> Bot messages are ignored for both deleted and edited logs.
 
-> The bot automatically scans all server roles and gives ticket access to any role that has **Manage Messages**, **Kick Members**, or **Ban Members** permission. No manual staff role configuration needed.
+### Ticket Log (`#ticket-log`)
 
-#### Ticket Numbering
+**Ticket opened:**
+- Who opened it (tag + ID)
+- Channel name and link
+- Ticket number
 
-- Each ticket gets a sequential number (#1, #2, #3...)
-- Stored in `data/ticketCount.json` — persists across restarts
-- Never resets (unless you manually edit the file)
-- Shown in the welcome embed inside the ticket
+**Ticket closed:**
+- Who closed it (tag + ID)
+- Channel name
+- Who originally opened it
+- Total message count
 
-#### HTML Transcript
+---
 
-When a ticket is closed, the bot generates a **self-contained HTML file** that looks like TicketTool.xyz transcripts:
+## Persistence & Restarts
 
-- Dark Discord-like theme (#36393f background)
-- Server icon and name in header
-- Ticket info: name, opened by, closed by, dates, message count
-- Each message shows: circular avatar, colored username (uses role color), timestamp
-- Bot messages have a subtle different background + blue "BOT" badge
-- Embeds shown as colored left-border blocks
-- Attachments shown with 📎 icon and clickable filename
-- URLs are auto-linked
-- Avatar fallback if Discord CDN fails
-- Footer with bot name and generation timestamp
-- **No external dependencies** — fully self-contained, works offline
-
-#### Persistence
+The bot is designed to survive restarts cleanly:
 
 | What | How It Persists |
 |------|----------------|
-| Panel button | Uses static `customId` — works forever without re-sending |
+| Ticket panel button | Uses static `customId: "open_ticket"` — works forever without re-sending |
 | Ticket counter | Saved to `data/ticketCount.json` on every ticket creation |
-| Opener info | Stored in channel topic as `Opened by: {userId}` |
+| Ticket opener info | Stored in channel topic as `Opened by: {userId}` |
+| No-prefix user list | Saved to `data/noprefix.json` on every add/remove |
+| Owner no-prefix | Hardcoded via `OWNER_ID` in `.env` |
 | `data/` folder | Auto-created on bot startup if it doesn't exist |
+| Temp VC cleanup | On startup, bot deletes empty leftover VCs in the category |
 
-#### Duplicate Ticket Prevention
+### Console Output on Startup
 
-If a user tries to open a ticket while they already have one open, the bot replies with:
-> ❌ You already have an open ticket: #ticket-username
-
-#### Who Can Close Tickets
-
-- Any member with **Manage Messages**, **Kick Members**, or **Ban Members** permission can close tickets
-- If a member without these permissions clicks the close button, they get:
-  > ❌ You need **Manage Messages**, **Kick Members**, or **Ban Members** permission to close tickets.
+```
+[Commands] Loaded: ban
+[Commands] Loaded: kick
+[Commands] Loaded: mute
+[Commands] Loaded: unmute
+[Commands] Loaded: warn
+[Commands] Loaded: purge
+[Commands] Loaded: noprefix
+[Commands] Loaded: panel
+[Events] Loaded: ready
+[Events] Loaded: messageCreate
+[Events] Loaded: interactionCreate
+[Events] Loaded: voiceStateUpdate
+[Events] Loaded: guildMemberAdd
+[Ready] Logged in as YourBot#1234
+[Ready] Ticket counter loaded: 15
+[Ready] No-prefix users loaded: 3
+[Ready] No leftover temp VCs to clean up
+```
 
 ---
 
@@ -564,17 +829,20 @@ If a user tries to open a ticket while they already have one open, the bot repli
 | Issue | Solution |
 |-------|----------|
 | `Error: TOKEN is not provided` | Make sure `.env` is filled in and in the project root |
-| Slash commands not showing up | Run `node deploy-commands.js` again. Commands may take a few minutes to appear |
-| `Missing Permissions` errors | Make sure the bot role is above the target user's highest role in your server settings |
+| Slash commands not showing up | Run `node deploy-commands.js`. Commands may take a few minutes to appear |
+| `Missing Permissions` errors | Make sure the bot role is **above** the target user's highest role in Server Settings → Roles |
 | `Missing Access` on channels | Verify the bot has permissions to view and send messages in the log channels |
 | Message content logging shows "Unknown" | Enable **Message Content Intent** in the Developer Portal |
 | Member join/leave not logging | Enable **Server Members Intent** in the Developer Portal |
 | `DiscordAPIError: Unknown Channel` | Double-check all channel/category IDs in `.env` |
 | Bot goes offline on VPS | Use PM2 with `pm2 startup` and `pm2 save` for auto-restart |
 | Temp VC not created when joining | Verify `CREATE_VC_CHANNEL` ID matches exactly; bot needs Manage Channels permission |
-| Ticket panel button stopped working | Old panels use `ticket_open` — run `/panel` again to send a new panel with the updated `open_ticket` ID |
-| Ticket counter reset to 0 | Check that `data/ticketCount.json` exists and isn't being deleted on deploy |
-| Transcript file is empty | Make sure the bot has Read Message History permission in the ticket channel |
+| Ticket panel button stopped working | Run `/panel` again to send a new panel |
+| Ticket counter reset to 0 | Check that `data/ticketCount.json` exists and isn't deleted on deploy |
+| Transcript file is empty | Make sure the bot has Read Message History permission in ticket channels |
+| No-prefix not working | Check `OWNER_ID` is set correctly; for other users verify with `/noprefix list` |
+| No-prefix user can't run a command | No-prefix only skips the `!` — permission checks still apply |
+| `/noprefix` command not showing | Run `node deploy-commands.js` to register the new slash command |
 
 ---
 
@@ -585,6 +853,7 @@ If a user tries to open a ticket while they already have one open, the bot repli
 - **Config:** dotenv
 - **Process Manager:** PM2
 - **Language:** JavaScript (CommonJS)
+- **Data Storage:** JSON files (`data/` directory)
 
 ---
 
