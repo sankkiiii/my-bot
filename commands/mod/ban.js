@@ -1,6 +1,5 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, CommandInteraction } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, CommandInteraction } = require('discord.js');
 const config = require('../../config');
-const { sendLog } = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -70,18 +69,6 @@ module.exports = {
 
       await member.ban({ reason });
 
-      const embed = new EmbedBuilder()
-        .setTitle('Member Banned')
-        .setColor(0xff0000)
-        .addFields(
-          { name: 'Action', value: 'Ban', inline: true },
-          { name: 'User', value: `${targetUser.tag} (${targetUser.id})`, inline: true },
-          { name: 'Moderator', value: `${executor.tag}`, inline: true },
-          { name: 'Reason', value: reason },
-        )
-        .setTimestamp();
-
-      await sendLog(client, config.modLogChannel, embed);
       await replyFn(`**${targetUser.tag}** has been banned. Reason: ${reason}`);
     } catch (err) {
       console.error('[Ban]', err);
