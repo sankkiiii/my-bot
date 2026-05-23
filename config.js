@@ -13,4 +13,5 @@ module.exports = {
   ticketCategory: process.env.TICKET_CATEGORY,
   tempVcCategory: process.env.TEMP_VC_CATEGORY,
   createVcChannel: process.env.CREATE_VC_CHANNEL,
+  ownerId: process.env.OWNER_ID,
 };

@@ -4,6 +4,7 @@ const { ActivityType, ChannelType } = require('discord.js');
 const config = require('../config');
 
 const TICKET_COUNT_PATH = path.join(__dirname, '..', 'data', 'ticketCount.json');
+const NOPREFIX_PATH = path.join(__dirname, '..', 'data', 'noprefix.json');
 
 module.exports = {
   name: 'ready',
@@ -27,6 +28,24 @@ module.exports = {
         }
       } catch (err) {
         console.error('[Ready] Failed to init ticket counter:', err.message);
+      }
+
+      // --- Ensure no-prefix file exists ---
+      try {
+        if (!fs.existsSync(NOPREFIX_PATH)) {
+          fs.writeFileSync(NOPREFIX_PATH, JSON.stringify({ users: [] }, null, 2));
+          console.log('[Ready] Created data/noprefix.json');
+        } else {
+          const data = JSON.parse(fs.readFileSync(NOPREFIX_PATH, 'utf-8'));
+          console.log(`[Ready] No-prefix users loaded: ${data.users.length}`);
+        }
+      } catch (err) {
+        console.error('[Ready] Failed to init noprefix file:', err.message);
+      }
+
+      // --- Owner ID check ---
+      if (!config.ownerId) {
+        console.log('[Ready] WARNING: OWNER_ID not set in .env, owner no-prefix disabled');
       }
 
       // --- Temp VC cleanup on startup ---

@@ -1,6 +1,10 @@
+const fs = require('fs');
+const path = require('path');
 const { Events, EmbedBuilder } = require('discord.js');
 const config = require('../config');
 const { sendLog } = require('../utils/logger');
+
+const NOPREFIX_PATH = path.join(__dirname, '..', 'data', 'noprefix.json');
 
 module.exports = {
   name: Events.MessageCreate,
@@ -8,32 +12,47 @@ module.exports = {
   async execute(message, client) {
     try {
       if (message.author.bot) return;
+      if (!message.guild) return;
 
-      // --- Prefix command handling ---
-      if (message.content.startsWith(config.prefix)) {
-        const args = message.content.slice(config.prefix.length).trim().split(/\s+/);
-        const commandName = args.shift().toLowerCase();
-        const command = client.commands.get(commandName);
-        if (!command) return;
+      // --- Load no-prefix list fresh on every message ---
+      let noprefixUsers = [];
+      try {
+        const data = JSON.parse(fs.readFileSync(NOPREFIX_PATH, 'utf-8'));
+        noprefixUsers = data.users || [];
+      } catch {}
 
-        await command.execute(message, args, client);
+      const isOwner = config.ownerId && message.author.id === config.ownerId;
+      const isNoPrefix = noprefixUsers.includes(message.author.id);
+      const startsWithPrefix = message.content.startsWith(config.prefix);
+
+      let args;
+      let commandName;
+
+      if (startsWithPrefix) {
+        args = message.content.slice(config.prefix.length).trim().split(/\s+/);
+        commandName = args.shift().toLowerCase();
+      } else if (isOwner || isNoPrefix) {
+        args = message.content.trim().split(/\s+/);
+        commandName = args.shift().toLowerCase();
+      } else {
+        return;
       }
+
+      const command = client.commands.get(commandName);
+      if (!command) return;
+
+      await command.execute(message, args, client);
     } catch (err) {
       console.error('[MessageCreate]', err);
     }
   },
 
-  /**
-   * Registers messageDelete and messageUpdate listeners for message logging.
-   * Called by eventHandler after loading this file.
-   */
   init(client) {
     // --- Message Deleted ---
     client.on(Events.MessageDelete, async (message) => {
       try {
         if (!message.guild) return;
         if (message.partial) {
-          // Message was not cached
           const embed = new EmbedBuilder()
             .setTitle('Message Deleted')
             .setColor(0xed4245)
