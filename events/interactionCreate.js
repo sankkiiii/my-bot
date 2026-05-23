@@ -314,6 +314,35 @@ async function handleTicketClose(interaction, client) {
 // VC CONTROL PANEL HANDLERS
 // ═══════════════════════════════════════
 
+// Find a user's active temp VC from the Map.
+// Works whether clicked from the VC text chat OR a permanent control panel.
+function findUserVc(tempVCs, userId, interactionChannelId, userVoiceChannelId) {
+  // 1. Direct match: button clicked inside the VC's built-in text chat
+  if (tempVCs.has(interactionChannelId)) {
+    const data = tempVCs.get(interactionChannelId);
+    if (data.creatorId === userId) {
+      return { vcChannelId: interactionChannelId, vcData: data };
+    }
+  }
+
+  // 2. User is in a VC they own
+  if (userVoiceChannelId && tempVCs.has(userVoiceChannelId)) {
+    const data = tempVCs.get(userVoiceChannelId);
+    if (data.creatorId === userId) {
+      return { vcChannelId: userVoiceChannelId, vcData: data };
+    }
+  }
+
+  // 3. Search the entire Map for any VC owned by this user
+  for (const [channelId, data] of tempVCs.entries()) {
+    if (data.creatorId === userId) {
+      return { vcChannelId: channelId, vcData: data };
+    }
+  }
+
+  return null;
+}
+
 async function handleVcButton(interaction) {
   const id = interaction.customId;
   const tempVCs = interaction.client.tempVCs;
@@ -325,7 +354,6 @@ async function handleVcButton(interaction) {
   console.log('userId:', interaction.user.id);
   console.log('voiceState channelId:', interaction.member.voice?.channelId);
   console.log('tempVCs Map size:', tempVCs?.size);
-  console.log('lookup result:', tempVCs?.get(interaction.channelId));
   console.log('========================');
 
   // Defer immediately for non-modal buttons (must respond within 3s)
@@ -342,18 +370,22 @@ async function handleVcButton(interaction) {
     return interaction.reply({ content: msg, ephemeral: true });
   };
 
-  // --- Validation checks ---
-  const vcData = tempVCs?.get(interaction.channelId);
+  // --- Find the user's temp VC ---
+  const result = findUserVc(
+    tempVCs,
+    interaction.user.id,
+    interaction.channelId,
+    interaction.member.voice?.channelId,
+  );
 
-  if (!vcData) {
-    return errorReply('\u274C VC session expired. Leave and rejoin \u2795 Create VC.');
+  if (!result) {
+    return errorReply('\u274C You don\'t have an active voice channel. Join \u2795 Create VC first.');
   }
 
-  if (interaction.user.id !== vcData.creatorId) {
-    return errorReply('\u274C Only the voice channel creator can use these controls.');
-  }
+  const { vcChannelId, vcData } = result;
 
-  const creatorInVC = interaction.member.voice?.channelId === interaction.channelId;
+  // Check if creator is in the VC (except for delete)
+  const creatorInVC = interaction.member.voice?.channelId === vcChannelId;
   if (!creatorInVC && id !== 'vc_delete') {
     return errorReply('\u274C You must be connected to your voice channel to use controls.');
   }
@@ -439,7 +471,7 @@ async function handleVcButton(interaction) {
       return interaction.showModal(modal);
     }
 
-    const vc = interaction.guild.channels.cache.get(interaction.channelId);
+    const vc = interaction.guild.channels.cache.get(vcChannelId);
 
     if (id === 'vc_lock') {
       await vc.permissionOverwrites.edit(interaction.guild.id, { Connect: false });
@@ -467,7 +499,7 @@ async function handleVcButton(interaction) {
     }
 
     if (id === 'vc_delete') {
-      tempVCs.delete(interaction.channelId);
+      tempVCs.delete(vcChannelId);
       await interaction.editReply({ content: '\uD83D\uDDD1\uFE0F Deleting your voice channel...' });
       await vc?.delete().catch(() => {});
       return;
@@ -485,33 +517,33 @@ async function handleVcButton(interaction) {
 async function handleVcModal(interaction) {
   const id = interaction.customId;
   const tempVCs = interaction.client.tempVCs;
-  const channelId = interaction.channelId;
 
-  console.log('[VC Modal] customId:', id, 'channelId:', channelId);
-  console.log('[VC Modal] Map size:', tempVCs?.size, 'has channel:', tempVCs?.has(channelId));
+  console.log('[VC Modal] customId:', id, 'channelId:', interaction.channelId);
+  console.log('[VC Modal] Map size:', tempVCs?.size);
 
-  const vcData = tempVCs?.get(channelId);
+  // Find the user's temp VC (works from VC text chat or permanent panel)
+  const result = findUserVc(
+    tempVCs,
+    interaction.user.id,
+    interaction.channelId,
+    interaction.member.voice?.channelId,
+  );
 
-  if (!vcData) {
+  if (!result) {
     return interaction.reply({
-      content: '\u274C This voice channel session has expired. Please leave and rejoin \u2795 Create VC to get a new one.',
+      content: '\u274C You don\'t have an active voice channel. Join \u2795 Create VC first.',
       ephemeral: true,
     });
   }
 
-  if (interaction.user.id !== vcData.creatorId) {
-    return interaction.reply({
-      content: '\u274C Only the voice channel creator can use these controls.',
-      ephemeral: true,
-    });
-  }
+  const { vcChannelId, vcData } = result;
 
-  const voiceChannel = interaction.guild.channels.cache.get(channelId);
+  const voiceChannel = interaction.guild.channels.cache.get(vcChannelId);
   if (!voiceChannel) {
     return interaction.reply({ content: '\u274C Voice channel not found.', ephemeral: true });
   }
 
-  const creatorInVC = interaction.member.voice?.channelId === channelId;
+  const creatorInVC = interaction.member.voice?.channelId === vcChannelId;
   if (!creatorInVC) {
     return interaction.reply({
       content: '\u274C You must be connected to your voice channel to use controls.',
@@ -534,6 +566,9 @@ async function handleVcModal(interaction) {
       const limit = parseInt(input, 10);
       if (isNaN(limit) || limit < 0 || limit > 99) {
         return interaction.editReply('\u274C Please enter a valid number between 0 and 99.');
+      }
+      if (vcData.type === 'duo') {
+        return interaction.editReply('\u274C Duo VCs are locked to 2 users.');
       }
       await voiceChannel.setUserLimit(limit);
       if (limit === 0) {
