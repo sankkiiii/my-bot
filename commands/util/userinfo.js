@@ -3,6 +3,7 @@ const {
   EmbedBuilder,
   CommandInteraction,
 } = require('discord.js');
+const resolveUser = require('../../utils/resolveUser');
 
 const flagsMap = {
   Staff: '\uD83D\uDC68\u200D\uD83D\uDCBC Discord Staff',
@@ -25,7 +26,10 @@ module.exports = {
     .setName('userinfo')
     .setDescription('Show user information')
     .addUserOption((opt) =>
-      opt.setName('user').setDescription('User to show info for').setRequired(false),
+      opt.setName('user').setDescription('Select a user from the list').setRequired(false),
+    )
+    .addStringOption((opt) =>
+      opt.setName('query').setDescription('Or type a username / user ID').setRequired(false),
     ),
 
   name: 'userinfo',
@@ -35,30 +39,51 @@ module.exports = {
     const client = isSlash ? argsOrClient : clientOrUndefined;
 
     try {
-      let targetUserId, guild, replyFn, requester;
+      let member, guild, replyFn, requester;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
         guild = interaction.guild;
-        const optUser = interaction.options.getUser('user');
-        targetUserId = optUser ? optUser.id : interaction.user.id;
         requester = interaction.user;
         replyFn = (opts) => interaction.reply(opts);
+
+        const userOption = interaction.options.getUser('user');
+        const queryOption = interaction.options.getString('query');
+
+        if (userOption) {
+          member = await guild.members.fetch(userOption.id).catch(() => null);
+        } else if (queryOption) {
+          member = await resolveUser(queryOption, guild);
+        } else {
+          member = await guild.members.fetch(interaction.user.id);
+        }
+
+        if (!member) {
+          return interaction.reply({ content: '\u274C Could not find that user. Try their @mention, username, or user ID.', ephemeral: true });
+        }
       } else {
         const message = interactionOrMessage;
+        const args = argsOrClient;
         guild = message.guild;
-        const mentioned = message.mentions.users.first();
-        targetUserId = mentioned ? mentioned.id : message.author.id;
         requester = message.author;
         replyFn = (opts) => message.reply(opts);
+
+        const input = message.mentions.members.first()
+          ? message.mentions.members.first().id
+          : args.join(' ');
+
+        if (input) {
+          member = await resolveUser(input, guild);
+        } else {
+          member = await guild.members.fetch(message.author.id);
+        }
+
+        if (!member) {
+          return message.reply('\u274C Could not find that user. Try their @mention, username, or user ID.');
+        }
       }
 
-      const member = await guild.members.fetch(targetUserId).catch(() => null);
-      if (!member) {
-        return replyFn({ content: '\u274C User not found.' });
-      }
-
-      const user = await client.users.fetch(targetUserId, { force: true });
+      const user = await client.users.fetch(member.id, { force: true });
       const color = member.displayColor || 0x5865F2;
 
       const createdTimestamp = Math.floor(user.createdTimestamp / 1000);
