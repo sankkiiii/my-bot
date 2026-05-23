@@ -308,19 +308,18 @@ function validateVcCreator(interaction, skipInVcCheck) {
   const tempVCs = interaction.client.tempVCs;
   const channelId = interaction.channelId;
 
-  console.log('=== VC VALIDATE ===');
-  console.log('channelId:', channelId);
-  console.log('userId:', interaction.user.id);
-  console.log('tempVCs Map size:', tempVCs?.size);
-  console.log('tempVCs Map entries:', [...(tempVCs?.entries() || [])]);
-  console.log('lookup result:', tempVCs?.get(channelId));
-  console.log('===================');
+  console.log('[VC CTRL] user:', interaction.user.tag);
+  console.log('[VC CTRL] interaction.channelId:', channelId);
+  console.log('[VC CTRL] user voiceState channelId:', interaction.member.voice?.channelId);
+  console.log('[VC CTRL] match:', interaction.member.voice?.channelId === channelId);
+  console.log('[VC CTRL] tempVCs has channel:', tempVCs?.has(channelId));
+  console.log('[VC CTRL] vcData:', tempVCs?.get(channelId));
 
   const vcData = tempVCs?.get(channelId);
 
   if (!vcData) {
     interaction.reply({
-      content: '\u274C This voice channel session has expired. Please leave and rejoin \u2795 Create VC to get a new one.',
+      content: '\u274C This VC session expired. Leave and rejoin \u2795 Create VC.',
       ephemeral: true,
     });
     return null;
@@ -343,9 +342,10 @@ function validateVcCreator(interaction, skipInVcCheck) {
     return null;
   }
 
-  if (!skipInVcCheck && !voiceChannel.members.has(interaction.user.id)) {
+  const creatorInVC = interaction.member.voice?.channelId === channelId;
+  if (!skipInVcCheck && !creatorInVC) {
     interaction.reply({
-      content: '\u274C You must be in the voice channel to use controls.',
+      content: '\u274C You must be connected to your voice channel to use controls.',
       ephemeral: true,
     });
     return null;
@@ -362,8 +362,8 @@ async function handleVcButton(interaction) {
   console.log('customId:', id);
   console.log('channelId:', interaction.channelId);
   console.log('userId:', interaction.user.id);
+  console.log('voiceState channelId:', interaction.member.voice?.channelId);
   console.log('tempVCs Map size:', tempVCs?.size);
-  console.log('tempVCs Map entries:', [...(tempVCs?.entries() || [])]);
   console.log('lookup result:', tempVCs?.get(interaction.channelId));
   console.log('========================');
 
@@ -532,9 +532,10 @@ async function handleVcModal(interaction) {
     return interaction.reply({ content: '\u274C Voice channel not found.', ephemeral: true });
   }
 
-  if (!voiceChannel.members.has(interaction.user.id)) {
+  const creatorInVC = interaction.member.voice?.channelId === channelId;
+  if (!creatorInVC) {
     return interaction.reply({
-      content: '\u274C You must be in the voice channel to use controls.',
+      content: '\u274C You must be connected to your voice channel to use controls.',
       ephemeral: true,
     });
   }
