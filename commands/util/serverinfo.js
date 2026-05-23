@@ -11,6 +11,7 @@ module.exports = {
     .setDescription('Show server information'),
 
   name: 'serverinfo',
+  aliases: ['si', 'server', 'guildinfo', 'guild'],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;

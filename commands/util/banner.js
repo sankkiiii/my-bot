@@ -20,6 +20,7 @@ module.exports = {
     ),
 
   name: 'banner',
+  aliases: ['userbanner', 'profilebanner'],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;

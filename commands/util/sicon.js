@@ -13,6 +13,7 @@ module.exports = {
     .setDescription('Show the server icon'),
 
   name: 'servericon',
+  aliases: ['sicon', 'guildicon'],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;

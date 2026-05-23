@@ -48,6 +48,7 @@ module.exports = {
     ),
 
   name: 'noprefix',
+  aliases: ['np'],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;

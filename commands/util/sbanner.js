@@ -13,6 +13,7 @@ module.exports = {
     .setDescription('Show the server banner'),
 
   name: 'serverbanner',
+  aliases: ['sbanner', 'guildbanner'],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
