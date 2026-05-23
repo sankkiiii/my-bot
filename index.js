@@ -23,6 +23,7 @@ const client = new Client({
 
 client.commands = new Collection();
 client.tempVCs = new Map();
+console.log('[Index] tempVCs Map initialized');
 
 loadCommands(client);
 loadEvents(client);

@@ -63,7 +63,7 @@ module.exports = {
           return;
         }
         if (VC_BUTTON_IDS.includes(interaction.customId)) {
-          await handleVcButton(interaction, client);
+          await handleVcButton(interaction);
           return;
         }
       }
@@ -71,7 +71,7 @@ module.exports = {
       // --- Modal handling ---
       if (interaction.isModalSubmit()) {
         if (VC_MODAL_IDS.includes(interaction.customId)) {
-          await handleVcModal(interaction, client);
+          await handleVcModal(interaction);
           return;
         }
       }
@@ -304,9 +304,19 @@ async function handleTicketClose(interaction, client) {
 // VC CONTROL PANEL HANDLERS
 // ═══════════════════════════════════════
 
-function validateVcCreator(interaction, client, skipInVcCheck) {
+function validateVcCreator(interaction, skipInVcCheck) {
+  const tempVCs = interaction.client.tempVCs;
   const channelId = interaction.channelId;
-  const vcData = client.tempVCs.get(channelId);
+
+  console.log('=== VC VALIDATE ===');
+  console.log('channelId:', channelId);
+  console.log('userId:', interaction.user.id);
+  console.log('tempVCs Map size:', tempVCs?.size);
+  console.log('tempVCs Map entries:', [...(tempVCs?.entries() || [])]);
+  console.log('lookup result:', tempVCs?.get(channelId));
+  console.log('===================');
+
+  const vcData = tempVCs?.get(channelId);
 
   if (!vcData) {
     interaction.reply({
@@ -344,12 +354,22 @@ function validateVcCreator(interaction, client, skipInVcCheck) {
   return { vcData, voiceChannel };
 }
 
-async function handleVcButton(interaction, client) {
+async function handleVcButton(interaction) {
   const id = interaction.customId;
+  const tempVCs = interaction.client.tempVCs;
+
+  console.log('=== VC BUTTON CLICKED ===');
+  console.log('customId:', id);
+  console.log('channelId:', interaction.channelId);
+  console.log('userId:', interaction.user.id);
+  console.log('tempVCs Map size:', tempVCs?.size);
+  console.log('tempVCs Map entries:', [...(tempVCs?.entries() || [])]);
+  console.log('lookup result:', tempVCs?.get(interaction.channelId));
+  console.log('========================');
 
   // Modals must be shown before deferring
   if (id === 'vc_rename' || id === 'vc_limit' || id === 'vc_trust' || id === 'vc_reject') {
-    const result = validateVcCreator(interaction, client, id === 'vc_delete');
+    const result = validateVcCreator(interaction, id === 'vc_delete');
     if (!result) return;
 
     if (id === 'vc_limit' && result.vcData.type === 'duo') {
@@ -360,7 +380,7 @@ async function handleVcButton(interaction, client) {
     return interaction.showModal(modal);
   }
 
-  const result = validateVcCreator(interaction, client, id === 'vc_delete');
+  const result = validateVcCreator(interaction, id === 'vc_delete');
   if (!result) return;
 
   const { vcData, voiceChannel } = result;
@@ -397,7 +417,7 @@ async function handleVcButton(interaction, client) {
 
       case 'vc_delete':
         await interaction.editReply('\uD83D\uDDD1\uFE0F Deleting your voice channel...');
-        client.tempVCs.delete(voiceChannel.id);
+        tempVCs.delete(voiceChannel.id);
         await voiceChannel.delete().catch(() => {});
         break;
     }
@@ -483,10 +503,15 @@ function buildVcModal(buttonId) {
   return null;
 }
 
-async function handleVcModal(interaction, client) {
+async function handleVcModal(interaction) {
   const id = interaction.customId;
+  const tempVCs = interaction.client.tempVCs;
   const channelId = interaction.channelId;
-  const vcData = client.tempVCs.get(channelId);
+
+  console.log('[VC Modal] customId:', id, 'channelId:', channelId);
+  console.log('[VC Modal] Map size:', tempVCs?.size, 'has channel:', tempVCs?.has(channelId));
+
+  const vcData = tempVCs?.get(channelId);
 
   if (!vcData) {
     return interaction.reply({

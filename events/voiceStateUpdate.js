@@ -98,7 +98,9 @@ async function sendControlPanel(channel) {
 module.exports = {
   name: Events.VoiceStateUpdate,
 
-  async execute(oldState, newState, client) {
+  async execute(oldState, newState) {
+    const tempVCs = newState.client.tempVCs;
+
     try {
       // --- User joined the "Create VC" channel (Hub) ---
       if (config.createVcChannel && newState.channelId === config.createVcChannel) {
@@ -128,21 +130,23 @@ module.exports = {
           return;
         }
 
-        client.tempVCs.set(tempChannel.id, { creatorId: member.id, guildId: guild.id, type: 'hub' });
+        tempVCs.set(tempChannel.id, { creatorId: member.id, guildId: guild.id, type: 'hub' });
+        console.log('[TempVC] Created hub VC:', tempChannel.id, 'for:', member.id);
+        console.log('[TempVC] Map size now:', tempVCs.size);
 
         try {
           await member.voice.setChannel(tempChannel);
         } catch (err) {
           console.error('[TempVC] Failed to move member to hub:', err.message);
           if (tempChannel.members.size === 0) {
-            client.tempVCs.delete(tempChannel.id);
+            tempVCs.delete(tempChannel.id);
             await tempChannel.delete().catch(() => {});
           }
           return;
         }
 
         if (tempChannel.members.size === 0) {
-          client.tempVCs.delete(tempChannel.id);
+          tempVCs.delete(tempChannel.id);
           await tempChannel.delete().catch(() => {});
         } else {
           await sendControlPanel(tempChannel);
@@ -181,21 +185,23 @@ module.exports = {
           return;
         }
 
-        client.tempVCs.set(duoChannel.id, { creatorId: member.id, guildId: guild.id, type: 'duo' });
+        tempVCs.set(duoChannel.id, { creatorId: member.id, guildId: guild.id, type: 'duo' });
+        console.log('[DuoVC] Created duo VC:', duoChannel.id, 'for:', member.id);
+        console.log('[DuoVC] Map size now:', tempVCs.size);
 
         try {
           await member.voice.setChannel(duoChannel);
         } catch (err) {
           console.error('[DuoVC] Failed to move member to duo:', err.message);
           if (duoChannel.members.size === 0) {
-            client.tempVCs.delete(duoChannel.id);
+            tempVCs.delete(duoChannel.id);
             await duoChannel.delete().catch(() => {});
           }
           return;
         }
 
         if (duoChannel.members.size === 0) {
-          client.tempVCs.delete(duoChannel.id);
+          tempVCs.delete(duoChannel.id);
           await duoChannel.delete().catch(() => {});
         } else {
           await sendControlPanel(duoChannel);
@@ -208,10 +214,10 @@ module.exports = {
         oldState.channelId !== config.createVcChannel &&
         oldState.channelId !== config.createDuoChannel
       ) {
-        if (client.tempVCs.has(oldState.channelId)) {
+        if (tempVCs.has(oldState.channelId)) {
           const channel = oldState.guild.channels.cache.get(oldState.channelId);
           if (channel && channel.members.size === 0) {
-            client.tempVCs.delete(oldState.channelId);
+            tempVCs.delete(oldState.channelId);
             await channel.delete().catch((err) =>
               console.error('[TempVC] Failed to delete channel:', err.message),
             );
