@@ -9,23 +9,7 @@ const dbPath = path.join(dbDir, 'bot.db');
 const schemaPath = path.join(__dirname, 'schema.sql');
 
 let db = null;
-let initError = null;
-let ready = false;
-
-const lock = new Int32Array(new SharedArrayBuffer(4));
-
-function markReady() {
-  ready = true;
-  Atomics.store(lock, 0, 1);
-  Atomics.notify(lock, 0, 1);
-}
-
-function waitReady() {
-  if (!ready) {
-    Atomics.wait(lock, 0, 0);
-  }
-  if (initError) throw initError;
-}
+let initPromise = null;
 
 function saveToDisk() {
   if (!db) return;
@@ -45,8 +29,15 @@ function rowsFromExec(results) {
   });
 }
 
-initSqlJs()
-  .then((SQL) => {
+function ensureReady() {
+  if (!db) {
+    throw new Error('[DB] Database not initialized. Call db.init() first.');
+  }
+}
+
+function init() {
+  if (initPromise) return initPromise;
+  initPromise = initSqlJs().then((SQL) => {
     let data = null;
     if (fs.existsSync(dbPath)) {
       data = new Uint8Array(fs.readFileSync(dbPath));
@@ -59,16 +50,14 @@ initSqlJs()
     db.exec('PRAGMA foreign_keys = ON');
 
     saveToDisk();
-    markReady();
-  })
-  .catch((err) => {
-    initError = err;
-    markReady();
   });
+  return initPromise;
+}
 
 module.exports = {
+  init,
   prepare(sql) {
-    waitReady();
+    ensureReady();
     return {
       get(...params) {
         const results = db.exec(sql, params);
@@ -86,12 +75,12 @@ module.exports = {
     };
   },
   exec(sql) {
-    waitReady();
+    ensureReady();
     db.exec(sql);
     saveToDisk();
   },
   pragma(statement) {
-    waitReady();
+    ensureReady();
     db.exec(`PRAGMA ${statement}`);
   },
 };
