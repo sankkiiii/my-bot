@@ -16,7 +16,6 @@ const config = require('../config');
 const getConfig = require('../utils/getConfig');
 const guildConfig = require('../database/guildConfig');
 const configCache = require('../utils/configCache');
-const { incrementTicketCount } = require('../database/guildConfig');
 const { generateTranscript } = require('../utils/transcript');
 
 async function sendLog(client, channelId, embed) {
@@ -120,7 +119,7 @@ async function handleTicketOpenButton(interaction, client) {
 
   if (!cfg?.ticket_category) {
     return interaction.reply({
-      content: '❌ Tickets are not configured. Admin: use `/setup tickets`',
+      content: '❌ Ticket system not configured. Ask admin to run `/setup tickets`.',
       ephemeral: true,
     });
   }
@@ -151,13 +150,10 @@ async function handleTicketOpenButton(interaction, client) {
     });
   }
 
-  const sanitizedName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '');
-
   // Check for existing ticket BEFORE showing modal
-  const existingChannel = guild.channels.cache.find(
-    (ch) =>
-      ch.name === `ticket-${sanitizedName}` &&
-      ch.parentId === cfg.ticket_category,
+  const existingChannel = guild.channels.cache.find((ch) =>
+    ch.parentId === cfg.ticket_category
+    && ch.topic?.includes(`Opened by: ${user.id}`),
   );
   if (existingChannel) {
     return interaction.reply({
@@ -188,66 +184,54 @@ async function handleTicketModalSubmit(interaction, client) {
   await interaction.deferReply({ ephemeral: true });
 
   try {
-    const guild = interaction.guild;
-    const user = interaction.user;
-    const reason = interaction.fields.getTextInputValue('ticket_reason_input');
-    const cfg = getConfig(guild.id);
+    const cfg = getConfig(interaction.guild.id);
 
     if (!cfg?.ticket_category) {
       return interaction.editReply({
-        content: '❌ Tickets are not configured. Admin: use `/setup tickets`',
+        content: '❌ Ticket system not configured.\nAsk an admin to run `/setup tickets` first.',
+        ephemeral: true,
       });
     }
-
-    const ticketCategory = guild.channels.cache.get(cfg.ticket_category);
-    if (!ticketCategory || ticketCategory.type !== ChannelType.GuildCategory) {
+    if (!cfg?.ticket_log_channel) {
       return interaction.editReply({
-        content: '❌ Ticket category is missing or invalid. Admin: re-run `/setup tickets`',
+        content: '❌ Ticket log channel not configured.\nAsk an admin to run `/setup tickets` first.',
+        ephemeral: true,
+      });
+    }
+    if (!cfg?.transcript_channel) {
+      return interaction.editReply({
+        content: '❌ Transcript channel not configured.\nAsk an admin to run `/setup tickets` first.',
+        ephemeral: true,
       });
     }
 
-    const botMember = guild.members.me;
-    if (!botMember) {
-      return interaction.editReply('❌ Could not verify bot permissions. Try again in a moment.');
-    }
+    const reason = interaction.fields.getTextInputValue('ticket_reason_input');
 
-    const botPerms = ticketCategory.permissionsFor(botMember);
-    if (!botMember.permissions.has(PermissionFlagsBits.ManageChannels)
-      || !botPerms?.has(PermissionFlagsBits.ManageChannels)
-      || !botPerms?.has(PermissionFlagsBits.ViewChannel)) {
-      return interaction.editReply(
-        '❌ I need **Manage Channels** and **View Channel** in the ticket category.',
-      );
-    }
-
-    const sanitizedName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-    // Double-check for existing ticket (race condition guard)
-    const existingChannel = guild.channels.cache.find(
-      (ch) =>
-        ch.name === `ticket-${sanitizedName}` &&
-        ch.parentId === cfg.ticket_category,
+    const existingChannel = interaction.guild.channels.cache.find((c) =>
+      c.parentId === cfg.ticket_category
+      && c.topic?.includes(`Opened by: ${interaction.user.id}`),
     );
     if (existingChannel) {
       return interaction.editReply({
-        content: `\u274C You already have an open ticket: ${existingChannel}`,
+        content: `❌ You already have an open ticket: ${existingChannel}`,
+        ephemeral: true,
       });
     }
 
-    const ticketNumber = incrementTicketCount(guild.id);
+    const ticketNumber = guildConfig.incrementTicketCount(interaction.guild.id);
 
-    const ticketChannel = await guild.channels.create({
-      name: `ticket-${sanitizedName}`,
+    const ticketChannel = await interaction.guild.channels.create({
+      name: `ticket-${interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
       type: ChannelType.GuildText,
-      topic: `Opened by: ${user.id} | Reason: ${reason}`,
-      parent: cfg.ticket_category || undefined,
+      parent: cfg.ticket_category,
+      topic: `Opened by: ${interaction.user.id} | Reason: ${reason}`,
       permissionOverwrites: [
         {
-          id: guild.roles.everyone.id,
+          id: interaction.guild.id,
           deny: [PermissionFlagsBits.ViewChannel],
         },
         {
-          id: user.id,
+          id: interaction.user.id,
           allow: [
             PermissionFlagsBits.ViewChannel,
             PermissionFlagsBits.SendMessages,
@@ -256,7 +240,7 @@ async function handleTicketModalSubmit(interaction, client) {
           ],
         },
         {
-          id: client.user.id,
+          id: interaction.client.user.id,
           allow: [
             PermissionFlagsBits.ViewChannel,
             PermissionFlagsBits.SendMessages,
@@ -265,16 +249,14 @@ async function handleTicketModalSubmit(interaction, client) {
             PermissionFlagsBits.ManageChannels,
           ],
         },
-        ...guild.roles.cache
-          .filter(
-            (role) =>
-              role.id !== guild.id &&
-              (role.permissions.has(PermissionFlagsBits.ManageMessages) ||
-                role.permissions.has(PermissionFlagsBits.KickMembers) ||
-                role.permissions.has(PermissionFlagsBits.BanMembers)),
+        ...interaction.guild.roles.cache
+          .filter((r) =>
+            r.permissions.has(PermissionFlagsBits.ManageMessages)
+            || r.permissions.has(PermissionFlagsBits.KickMembers)
+            || r.permissions.has(PermissionFlagsBits.BanMembers),
           )
-          .map((role) => ({
-            id: role.id,
+          .map((r) => ({
+            id: r.id,
             allow: [
               PermissionFlagsBits.ViewChannel,
               PermissionFlagsBits.SendMessages,
@@ -290,7 +272,7 @@ async function handleTicketModalSubmit(interaction, client) {
       .setTitle('\uD83C\uDFAB Ticket Opened')
       .setColor(0x57f287)
       .addFields(
-        { name: '\uD83D\uDC64 Opened by', value: `${user}`, inline: true },
+        { name: '\uD83D\uDC64 Opened by', value: `${interaction.user}`, inline: true },
         { name: '\uD83C\uDFAB Ticket', value: `#${ticketNumber}`, inline: true },
         { name: '\uD83D\uDCCB Reason', value: reason, inline: false },
         { name: '\uD83D\uDFE2 Status', value: 'Open', inline: true },
@@ -311,20 +293,24 @@ async function handleTicketModalSubmit(interaction, client) {
       .setTitle('Ticket Opened')
       .setColor(0x57f287)
       .addFields(
-        { name: 'Opened By', value: `${user.username} (${user.id})` },
+        { name: 'Opened By', value: `${interaction.user.username} (${interaction.user.id})` },
         { name: 'Channel', value: `<#${ticketChannel.id}> (${ticketChannel.name})` },
         { name: 'Ticket #', value: `${ticketNumber}` },
         { name: 'Reason', value: reason },
       )
       .setTimestamp();
-    await sendLog(client, cfg.ticket_log_channel, logEmbed);
+    const logChannel = interaction.guild.channels.cache.get(cfg.ticket_log_channel);
+    if (logChannel) {
+      await logChannel.send({ embeds: [logEmbed] });
+    }
 
     await interaction.editReply({ content: `Your ticket has been created: ${ticketChannel}` });
   } catch (err) {
-    console.error('[TicketModalSubmit]', err);
-    await interaction.editReply(
-      '❌ Failed to create the ticket. Check bot permissions for the ticket category and try again.',
-    ).catch(() => {});
+    console.error('[Ticket Create Error]', err);
+    return interaction.editReply({
+      content: `❌ Error: ${err.message}`,
+      ephemeral: true,
+    });
   }
 }
 
