@@ -1,5 +1,3 @@
-const fs = require('fs');
-const path = require('path');
 const {
   SlashCommandBuilder,
   EmbedBuilder,
@@ -8,20 +6,7 @@ const {
 } = require('discord.js');
 const config = require('../../config');
 const resolveUser = require('../../utils/resolveUser');
-
-const NOPREFIX_PATH = path.join(__dirname, '..', '..', 'data', 'noprefix.json');
-
-function loadNoprefix() {
-  try {
-    return JSON.parse(fs.readFileSync(NOPREFIX_PATH, 'utf-8'));
-  } catch {
-    return { users: [] };
-  }
-}
-
-function saveNoprefix(data) {
-  fs.writeFileSync(NOPREFIX_PATH, JSON.stringify(data, null, 2));
-}
+const guildConfig = require('../../database/guildConfig');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -105,8 +90,6 @@ module.exports = {
         }
       }
 
-      const data = loadNoprefix();
-
       if (subcommand === 'add') {
         if (targetUser.bot) {
           return replyFn('\u274C You cannot give no-prefix to a bot.');
@@ -114,11 +97,11 @@ module.exports = {
         if (config.ownerId && targetUser.id === config.ownerId) {
           return replyFn('\u26A0\uFE0F The bot owner already has no-prefix access (hardcoded).');
         }
-        if (data.users.includes(targetUser.id)) {
+        if (guildConfig.isNoPrefixUser(guild.id, targetUser.id)) {
           return replyFn(`\u26A0\uFE0F ${targetUser} already has no-prefix access.`);
         }
-        data.users.push(targetUser.id);
-        saveNoprefix(data);
+        const addedBy = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+        guildConfig.addNoPrefixUser(guild.id, targetUser.id, addedBy);
         return replyFn(`\u2705 ${targetUser} has been given no-prefix access.`);
       }
 
@@ -126,17 +109,16 @@ module.exports = {
         if (config.ownerId && targetUser.id === config.ownerId) {
           return replyFn('\u274C Cannot remove no-prefix from the bot owner (hardcoded).');
         }
-        const index = data.users.indexOf(targetUser.id);
-        if (index === -1) {
+        if (!guildConfig.isNoPrefixUser(guild.id, targetUser.id)) {
           return replyFn(`\u26A0\uFE0F ${targetUser} doesn't have no-prefix access.`);
         }
-        data.users.splice(index, 1);
-        saveNoprefix(data);
+        guildConfig.removeNoPrefixUser(guild.id, targetUser.id);
         return replyFn(`\u2705 No-prefix access removed from ${targetUser}.`);
       }
 
       if (subcommand === 'list') {
         const client = isSlash ? argsOrClient : clientOrUndefined;
+        const users = guildConfig.getNoPrefixUsers(guild.id);
         const embed = new EmbedBuilder()
           .setTitle('\u26A1 No-Prefix Users')
           .setColor(0x5865f2)
@@ -153,11 +135,11 @@ module.exports = {
         }
         embed.addFields({ name: '\uD83D\uDC51 Owner', value: ownerLine });
 
-        if (data.users.length === 0) {
+        if (users.length === 0) {
           embed.addFields({ name: '\u26A1 No-Prefix Users', value: 'None' });
         } else {
           const lines = [];
-          for (const userId of data.users) {
+          for (const userId of users) {
             try {
               const u = await client.users.fetch(userId);
               lines.push(`${u.username} (${userId})`);

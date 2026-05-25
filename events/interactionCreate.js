@@ -1,5 +1,3 @@
-const fs = require('fs');
-const path = require('path');
 const {
   Events,
   EmbedBuilder,
@@ -15,6 +13,10 @@ const {
   UserSelectMenuBuilder,
 } = require('discord.js');
 const config = require('../config');
+const getConfig = require('../utils/getConfig');
+const guildConfig = require('../database/guildConfig');
+const configCache = require('../utils/configCache');
+const { incrementTicketCount } = require('../database/guildConfig');
 const { generateTranscript } = require('../utils/transcript');
 
 async function sendLog(client, channelId, embed) {
@@ -25,21 +27,6 @@ async function sendLog(client, channelId, embed) {
   } catch (err) {
     console.error('[Log] Failed to send log:', err.message);
   }
-}
-
-const TICKET_COUNT_PATH = path.join(__dirname, '..', 'data', 'ticketCount.json');
-
-function getTicketCount() {
-  try {
-    const data = JSON.parse(fs.readFileSync(TICKET_COUNT_PATH, 'utf-8'));
-    return data.count || 0;
-  } catch {
-    return 0;
-  }
-}
-
-function setTicketCount(count) {
-  fs.writeFileSync(TICKET_COUNT_PATH, JSON.stringify({ count }, null, 2));
 }
 
 const VC_BUTTON_IDS = [
@@ -75,6 +62,14 @@ module.exports = {
           }
           if (interaction.customId === 'close_ticket') {
             await handleTicketClose(interaction, client);
+            return;
+          }
+          if (interaction.customId.startsWith('resetconfig_confirm_')) {
+            await handleResetConfigConfirm(interaction);
+            return;
+          }
+          if (interaction.customId === 'resetconfig_cancel') {
+            await handleResetConfigCancel(interaction);
             return;
           }
           if (VC_BUTTON_IDS.includes(interaction.customId)) {
@@ -121,6 +116,14 @@ module.exports = {
 async function handleTicketOpenButton(interaction, client) {
   const guild = interaction.guild;
   const user = interaction.user;
+  const cfg = getConfig(guild.id);
+
+  if (!cfg?.ticket_category) {
+    return interaction.reply({
+      content: '❌ Tickets are not configured. Admin: use `/setup tickets`',
+      ephemeral: true,
+    });
+  }
 
   const sanitizedName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -128,7 +131,7 @@ async function handleTicketOpenButton(interaction, client) {
   const existingChannel = guild.channels.cache.find(
     (ch) =>
       ch.name === `ticket-${sanitizedName}` &&
-      ch.parentId === config.ticketCategory,
+      ch.parentId === cfg.ticket_category,
   );
   if (existingChannel) {
     return interaction.reply({
@@ -161,6 +164,13 @@ async function handleTicketModalSubmit(interaction, client) {
   const guild = interaction.guild;
   const user = interaction.user;
   const reason = interaction.fields.getTextInputValue('ticket_reason_input');
+  const cfg = getConfig(guild.id);
+
+  if (!cfg?.ticket_category) {
+    return interaction.editReply({
+      content: '❌ Tickets are not configured. Admin: use `/setup tickets`',
+    });
+  }
 
   const sanitizedName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -168,7 +178,7 @@ async function handleTicketModalSubmit(interaction, client) {
   const existingChannel = guild.channels.cache.find(
     (ch) =>
       ch.name === `ticket-${sanitizedName}` &&
-      ch.parentId === config.ticketCategory,
+      ch.parentId === cfg.ticket_category,
   );
   if (existingChannel) {
     return interaction.editReply({
@@ -176,14 +186,13 @@ async function handleTicketModalSubmit(interaction, client) {
     });
   }
 
-  const ticketNumber = getTicketCount() + 1;
-  setTicketCount(ticketNumber);
+  const ticketNumber = incrementTicketCount(guild.id);
 
   const ticketChannel = await guild.channels.create({
     name: `ticket-${sanitizedName}`,
     type: ChannelType.GuildText,
     topic: `Opened by: ${user.id} | Reason: ${reason}`,
-    parent: config.ticketCategory || undefined,
+    parent: cfg.ticket_category || undefined,
     permissionOverwrites: [
       {
         id: guild.roles.everyone.id,
@@ -260,14 +269,17 @@ async function handleTicketModalSubmit(interaction, client) {
       { name: 'Reason', value: reason },
     )
     .setTimestamp();
-  await sendLog(client, config.ticketLogChannel, logEmbed);
+  await sendLog(client, cfg.ticket_log_channel, logEmbed);
 
   await interaction.editReply({ content: `Your ticket has been created: ${ticketChannel}` });
 }
 
 async function handleTicketClose(interaction, client) {
+  await interaction.deferReply({ ephemeral: true });
+
   const guild = interaction.guild;
   const closer = interaction.member;
+  const cfg = getConfig(guild.id);
 
   const isOwner = config.ownerId && closer.user.id === config.ownerId;
 
@@ -277,15 +289,13 @@ async function handleTicketClose(interaction, client) {
     !closer.permissions.has(PermissionFlagsBits.KickMembers) &&
     !closer.permissions.has(PermissionFlagsBits.BanMembers)
   ) {
-    return interaction.reply({
+    return interaction.editReply({
       content: '\u274C You need **Manage Messages**, **Kick Members**, or **Ban Members** permission to close tickets.',
-      ephemeral: true,
     });
   }
 
-  await interaction.reply({
+  await interaction.editReply({
     content: '\uD83D\uDD12 Closing ticket and generating transcript...',
-    ephemeral: true,
   });
 
   const ticketChannel = interaction.channel;
@@ -340,7 +350,7 @@ async function handleTicketClose(interaction, client) {
 
   const transcriptBuffer = generateTranscript(allMessages, ticketInfo);
 
-  if (config.transcriptChannel) {
+  if (cfg?.transcript_channel) {
     const transcriptEmbed = new EmbedBuilder()
       .setTitle('\uD83D\uDCC4 Ticket Transcript')
       .setColor(0xfee75c)
@@ -356,7 +366,7 @@ async function handleTicketClose(interaction, client) {
     const attachment = new AttachmentBuilder(transcriptBuffer, {
       name: `transcript-${ticketChannel.name}.html`,
     });
-    const transcriptCh = await client.channels.fetch(config.transcriptChannel).catch(() => null);
+    const transcriptCh = await client.channels.fetch(cfg.transcript_channel).catch(() => null);
     if (transcriptCh) {
       await transcriptCh.send({ embeds: [transcriptEmbed], files: [attachment] });
     }
@@ -372,7 +382,7 @@ async function handleTicketClose(interaction, client) {
       { name: 'Total Messages', value: `${allMessages.length}` },
     )
     .setTimestamp();
-  await sendLog(client, config.ticketLogChannel, logEmbed);
+  await sendLog(client, cfg?.ticket_log_channel, logEmbed);
 
   setTimeout(async () => {
     try {
@@ -381,6 +391,79 @@ async function handleTicketClose(interaction, client) {
       console.error('[TicketClose] Failed to delete channel:', err.message);
     }
   }, 5000);
+}
+
+// ═══════════════════════════════════════
+// RESET CONFIG HANDLERS
+// ═══════════════════════════════════════
+
+function buildDisabledRows(message) {
+  if (!message?.components?.length) return [];
+  return message.components.map((row) => {
+    const newRow = ActionRowBuilder.from(row);
+    newRow.components = row.components.map((c) => ButtonBuilder.from(c).setDisabled(true));
+    return newRow;
+  });
+}
+
+async function handleResetConfigConfirm(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  const parts = interaction.customId.split('_');
+  const system = parts[2];
+  const guildId = parts[3];
+
+  if (guildId !== interaction.guild.id) {
+    return interaction.editReply('❌ This reset prompt is not for this server.');
+  }
+
+  if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+    return interaction.editReply('❌ You need **Administrator** permission to reset config.');
+  }
+
+  if (system === 'all') {
+    guildConfig.deleteConfig(guildId);
+    configCache.invalidate(guildId);
+    await interaction.editReply('♻️ All configuration has been reset.');
+  } else if (system === 'tickets') {
+    guildConfig.setMany(guildId, {
+      ticket_category: null,
+      ticket_log_channel: null,
+      transcript_channel: null,
+    });
+    configCache.invalidate(guildId);
+    await interaction.editReply('♻️ Ticket configuration reset.');
+  } else if (system === 'tempvc') {
+    guildConfig.setMany(guildId, {
+      temp_vc_category: null,
+      create_vc_channel: null,
+      create_duo_channel: null,
+    });
+    configCache.invalidate(guildId);
+    await interaction.editReply('♻️ Temp VC configuration reset.');
+  } else {
+    await interaction.editReply('❌ Unknown reset target.');
+  }
+
+  const disabledRows = buildDisabledRows(interaction.message);
+  if (disabledRows.length) {
+    await interaction.message.edit({ components: disabledRows }).catch(() => {});
+  }
+}
+
+async function handleResetConfigCancel(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+    return interaction.editReply('❌ You need **Administrator** permission to cancel resets.');
+  }
+
+  await interaction.editReply('✅ Reset cancelled.');
+
+  const disabledRows = buildDisabledRows(interaction.message);
+  if (disabledRows.length) {
+    await interaction.message.edit({ components: disabledRows }).catch(() => {});
+  }
 }
 
 // ═══════════════════════════════════════

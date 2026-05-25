@@ -7,7 +7,7 @@ const {
   ButtonBuilder,
   ButtonStyle,
 } = require('discord.js');
-const config = require('../config');
+const getConfig = require('../utils/getConfig');
 
 const superscriptMap = {
   '0': '\u2070', '1': '\u00B9', '2': '\u00B2', '3': '\u00B3', '4': '\u2074',
@@ -107,10 +107,14 @@ module.exports = {
 
   async execute(oldState, newState) {
     const tempVCs = newState.client.tempVCs;
+    const cfg = getConfig(newState.guild.id);
+    const CREATE_VC_CHANNEL = cfg?.create_vc_channel;
+    const CREATE_DUO_CHANNEL = cfg?.create_duo_channel;
+    const TEMP_VC_CATEGORY = cfg?.temp_vc_category;
 
     try {
       // --- User joined the "Create VC" channel (Hub) ---
-      if (config.createVcChannel && newState.channelId === config.createVcChannel) {
+      if (CREATE_VC_CHANNEL && newState.channelId === CREATE_VC_CHANNEL) {
         const guild = newState.guild;
         const member = newState.member;
 
@@ -119,7 +123,7 @@ module.exports = {
           tempChannel = await guild.channels.create({
             name: `${member.displayName}'s VC`,
             type: ChannelType.GuildVoice,
-            parent: config.tempVcCategory || undefined,
+            parent: TEMP_VC_CATEGORY || undefined,
             permissionOverwrites: [
               {
                 id: member.id,
@@ -163,11 +167,11 @@ module.exports = {
       }
 
       // --- User joined the "Create Duo" channel ---
-      if (config.createDuoChannel && newState.channelId === config.createDuoChannel) {
+      if (CREATE_DUO_CHANNEL && newState.channelId === CREATE_DUO_CHANNEL) {
         const guild = newState.guild;
         const member = newState.member;
 
-        const duoNumber = getNextDuoNumber(guild, config.tempVcCategory);
+        const duoNumber = getNextDuoNumber(guild, TEMP_VC_CATEGORY);
         const channelName = `\uD834\uDD22\u30FBduo ${toSuperscript(duoNumber)}`;
 
         let duoChannel;
@@ -175,7 +179,7 @@ module.exports = {
           duoChannel = await guild.channels.create({
             name: channelName,
             type: ChannelType.GuildVoice,
-            parent: config.tempVcCategory || undefined,
+            parent: TEMP_VC_CATEGORY || undefined,
             userLimit: 2,
             permissionOverwrites: [
               {
@@ -222,8 +226,8 @@ module.exports = {
       // --- User left or moved from a channel — check if it was a temp VC ---
       if (
         oldState.channelId &&
-        oldState.channelId !== config.createVcChannel &&
-        oldState.channelId !== config.createDuoChannel
+        oldState.channelId !== CREATE_VC_CHANNEL &&
+        oldState.channelId !== CREATE_DUO_CHANNEL
       ) {
         if (tempVCs.has(oldState.channelId)) {
           const channel = oldState.guild.channels.cache.get(oldState.channelId);

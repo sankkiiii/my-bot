@@ -139,8 +139,7 @@ my-bot/
 │   ├── resolveUser.js        # Resolve user by @mention, username, or ID
 │   └── transcript.js         # HTML transcript generator
 └── data/
-    ├── ticketCount.json      # Persistent ticket counter (auto-created)
-    ├── noprefix.json         # No-prefix user list (auto-created)
+    ├── bot.db                # SQLite database (auto-created)
     └── presence.json         # Saved bot presence/activity (auto-created)
 ```
 
@@ -188,19 +187,16 @@ Right-click your own username in Discord → **Copy User ID**. This goes into `O
 
 ### 5. Create Channels and Categories
 
-Create the following in your Discord server and copy their IDs:
+Create the following in your Discord server. You will select them later using `/setup`:
 
-| What to Create | Type | .env Variable |
+| What to Create | Type | Setup Command |
 |----------------|------|---------------|
-| `#mod-log` | Text Channel | `MOD_LOG_CHANNEL` |
-| `#join-log` | Text Channel | `JOIN_LOG_CHANNEL` |
-| `#message-log` | Text Channel | `MESSAGE_LOG_CHANNEL` |
-| `#ticket-log` | Text Channel | `TICKET_LOG_CHANNEL` |
-| `#transcripts` | Text Channel | `TRANSCRIPT_CHANNEL` |
-| Tickets (category) | Category | `TICKET_CATEGORY` |
-| Temp VCs (category) | Category | `TEMP_VC_CATEGORY` |
-| ➕ Create VC | Voice Channel (inside Temp VCs category) | `CREATE_VC_CHANNEL` |
-| ➕ Create Duo | Voice Channel (inside Temp VCs category) | `CREATE_DUO_CHANNEL` |
+| `#ticket-log` | Text Channel | `/setup tickets` |
+| `#transcripts` | Text Channel | `/setup tickets` |
+| Tickets (category) | Category | `/setup tickets` |
+| Temp VCs (category) | Category | `/setup tempvc` |
+| ➕ Create VC | Voice Channel (inside Temp VCs category) | `/setup tempvc` |
+| ➕ Create Duo | Voice Channel (inside Temp VCs category) | `/setup duo` |
 
 Also copy your **Server ID** (right-click server name → Copy Server ID) → `GUILD_ID`
 
@@ -215,12 +211,6 @@ TOKEN=your-bot-token-here
 CLIENT_ID=your-application-id
 GUILD_ID=your-server-id
 PREFIX=!
-TICKET_LOG_CHANNEL=channel-id
-TRANSCRIPT_CHANNEL=channel-id
-TICKET_CATEGORY=category-id
-TEMP_VC_CATEGORY=category-id
-CREATE_VC_CHANNEL=voice-channel-id
-CREATE_DUO_CHANNEL=voice-channel-id
 OWNER_ID=your-discord-user-id
 ```
 
@@ -228,14 +218,8 @@ OWNER_ID=your-discord-user-id
 |----------|----------|-------------|
 | `TOKEN` | Yes | Your bot token from the Developer Portal |
 | `CLIENT_ID` | Yes | Your bot's Application ID |
-| `GUILD_ID` | Yes | Your Discord server ID |
+| `GUILD_ID` | Yes | Your Discord server ID (used for deploy-commands) |
 | `PREFIX` | No | Command prefix (default: `!`) |
-| `TICKET_LOG_CHANNEL` | Yes | Channel ID for ticket open/close logs |
-| `TRANSCRIPT_CHANNEL` | Yes | Channel ID where ticket transcripts are sent |
-| `TICKET_CATEGORY` | Yes | Category ID for ticket channels |
-| `TEMP_VC_CATEGORY` | Yes | Category ID for temporary voice channels |
-| `CREATE_VC_CHANNEL` | Yes | Voice channel ID that triggers hub VC creation (unlimited users) |
-| `CREATE_DUO_CHANNEL` | No | Voice channel ID that triggers duo VC creation (max 2 users) |
 | `OWNER_ID` | No | Your Discord user ID (gives permanent no-prefix access) |
 
 ---
@@ -547,7 +531,7 @@ Normally, prefix commands require `!` before the command name (e.g., `!ban @user
 | User | How They Get It | Stored Where |
 |------|----------------|--------------|
 | Bot owner | Automatic — set `OWNER_ID` in `.env` | Hardcoded in config |
-| Other users | Admin runs `/noprefix add @user` | `data/noprefix.json` |
+| Other users | Admin runs `/noprefix add @user` | SQLite (`data/bot.db`) |
 
 ### How to Set Up
 
@@ -616,10 +600,10 @@ The ticket system works like **TicketTool.xyz** — a persistent panel with a bu
 ### How to Set Up
 
 1. **Create a Category** for tickets (e.g., `Tickets`)
-2. **Right-click the category** → Copy ID → paste as `TICKET_CATEGORY` in `.env`
-3. **Create `#transcripts`** text channel → Copy ID → paste as `TRANSCRIPT_CHANNEL`
-4. **Create `#ticket-log`** text channel → Copy ID → paste as `TICKET_LOG_CHANNEL`
-5. **Start the bot**, then run `/panel` or `!panel` in the channel where you want the ticket panel
+2. **Create `#transcripts`** text channel
+3. **Create `#ticket-log`** text channel
+4. Run `/setup tickets` and select the category, log channel, and transcript channel
+5. Run `/panel` or `!panel` in the channel where you want the ticket panel
 
 > **No staff role needed!** Any role with **Manage Messages**, **Kick Members**, or **Ban Members** permission will automatically see tickets and can close them.
 
@@ -680,7 +664,7 @@ The panel sent by `/panel` includes:
 ### Ticket Numbering
 
 - Each ticket gets a sequential number (#1, #2, #3...)
-- Stored in `data/ticketCount.json` — persists across restarts
+- Stored in SQLite (`data/bot.db`) — persists across restarts
 - Never resets (unless you manually edit the file)
 - Shown in the welcome embed inside the ticket
 
@@ -727,12 +711,10 @@ Both work like **Voice Master** — join a trigger channel, get your own VC, and
 ### How to Set Up
 
 1. **Create a Category** in your Discord server (e.g., `Voice Channels` or `Temp VCs`)
-2. **Right-click the category** → Copy ID → paste as `TEMP_VC_CATEGORY` in `.env`
-3. **Create a Voice Channel** inside that category named `➕ Create VC`
-4. **Right-click** → Copy ID → paste as `CREATE_VC_CHANNEL` in `.env`
-5. **Create another Voice Channel** in the same category named `➕ Create Duo`
-6. **Right-click** → Copy ID → paste as `CREATE_DUO_CHANNEL` in `.env`
-7. **Restart the bot**
+2. **Create a Voice Channel** inside that category named `➕ Create VC`
+3. **Create another Voice Channel** in the same category named `➕ Create Duo`
+4. Run `/setup tempvc` and select the category + hub trigger
+5. Run `/setup duo` and select the duo trigger
 
 Your category should look like:
 ```
@@ -841,15 +823,15 @@ The bot grants `ManageChannels` and `MoveMembers` permissions on both hub and du
 | Multiple users join trigger channels at once | Each gets their own VC — no conflicts |
 | Duo VC is full (2 users) | Discord enforces the limit automatically |
 | Bot restarts while temp VCs exist | On startup, bot scans the category and deletes any empty VCs |
-| `CREATE_VC_CHANNEL` not set | Hub VC feature skipped |
-| `CREATE_DUO_CHANNEL` not set | Duo VC feature skipped |
+| Hub trigger not configured | Hub VC feature skipped |
+| Duo trigger not configured | Duo VC feature skipped |
 | Both trigger channels are always protected | Bot never deletes the trigger channels themselves |
 
 ### Startup Cleanup
 
 When the bot starts (or restarts), it automatically:
-1. Scans all voice channels inside `TEMP_VC_CATEGORY`
-2. Finds any that are **empty** and are **not** `CREATE_VC_CHANNEL` or `CREATE_DUO_CHANNEL`
+1. Scans all voice channels inside the configured temp VC category
+2. Finds any that are **empty** and are **not** the hub or duo trigger
 3. Deletes them
 4. Logs how many were cleaned up
 
@@ -1020,9 +1002,9 @@ The bot is designed to survive restarts cleanly:
 | What | How It Persists |
 |------|----------------|
 | Ticket panel button | Uses static `customId: "open_ticket"` — works forever without re-sending |
-| Ticket counter | Saved to `data/ticketCount.json` on every ticket creation |
+| Ticket counter | Saved to SQLite (`data/bot.db`) on every ticket creation |
 | Ticket opener info | Stored in channel topic as `Opened by: {userId}` |
-| No-prefix user list | Saved to `data/noprefix.json` on every add/remove |
+| No-prefix user list | Saved to SQLite (`data/bot.db`) on every add/remove |
 | Owner no-prefix | Hardcoded via `OWNER_ID` in `.env` |
 | Bot presence/activity | Saved to `data/presence.json`, restored on startup |
 | `data/` folder | Auto-created on bot startup if it doesn't exist |
@@ -1073,14 +1055,14 @@ The bot is designed to survive restarts cleanly:
 | `Missing Permissions` errors | Make sure the bot role is **above** the target user's highest role in Server Settings → Roles |
 | `Missing Access` on channels | Verify the bot has permissions to view and send messages in the log channels |
 | Message content not working | Enable **Message Content Intent** in the Developer Portal |
-| `DiscordAPIError: Unknown Channel` | Double-check all channel/category IDs in `.env` |
+| `DiscordAPIError: Unknown Channel` | Run `/config` and reconfigure missing/deleted channels |
 | Bot goes offline on VPS | Use PM2 with `pm2 startup` and `pm2 save` for auto-restart |
-| Temp VC not created when joining | Verify `CREATE_VC_CHANNEL` ID matches exactly; bot needs Manage Channels permission |
+| Temp VC not created when joining | Verify `/setup tempvc` is configured and the bot has Manage Channels + Move Members permission |
 | VC control buttons say "session expired" | This happens after a bot restart — create a new VC |
 | VC buttons say "not connected" | Make sure you're connected to the voice channel (not just viewing the text chat) |
 | `/rpc` not changing presence | Verify bot has the correct intents; check console for errors |
 | Ticket panel button stopped working | Run `/panel` again to send a new panel |
-| Ticket counter reset to 0 | Check that `data/ticketCount.json` exists and isn't deleted on deploy |
+| Ticket counter reset to 0 | Check that `data/bot.db` exists and isn't deleted on deploy |
 | Transcript file is empty | Make sure the bot has Read Message History permission in ticket channels |
 | No-prefix not working | Check `OWNER_ID` is set correctly; for other users verify with `/noprefix list` |
 | No-prefix user can't run a command | No-prefix only skips the `!` — permission checks still apply |

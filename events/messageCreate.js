@@ -1,9 +1,6 @@
-const fs = require('fs');
-const path = require('path');
 const { Events } = require('discord.js');
 const config = require('../config');
-
-const NOPREFIX_PATH = path.join(__dirname, '..', 'data', 'noprefix.json');
+const { isNoPrefixUser } = require('../database/guildConfig');
 
 module.exports = {
   name: Events.MessageCreate,
@@ -13,15 +10,8 @@ module.exports = {
       if (message.author.bot) return;
       if (!message.guild) return;
 
-      // --- Load no-prefix list fresh on every message ---
-      let noprefixUsers = [];
-      try {
-        const data = JSON.parse(fs.readFileSync(NOPREFIX_PATH, 'utf-8'));
-        noprefixUsers = data.users || [];
-      } catch {}
-
       const isOwner = config.ownerId && message.author.id === config.ownerId;
-      const isNoPrefix = noprefixUsers.includes(message.author.id);
+      const isNoPrefix = isNoPrefixUser(message.guild.id, message.author.id);
       const startsWithPrefix = message.content.startsWith(config.prefix);
 
       let args;

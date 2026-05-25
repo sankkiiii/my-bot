@@ -5,6 +5,14 @@ const config = require('./config');
 const { loadCommands } = require('./handlers/commandHandler');
 const { loadEvents } = require('./handlers/eventHandler');
 
+// Initialize database
+require('./database/db');
+console.log('[DB] SQLite initialized');
+
+// Migrate existing data on first run
+const migrate = require('./database/migrate');
+migrate();
+
 // Ensure data/ directory exists
 const dataDir = path.join(__dirname, 'data');
 fs.mkdirSync(dataDir, { recursive: true });
