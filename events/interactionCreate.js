@@ -125,6 +125,32 @@ async function handleTicketOpenButton(interaction, client) {
     });
   }
 
+  const ticketCategory = guild.channels.cache.get(cfg.ticket_category);
+  if (!ticketCategory || ticketCategory.type !== ChannelType.GuildCategory) {
+    return interaction.reply({
+      content: '❌ Ticket category is missing or invalid. Admin: re-run `/setup tickets`',
+      ephemeral: true,
+    });
+  }
+
+  const botMember = guild.members.me;
+  if (!botMember) {
+    return interaction.reply({
+      content: '❌ Could not verify bot permissions. Try again in a moment.',
+      ephemeral: true,
+    });
+  }
+
+  const botPerms = ticketCategory.permissionsFor(botMember);
+  if (!botMember.permissions.has(PermissionFlagsBits.ManageChannels)
+    || !botPerms?.has(PermissionFlagsBits.ManageChannels)
+    || !botPerms?.has(PermissionFlagsBits.ViewChannel)) {
+    return interaction.reply({
+      content: '❌ I need **Manage Channels** and **View Channel** in the ticket category.',
+      ephemeral: true,
+    });
+  }
+
   const sanitizedName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '');
 
   // Check for existing ticket BEFORE showing modal
@@ -171,6 +197,27 @@ async function handleTicketModalSubmit(interaction, client) {
       return interaction.editReply({
         content: '❌ Tickets are not configured. Admin: use `/setup tickets`',
       });
+    }
+
+    const ticketCategory = guild.channels.cache.get(cfg.ticket_category);
+    if (!ticketCategory || ticketCategory.type !== ChannelType.GuildCategory) {
+      return interaction.editReply({
+        content: '❌ Ticket category is missing or invalid. Admin: re-run `/setup tickets`',
+      });
+    }
+
+    const botMember = guild.members.me;
+    if (!botMember) {
+      return interaction.editReply('❌ Could not verify bot permissions. Try again in a moment.');
+    }
+
+    const botPerms = ticketCategory.permissionsFor(botMember);
+    if (!botMember.permissions.has(PermissionFlagsBits.ManageChannels)
+      || !botPerms?.has(PermissionFlagsBits.ManageChannels)
+      || !botPerms?.has(PermissionFlagsBits.ViewChannel)) {
+      return interaction.editReply(
+        '❌ I need **Manage Channels** and **View Channel** in the ticket category.',
+      );
     }
 
     const sanitizedName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '');
