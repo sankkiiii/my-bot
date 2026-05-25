@@ -1,4 +1,4 @@
-# Custom Discord Bot (sexvoice)
+# Custom Discord Bot 
 
 A multi-server Discord bot built with **discord.js v14** (CommonJS). All features are configured per guild from inside Discord using slash commands and stored in SQLite.
 
