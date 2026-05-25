@@ -7,6 +7,7 @@ const {
 const config = require('../../config');
 const resolveUser = require('../../utils/resolveUser');
 const guildConfig = require('../../database/guildConfig');
+const e = require('../../config/emojis');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -50,7 +51,7 @@ module.exports = {
 
         if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
           return interaction.reply({
-            content: '\u274C You need the **Administrator** permission to manage no-prefix users.',
+            content: `${e.error} You need the **Administrator** permission to manage no-prefix users.`,
             ephemeral: true,
           });
         }
@@ -67,24 +68,24 @@ module.exports = {
         guild = message.guild;
 
         if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return message.reply('\u274C You need the **Administrator** permission to manage no-prefix users.');
+          return message.reply(`${e.error} You need the **Administrator** permission to manage no-prefix users.`);
         }
 
         replyFn = (content) => message.reply(content);
         subcommand = (args[0] || '').toLowerCase();
 
         if (!['add', 'remove', 'list'].includes(subcommand)) {
-          return replyFn('\u274C Usage: `!noprefix add <user>` / `!noprefix remove <user>` / `!noprefix list`');
+          return replyFn(`${e.error} Usage: \`!noprefix add <user>\` / \`!noprefix remove <user>\` / \`!noprefix list\``);
         }
 
         if (subcommand === 'add' || subcommand === 'remove') {
           const userInput = args.slice(1).join(' ');
           if (!userInput) {
-            return replyFn('\u274C Please provide a user (@mention, username, or ID).');
+            return replyFn(`${e.error} Please provide a user (@mention, username, or ID).`);
           }
           const member = await resolveUser(userInput, guild);
           if (!member) {
-            return replyFn('\u274C Could not find that user. Try @mention, username, or user ID.');
+            return replyFn(`${e.error} Could not find that user. Try @mention, username, or user ID.`);
           }
           targetUser = member.user;
         }
@@ -92,35 +93,35 @@ module.exports = {
 
       if (subcommand === 'add') {
         if (targetUser.bot) {
-          return replyFn('\u274C You cannot give no-prefix to a bot.');
+          return replyFn(`${e.error} You cannot give no-prefix to a bot.`);
         }
         if (config.ownerId && targetUser.id === config.ownerId) {
-          return replyFn('\u26A0\uFE0F The bot owner already has no-prefix access (hardcoded).');
+          return replyFn(`${e.warning} The bot owner already has no-prefix access (hardcoded).`);
         }
         if (guildConfig.isNoPrefixUser(guild.id, targetUser.id)) {
-          return replyFn(`\u26A0\uFE0F ${targetUser} already has no-prefix access.`);
+          return replyFn(`${e.warning} ${targetUser} already has no-prefix access.`);
         }
         const addedBy = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
         guildConfig.addNoPrefixUser(guild.id, targetUser.id, addedBy);
-        return replyFn(`\u2705 ${targetUser} has been given no-prefix access.`);
+        return replyFn(`${e.success} ${targetUser} has been given no-prefix access.`);
       }
 
       if (subcommand === 'remove') {
         if (config.ownerId && targetUser.id === config.ownerId) {
-          return replyFn('\u274C Cannot remove no-prefix from the bot owner (hardcoded).');
+          return replyFn(`${e.error} Cannot remove no-prefix from the bot owner (hardcoded).`);
         }
         if (!guildConfig.isNoPrefixUser(guild.id, targetUser.id)) {
-          return replyFn(`\u26A0\uFE0F ${targetUser} doesn't have no-prefix access.`);
+          return replyFn(`${e.warning} ${targetUser} doesn't have no-prefix access.`);
         }
         guildConfig.removeNoPrefixUser(guild.id, targetUser.id);
-        return replyFn(`\u2705 No-prefix access removed from ${targetUser}.`);
+        return replyFn(`${e.success} No-prefix access removed from ${targetUser}.`);
       }
 
       if (subcommand === 'list') {
         const client = isSlash ? argsOrClient : clientOrUndefined;
         const users = guildConfig.getNoPrefixUsers(guild.id);
         const embed = new EmbedBuilder()
-          .setTitle('\u26A1 No-Prefix Users')
+          .setTitle(`${e.noprefix} No-Prefix Users`)
           .setColor(0x5865f2)
           .setTimestamp();
 
@@ -133,10 +134,10 @@ module.exports = {
             ownerLine = `User ${config.ownerId}`;
           }
         }
-        embed.addFields({ name: '\uD83D\uDC51 Owner', value: ownerLine });
+        embed.addFields({ name: `${e.owner} Owner`, value: ownerLine });
 
         if (users.length === 0) {
-          embed.addFields({ name: '\u26A1 No-Prefix Users', value: 'None' });
+          embed.addFields({ name: `${e.noprefix} No-Prefix Users`, value: 'None' });
         } else {
           const lines = [];
           for (const userId of users) {
@@ -147,7 +148,7 @@ module.exports = {
               lines.push(`User ${userId}`);
             }
           }
-          embed.addFields({ name: '\u26A1 No-Prefix Users', value: lines.join('\n') });
+          embed.addFields({ name: `${e.noprefix} No-Prefix Users`, value: lines.join('\n') });
         }
 
         if (isSlash) {

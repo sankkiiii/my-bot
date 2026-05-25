@@ -7,6 +7,7 @@ const {
   CommandInteraction,
 } = require('discord.js');
 const resolveUserGlobal = require('../../utils/resolveUserGlobal');
+const e = require('../../config/emojis');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -51,7 +52,7 @@ module.exports = {
         }
 
         if (!resolved.user) {
-          return interaction.reply({ content: '\u274C Could not find that user. Try their @mention, username, or user ID.', ephemeral: true });
+          return interaction.reply({ content: `${e.error} Could not find that user. Try their @mention, username, or user ID.`, ephemeral: true });
         }
       } else {
         const message = interactionOrMessage;
@@ -70,7 +71,7 @@ module.exports = {
         }
 
         if (!resolved.user) {
-          return message.reply('\u274C Could not find that user. Try their @mention, username, or user ID.');
+          return message.reply(`${e.error} Could not find that user. Try their @mention, username, or user ID.`);
         }
       }
 
@@ -81,7 +82,7 @@ module.exports = {
       const displayName = inGuild ? member.displayName : user.username;
 
       if (!fetchedUser.banner) {
-        return replyFn({ content: `\u274C **${displayName}** does not have a profile banner.`, ephemeral: true });
+        return replyFn({ content: `${e.error} **${displayName}** does not have a profile banner.`, ephemeral: true });
       }
 
       const bannerUrl = fetchedUser.bannerURL({ size: 4096, dynamic: true });
@@ -94,7 +95,7 @@ module.exports = {
         .setFooter({ text: `Requested by ${requester}` });
 
       if (!inGuild) {
-        embed.setDescription('\u26A0\uFE0F This user is not in the server \u2014 showing global profile only.');
+        embed.setDescription(`${e.warning} This user is not in the server — showing global profile only.`);
       }
 
       const buttons = [];

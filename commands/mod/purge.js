@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, CommandInteraction } = require('discord.js');
 const config = require('../../config');
+const e = require('../../config/emojis');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -30,7 +31,10 @@ module.exports = {
         replyFn = (content) => interaction.reply({ content, ephemeral: true });
 
         if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-          return interaction.reply({ content: '\u274C You need the **Manage Messages** permission to use this command.', ephemeral: true });
+          return interaction.reply({
+            content: `${e.error} You need the **Manage Messages** permission to use this command.`,
+            ephemeral: true,
+          });
         }
       } else {
         const message = interactionOrMessage;
@@ -40,7 +44,7 @@ module.exports = {
         executor = message.author;
 
         if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-          return message.reply('\u274C You need the **Manage Messages** permission to use this command.');
+          return message.reply(`${e.error} You need the **Manage Messages** permission to use this command.`);
         }
 
         amount = parseInt(args[0], 10);
@@ -51,7 +55,7 @@ module.exports = {
       }
 
       if (!guild.members.me.permissions.has(PermissionFlagsBits.ManageMessages)) {
-        return replyFn('\u274C I don\'t have the **Manage Messages** permission to do this.');
+        return replyFn(`${e.error} I don't have the **Manage Messages** permission to do this.`);
       }
 
       const deleted = await channel.bulkDelete(amount, true);

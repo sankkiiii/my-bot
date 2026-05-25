@@ -8,6 +8,7 @@ const {
   ActivityType,
 } = require('discord.js');
 const config = require('../../config');
+const e = require('../../config/emojis');
 
 const PRESENCE_PATH = path.join(__dirname, '..', '..', 'data', 'presence.json');
 
@@ -19,17 +20,17 @@ const activityTypes = {
 };
 
 const typeEmojis = {
-  PLAYING: '\uD83C\uDFAE Playing',
-  WATCHING: '\uD83D\uDCFA Watching',
-  LISTENING: '\uD83C\uDFB5 Listening',
-  COMPETING: '\uD83C\uDFC6 Competing',
+  PLAYING: `${e.playing} Playing`,
+  WATCHING: `${e.watching} Watching`,
+  LISTENING: `${e.listening} Listening`,
+  COMPETING: `${e.competing} Competing`,
 };
 
 const statusEmojis = {
-  online: '\uD83D\uDFE2 Online',
-  idle: '\uD83C\uDF19 Idle',
-  dnd: '\u26D4 DND',
-  invisible: '\uD83D\uDC7B Invisible',
+  online: `${e.info} Online`,
+  idle: `${e.warning} Idle`,
+  dnd: `${e.error} DND`,
+  invisible: `${e.info} Invisible`,
 };
 
 module.exports = {
@@ -42,11 +43,11 @@ module.exports = {
         .setDescription('Activity type')
         .setRequired(true)
         .addChoices(
-          { name: '\uD83C\uDFAE Playing', value: 'PLAYING' },
-          { name: '\uD83D\uDCFA Watching', value: 'WATCHING' },
-          { name: '\uD83C\uDFB5 Listening', value: 'LISTENING' },
-          { name: '\uD83C\uDFC6 Competing', value: 'COMPETING' },
-          { name: '\u274C Clear (remove activity)', value: 'CLEAR' },
+          { name: `${e.playing} Playing`, value: 'PLAYING' },
+          { name: `${e.watching} Watching`, value: 'WATCHING' },
+          { name: `${e.listening} Listening`, value: 'LISTENING' },
+          { name: `${e.competing} Competing`, value: 'COMPETING' },
+          { name: `${e.error} Clear (remove activity)`, value: 'CLEAR' },
         ),
     )
     .addStringOption((opt) =>
@@ -58,10 +59,10 @@ module.exports = {
         .setDescription('Bot online status')
         .setRequired(false)
         .addChoices(
-          { name: '\uD83D\uDFE2 Online', value: 'online' },
-          { name: '\uD83C\uDF19 Idle', value: 'idle' },
-          { name: '\u26D4 Do Not Disturb', value: 'dnd' },
-          { name: '\uD83D\uDC7B Invisible', value: 'invisible' },
+          { name: `${e.info} Online`, value: 'online' },
+          { name: `${e.warning} Idle`, value: 'idle' },
+          { name: `${e.error} Do Not Disturb`, value: 'dnd' },
+          { name: `${e.info} Invisible`, value: 'invisible' },
         ),
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
@@ -83,7 +84,7 @@ module.exports = {
 
         if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
           return interaction.reply({
-            content: '\u274C You need **Administrator** permission to change my presence.',
+            content: `${e.error} You need **Administrator** permission to change my presence.`,
             ephemeral: true,
           });
         }
@@ -98,18 +99,18 @@ module.exports = {
         user = message.author;
 
         if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return message.reply('\u274C You need **Administrator** permission to change my presence.');
+          return message.reply(`${e.error} You need **Administrator** permission to change my presence.`);
         }
 
         replyFn = (opts) => message.reply(opts);
 
         if (!args[0]) {
-          return message.reply('\u274C Usage: `!rpc <playing|watching|listening|competing|clear> [text]`');
+          return message.reply(`${e.error} Usage: \`!rpc <playing|watching|listening|competing|clear> [text]\``);
         }
 
         type = args[0].toUpperCase();
         if (!['PLAYING', 'WATCHING', 'LISTENING', 'COMPETING', 'CLEAR'].includes(type)) {
-          return message.reply('\u274C Invalid type. Use: `playing`, `watching`, `listening`, `competing`, or `clear`.');
+          return message.reply(`${e.error} Invalid type. Use: \`playing\`, \`watching\`, \`listening\`, \`competing\`, or \`clear\`.`);
         }
 
         text = args.slice(1).join(' ') || null;
@@ -128,11 +129,11 @@ module.exports = {
         };
         fs.writeFileSync(PRESENCE_PATH, JSON.stringify(presenceData, null, 2));
 
-        return replyFn({ content: '\u2705 Bot presence cleared.' });
+        return replyFn({ content: `${e.success} Bot presence cleared.` });
       }
 
       if (!text) {
-        return replyFn({ content: '\u274C Please provide a status text.' });
+        return replyFn({ content: `${e.error} Please provide a status text.` });
       }
 
       client.user.setPresence({
@@ -150,7 +151,7 @@ module.exports = {
       fs.writeFileSync(PRESENCE_PATH, JSON.stringify(presenceData, null, 2));
 
       const embed = new EmbedBuilder()
-        .setTitle('\u2705 Rich Presence Updated')
+        .setTitle(`${e.success} Rich Presence Updated`)
         .setColor(0x57f287)
         .addFields(
           { name: 'Type', value: typeEmojis[type] || type, inline: true },

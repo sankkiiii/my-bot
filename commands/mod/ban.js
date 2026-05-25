@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, CommandInteraction } = require('discord.js');
 const config = require('../../config');
 const resolveUser = require('../../utils/resolveUser');
+const e = require('../../config/emojis');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -30,7 +31,10 @@ module.exports = {
         replyFn = (content) => interaction.reply({ content, ephemeral: true });
 
         if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.BanMembers)) {
-          return interaction.reply({ content: '\u274C You need the **Ban Members** permission to use this command.', ephemeral: true });
+          return interaction.reply({
+            content: `${e.error} You need the **Ban Members** permission to use this command.`,
+            ephemeral: true,
+          });
         }
 
         const userOption = interaction.options.getUser('user');
@@ -38,7 +42,10 @@ module.exports = {
         reason = interaction.options.getString('reason') || 'No reason provided';
 
         if (!userOption && !query) {
-          return interaction.reply({ content: '\u274C Please provide a user (select or type username/ID).', ephemeral: true });
+          return interaction.reply({
+            content: `${e.error} Please provide a user (select or type username/ID).`,
+            ephemeral: true,
+          });
         }
 
         if (userOption) {
@@ -57,10 +64,10 @@ module.exports = {
                 await guild.members.ban(user, { reason });
                 return replyFn(`**${user.username}** has been banned (not in server). Reason: ${reason}`);
               } catch {
-                return replyFn('\u274C Could not find or ban that user.');
+                return replyFn(`${e.error} Could not find or ban that user.`);
               }
             }
-            return replyFn('\u274C Could not find that user.');
+            return replyFn(`${e.error} Could not find that user.`);
           }
         }
       } else {
@@ -71,7 +78,7 @@ module.exports = {
         executorMember = message.member;
 
         if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
-          return message.reply('\u274C You need the **Ban Members** permission to use this command.');
+          return message.reply(`${e.error} You need the **Ban Members** permission to use this command.`);
         }
 
         if (!args[0]) return message.reply('Please provide a user to ban.');
@@ -90,24 +97,24 @@ module.exports = {
               await guild.members.ban(user, { reason });
               return replyFn(`**${user.username}** has been banned (not in server). Reason: ${reason}`);
             } catch {
-              return replyFn('\u274C Could not find or ban that user.');
+              return replyFn(`${e.error} Could not find or ban that user.`);
             }
           }
-          return replyFn('\u274C Could not find that user.');
+          return replyFn(`${e.error} Could not find that user.`);
         }
         targetUser = member.user;
       }
 
       if (!guild.members.me.permissions.has(PermissionFlagsBits.BanMembers)) {
-        return replyFn('\u274C I don\'t have the **Ban Members** permission to do this.');
+        return replyFn(`${e.error} I don't have the **Ban Members** permission to do this.`);
       }
 
       if (!isOwner && member.roles.highest.position >= executorMember.roles.highest.position) {
-        return replyFn('\u274C You cannot moderate someone with an equal or higher role than you.');
+        return replyFn(`${e.error} You cannot moderate someone with an equal or higher role than you.`);
       }
 
       if (member.roles.highest.position >= guild.members.me.roles.highest.position) {
-        return replyFn('\u274C I cannot moderate this user as their role is higher than or equal to mine.');
+        return replyFn(`${e.error} I cannot moderate this user as their role is higher than or equal to mine.`);
       }
 
       try {

@@ -8,6 +8,7 @@ const {
   version: djsVersion,
 } = require('discord.js');
 const config = require('../../config');
+const e = require('../../config/emojis');
 
 const PRESENCE_PATH = path.join(__dirname, '..', '..', 'data', 'presence.json');
 
@@ -47,22 +48,22 @@ function buildStatusEmbed(client, ping, latency, user) {
   const activity = getPresenceInfo();
 
   return new EmbedBuilder()
-    .setTitle('\uD83D\uDCCA Bot Status')
+    .setTitle(`${e.stats} Bot Status`)
     .setColor(0x5865f2)
     .setThumbnail(client.user.displayAvatarURL({ dynamic: true }))
     .addFields(
-      { name: '\uD83C\uDFD3 API Ping', value: `${ping}ms`, inline: true },
-      { name: '\u21A9\uFE0F Latency', value: `${latency}ms`, inline: true },
-      { name: '\u23F1\uFE0F Uptime', value: uptime, inline: true },
-      { name: '\uD83E\uDDE0 Memory', value: `${memUsed}MB / ${memTotal}MB`, inline: true },
-      { name: '\uD83C\uDF10 Servers', value: `${serverCount}`, inline: true },
-      { name: '\uD83D\uDC65 Users', value: `${userCount}`, inline: true },
-      { name: '\uD83D\uDCE2 Channels', value: `${channelCount}`, inline: true },
-      { name: '\u2699\uFE0F Commands', value: `${commandCount}`, inline: true },
-      { name: '\uD83D\uDFE2 Status', value: statusText, inline: true },
-      { name: '\uD83C\uDFAE Activity', value: activity, inline: true },
-      { name: '\uD83D\uDD27 Node.js', value: process.version, inline: true },
-      { name: '\uD83D\uDCE6 discord.js', value: `v${djsVersion}`, inline: true },
+      { name: `${e.ping} API Ping`, value: `${ping}ms`, inline: true },
+      { name: `${e.info} Latency`, value: `${latency}ms`, inline: true },
+      { name: `${e.uptime} Uptime`, value: uptime, inline: true },
+      { name: `${e.memory} Memory`, value: `${memUsed}MB / ${memTotal}MB`, inline: true },
+      { name: `${e.stats} Servers`, value: `${serverCount}`, inline: true },
+      { name: `${e.members} Users`, value: `${userCount}`, inline: true },
+      { name: `${e.channels} Channels`, value: `${channelCount}`, inline: true },
+      { name: `${e.stats} Commands`, value: `${commandCount}`, inline: true },
+      { name: `${e.info} Status`, value: statusText, inline: true },
+      { name: `${e.playing} Activity`, value: activity, inline: true },
+      { name: `${e.info} Node.js`, value: process.version, inline: true },
+      { name: `${e.info} discord.js`, value: `v${djsVersion}`, inline: true },
     )
     .setFooter({ text: `Requested by ${user.username}` })
     .setTimestamp();
@@ -88,7 +89,7 @@ module.exports = {
 
         if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
           return interaction.reply({
-            content: '\u274C You need **Administrator** permission.',
+            content: `${e.error} You need **Administrator** permission.`,
             ephemeral: true,
           });
         }
@@ -103,7 +104,7 @@ module.exports = {
         const message = interactionOrMessage;
 
         if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return message.reply('\u274C You need **Administrator** permission.');
+          return message.reply(`${e.error} You need **Administrator** permission.`);
         }
 
         const start = Date.now();
