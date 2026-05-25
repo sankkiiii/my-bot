@@ -13,9 +13,19 @@ module.exports = {
       if (message.editedTimestamp !== null) return;
       if (!message.guild) return;
 
-      const authorAFK = guildConfig.getAFK(message.guild.id, message.author.id);
+      let authorAFK;
+      try {
+        authorAFK = guildConfig.getAFK(message.guild.id, message.author.id);
+      } catch (err) {
+        console.error('[AFK Error]', err);
+      }
+
       if (authorAFK) {
-        guildConfig.removeAFK(message.guild.id, message.author.id);
+        try {
+          guildConfig.removeAFK(message.guild.id, message.author.id);
+        } catch (err) {
+          console.error('[AFK Error]', err);
+        }
 
         const setAt = new Date(authorAFK.set_at);
         const diffMs = Date.now() - setAt;
@@ -32,22 +42,30 @@ module.exports = {
                 : originalName,
             );
           }
-        } catch {}
+        } catch (err) {
+          console.error('[AFK Nickname Error]', err);
+        }
 
         const msg = await message.channel.send({
           content:
             `${e.success} Welcome back **${message.member.displayName}**! I removed your AFK.\n` +
             `${e.uptime} You were away for **${duration}**`,
         });
-        setTimeout(() => msg.delete().catch(() => {}), 5000);
+        setTimeout(() => msg.delete().catch((err) => console.error('[AFK Cleanup Error]', err)), 5000);
       }
 
-      if (message.mentions.users.size > 0) {
+      if (message.mentions.users.size > 0 && message.guild) {
         for (const [userId, user] of message.mentions.users) {
           if (userId === message.author.id) continue;
           if (user.bot) continue;
 
-          const afkData = guildConfig.getAFK(message.guild.id, userId);
+          let afkData;
+          try {
+            afkData = guildConfig.getAFK(message.guild.id, userId);
+          } catch (err) {
+            console.error('[AFK Error]', err);
+            continue;
+          }
           if (!afkData) continue;
 
           const setAt = new Date(afkData.set_at);
@@ -63,15 +81,17 @@ module.exports = {
               `${e.afk} **${displayName}** went AFK **${duration} ago**\n` +
               `${e.reason} **Reason:** ${afkData.reason}`,
           });
-          setTimeout(() => notif.delete().catch(() => {}), 5000);
+          setTimeout(() => notif.delete().catch((err) => console.error('[AFK Cleanup Error]', err)), 5000);
         }
       }
 
       const isOwner = config.ownerId && message.author.id === config.ownerId;
-      const isNoPrefix = guildConfig.isNoPrefixUser(
-        message.guild.id,
-        message.author.id,
-      );
+      let isNoPrefix = false;
+      try {
+        isNoPrefix = guildConfig.isNoPrefixUser(message.guild.id, message.author.id);
+      } catch (err) {
+        console.error('[NoPrefix Error]', err);
+      }
       const startsWithPrefix = message.content.startsWith(config.prefix);
 
       let args;

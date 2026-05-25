@@ -17,6 +17,7 @@ const getConfig = require('../utils/getConfig');
 const guildConfig = require('../database/guildConfig');
 const configCache = require('../utils/configCache');
 const { generateTranscript } = require('../utils/transcript');
+const e = require('../config/emojis');
 
 async function sendLog(client, channelId, embed) {
   if (!channelId) return;
@@ -78,7 +79,7 @@ module.exports = {
         } catch (err) {
           console.error('[Button Error]', err);
           if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({ content: '\u274C An error occurred.', ephemeral: true }).catch(() => {});
+            await interaction.reply({ content: `${e.error} An error occurred.`, ephemeral: true }).catch(() => {});
           }
         }
       }
@@ -119,7 +120,7 @@ async function handleTicketOpenButton(interaction, client) {
 
   if (!cfg?.ticket_category) {
     return interaction.reply({
-      content: '❌ Ticket system not configured. Ask admin to run `/setup tickets`.',
+      content: `${e.error} Ticket system not configured. Ask admin to run \`/setup tickets\`.`,
       ephemeral: true,
     });
   }
@@ -127,7 +128,7 @@ async function handleTicketOpenButton(interaction, client) {
   const ticketCategory = guild.channels.cache.get(cfg.ticket_category);
   if (!ticketCategory || ticketCategory.type !== ChannelType.GuildCategory) {
     return interaction.reply({
-      content: '❌ Ticket category is missing or invalid. Admin: re-run `/setup tickets`',
+      content: `${e.error} Ticket category is missing or invalid. Admin: re-run \`/setup tickets\``,
       ephemeral: true,
     });
   }
@@ -135,7 +136,7 @@ async function handleTicketOpenButton(interaction, client) {
   const botMember = guild.members.me;
   if (!botMember) {
     return interaction.reply({
-      content: '❌ Could not verify bot permissions. Try again in a moment.',
+      content: `${e.error} Could not verify bot permissions. Try again in a moment.`,
       ephemeral: true,
     });
   }
@@ -145,7 +146,7 @@ async function handleTicketOpenButton(interaction, client) {
     || !botPerms?.has(PermissionFlagsBits.ManageChannels)
     || !botPerms?.has(PermissionFlagsBits.ViewChannel)) {
     return interaction.reply({
-      content: '❌ I need **Manage Channels** and **View Channel** in the ticket category.',
+      content: `${e.error} I need **Manage Channels** and **View Channel** in the ticket category.`,
       ephemeral: true,
     });
   }
@@ -157,7 +158,7 @@ async function handleTicketOpenButton(interaction, client) {
   );
   if (existingChannel) {
     return interaction.reply({
-      content: `\u274C You already have an open ticket: ${existingChannel}`,
+      content: `${e.error} You already have an open ticket: ${existingChannel}`,
       ephemeral: true,
     });
   }
@@ -188,19 +189,19 @@ async function handleTicketModalSubmit(interaction, client) {
 
     if (!cfg?.ticket_category) {
       return interaction.editReply({
-        content: '❌ Ticket system not configured.\nAsk an admin to run `/setup tickets` first.',
+        content: `${e.error} Ticket system not configured.\nAsk an admin to run \`/setup tickets\` first.`,
         ephemeral: true,
       });
     }
     if (!cfg?.ticket_log_channel) {
       return interaction.editReply({
-        content: '❌ Ticket log channel not configured.\nAsk an admin to run `/setup tickets` first.',
+        content: `${e.error} Ticket log channel not configured.\nAsk an admin to run \`/setup tickets\` first.`,
         ephemeral: true,
       });
     }
     if (!cfg?.transcript_channel) {
       return interaction.editReply({
-        content: '❌ Transcript channel not configured.\nAsk an admin to run `/setup tickets` first.',
+        content: `${e.error} Transcript channel not configured.\nAsk an admin to run \`/setup tickets\` first.`,
         ephemeral: true,
       });
     }
@@ -213,7 +214,7 @@ async function handleTicketModalSubmit(interaction, client) {
     );
     if (existingChannel) {
       return interaction.editReply({
-        content: `❌ You already have an open ticket: ${existingChannel}`,
+        content: `${e.error} You already have an open ticket: ${existingChannel}`,
         ephemeral: true,
       });
     }
@@ -269,13 +270,14 @@ async function handleTicketModalSubmit(interaction, client) {
     });
 
     const welcomeEmbed = new EmbedBuilder()
-      .setTitle('\uD83C\uDFAB Ticket Opened')
-      .setColor(0x57f287)
+      .setColor('#57F287')
+      .setTitle(`${e.ticket} Ticket #${ticketNumber}`)
+      .setDescription(`Hey ${interaction.user}, thanks for opening a ticket!\nA staff member will assist you shortly.`)
       .addFields(
-        { name: '\uD83D\uDC64 Opened by', value: `${interaction.user}`, inline: true },
-        { name: '\uD83C\uDFAB Ticket', value: `#${ticketNumber}`, inline: true },
-        { name: '\uD83D\uDCCB Reason', value: reason, inline: false },
-        { name: '\uD83D\uDFE2 Status', value: 'Open', inline: true },
+        { name: `${e.user} Opened by`, value: `${interaction.user}`, inline: true },
+        { name: `${e.id} Ticket`, value: `#${ticketNumber}`, inline: true },
+        { name: `${e.reason} Reason`, value: reason, inline: false },
+        { name: 'Status', value: `${e.success} Open`, inline: true },
       )
       .setFooter({ text: 'Only staff can close this ticket' })
       .setTimestamp();
@@ -283,7 +285,7 @@ async function handleTicketModalSubmit(interaction, client) {
     const closeRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('close_ticket')
-        .setLabel('\uD83D\uDD12 Close Ticket')
+        .setLabel('Close Ticket')
         .setStyle(ButtonStyle.Danger),
     );
 
@@ -291,7 +293,7 @@ async function handleTicketModalSubmit(interaction, client) {
 
     const logEmbed = new EmbedBuilder()
       .setTitle('Ticket Opened')
-      .setColor(0x57f287)
+      .setColor('#57F287')
       .addFields(
         { name: 'Opened By', value: `${interaction.user.username} (${interaction.user.id})` },
         { name: 'Channel', value: `<#${ticketChannel.id}> (${ticketChannel.name})` },
@@ -308,7 +310,7 @@ async function handleTicketModalSubmit(interaction, client) {
   } catch (err) {
     console.error('[Ticket Create Error]', err);
     return interaction.editReply({
-      content: `❌ Error: ${err.message}`,
+      content: `${e.error} Error: ${err.message}`,
       ephemeral: true,
     });
   }
@@ -330,12 +332,12 @@ async function handleTicketClose(interaction, client) {
     !closer.permissions.has(PermissionFlagsBits.BanMembers)
   ) {
     return interaction.editReply({
-      content: '\u274C You need **Manage Messages**, **Kick Members**, or **Ban Members** permission to close tickets.',
+      content: `${e.error} You need **Manage Messages**, **Kick Members**, or **Ban Members** permission to close tickets.`,
     });
   }
 
   await interaction.editReply({
-    content: '\uD83D\uDD12 Closing ticket and generating transcript...',
+    content: `${e.loading} Closing ticket and generating transcript...`,
   });
 
   const ticketChannel = interaction.channel;
@@ -363,7 +365,8 @@ async function handleTicketClose(interaction, client) {
       try {
         const opener = await client.users.fetch(openedById);
         openedByTag = opener.username;
-      } catch {
+      } catch (err) {
+        console.error('[TicketClose] Failed to fetch opener:', err);
         openedByTag = `User ${openedById}`;
       }
     }
@@ -392,14 +395,12 @@ async function handleTicketClose(interaction, client) {
 
   if (cfg?.transcript_channel) {
     const transcriptEmbed = new EmbedBuilder()
-      .setTitle('\uD83D\uDCC4 Ticket Transcript')
-      .setColor(0xfee75c)
+      .setColor('#FEE75C')
+      .setTitle(`${e.transcript} Ticket Transcript`)
       .addFields(
         { name: 'Ticket', value: ticketChannel.name, inline: true },
-        { name: 'Opened By', value: openedByTag, inline: true },
-        { name: 'Closed By', value: closer.user.username, inline: true },
-        { name: 'Total Messages', value: `${allMessages.length}`, inline: true },
-        { name: 'Date', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
+        { name: 'Closed by', value: closer.user.username, inline: true },
+        { name: 'Messages', value: `${allMessages.length}`, inline: true },
       )
       .setTimestamp();
 
@@ -413,13 +414,13 @@ async function handleTicketClose(interaction, client) {
   }
 
   const logEmbed = new EmbedBuilder()
-    .setTitle('Ticket Closed')
-    .setColor(0xed4245)
+    .setColor('#ED4245')
+    .setTitle(`${e.ticketClose} Ticket Closed`)
     .addFields(
-      { name: 'Closed By', value: `${closer.user.username} (${closer.user.id})` },
-      { name: 'Channel', value: ticketChannel.name },
-      { name: 'Opened By', value: openedByTag },
-      { name: 'Total Messages', value: `${allMessages.length}` },
+      { name: 'Ticket', value: ticketChannel.name, inline: true },
+      { name: 'Closed by', value: `${closer.user.username} (${closer.user.id})`, inline: true },
+      { name: 'Opened by', value: openedByTag, inline: true },
+      { name: 'Messages', value: `${allMessages.length}`, inline: true },
     )
     .setTimestamp();
   await sendLog(client, cfg?.ticket_log_channel, logEmbed);
@@ -454,17 +455,17 @@ async function handleResetConfigConfirm(interaction) {
   const guildId = parts[3];
 
   if (guildId !== interaction.guild.id) {
-    return interaction.editReply('❌ This reset prompt is not for this server.');
+    return interaction.editReply(`${e.error} This reset prompt is not for this server.`);
   }
 
   if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-    return interaction.editReply('❌ You need **Administrator** permission to reset config.');
+    return interaction.editReply(`${e.error} You need **Administrator** permission to reset config.`);
   }
 
   if (system === 'all') {
     guildConfig.deleteConfig(guildId);
     configCache.invalidate(guildId);
-    await interaction.editReply('♻️ All configuration has been reset.');
+    await interaction.editReply(`${e.reset} All configuration has been reset.`);
   } else if (system === 'tickets') {
     guildConfig.setMany(guildId, {
       ticket_category: null,
@@ -472,7 +473,7 @@ async function handleResetConfigConfirm(interaction) {
       transcript_channel: null,
     });
     configCache.invalidate(guildId);
-    await interaction.editReply('♻️ Ticket configuration reset.');
+    await interaction.editReply(`${e.reset} Ticket configuration reset.`);
   } else if (system === 'tempvc') {
     guildConfig.setMany(guildId, {
       temp_vc_category: null,
@@ -480,9 +481,9 @@ async function handleResetConfigConfirm(interaction) {
       create_duo_channel: null,
     });
     configCache.invalidate(guildId);
-    await interaction.editReply('♻️ Temp VC configuration reset.');
+    await interaction.editReply(`${e.reset} Temp VC configuration reset.`);
   } else {
-    await interaction.editReply('❌ Unknown reset target.');
+    await interaction.editReply(`${e.error} Unknown reset target.`);
   }
 
   const disabledRows = buildDisabledRows(interaction.message);
@@ -495,10 +496,10 @@ async function handleResetConfigCancel(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
   if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-    return interaction.editReply('❌ You need **Administrator** permission to cancel resets.');
+    return interaction.editReply(`${e.error} You need **Administrator** permission to cancel resets.`);
   }
 
-  await interaction.editReply('✅ Reset cancelled.');
+  await interaction.editReply(`${e.success} Reset cancelled.`);
 
   const disabledRows = buildDisabledRows(interaction.message);
   if (disabledRows.length) {
@@ -568,7 +569,7 @@ async function handleVcButton(interaction) {
   );
 
   if (!result) {
-    return errorReply('\u274C You don\'t have an active voice channel. Join \u2795 Create VC first.');
+    return errorReply(`${e.error} You don't have an active voice channel. Join Create VC first.`);
   }
 
   const { vcChannelId, vcData } = result;
@@ -576,7 +577,7 @@ async function handleVcButton(interaction) {
   // Check if creator is in the VC (except for delete)
   const creatorInVC = interaction.member.voice?.channelId === vcChannelId;
   if (!creatorInVC && id !== 'vc_delete') {
-    return errorReply('\u274C You must be connected to your voice channel to use controls.');
+    return errorReply(`${e.error} You must be connected to your voice channel to use controls.`);
   }
 
   // --- Handle each button ---
@@ -602,7 +603,7 @@ async function handleVcButton(interaction) {
 
     if (id === 'vc_limit') {
       if (vcData.type === 'duo') {
-        return errorReply('\u274C Duo VCs are locked to 2 users.');
+        return errorReply(`${e.error} Duo VCs are locked to 2 users.`);
       }
       const modal = new ModalBuilder()
         .setCustomId('vc_limit_modal')
@@ -630,7 +631,7 @@ async function handleVcButton(interaction) {
         .setMaxValues(1);
       const row = new ActionRowBuilder().addComponents(selectMenu);
       return interaction.reply({
-        content: '\u2795 Select a user to give access to your VC:',
+        content: `${e.trust} Select a user to give access to your VC:`,
         components: [row],
         ephemeral: true,
       });
@@ -644,7 +645,7 @@ async function handleVcButton(interaction) {
         .setMaxValues(1);
       const row = new ActionRowBuilder().addComponents(selectMenu);
       return interaction.reply({
-        content: '\uD83D\uDEAB Select a user to reject from your VC:',
+        content: `${e.reject} Select a user to reject from your VC:`,
         components: [row],
         ephemeral: true,
       });
@@ -658,7 +659,7 @@ async function handleVcButton(interaction) {
         .setMaxValues(1);
       const row = new ActionRowBuilder().addComponents(selectMenu);
       return interaction.reply({
-        content: '\uD83D\uDC62 Select a user to kick from your VC:',
+        content: `${e.vcKick} Select a user to kick from your VC:`,
         components: [row],
         ephemeral: true,
       });
@@ -672,7 +673,7 @@ async function handleVcButton(interaction) {
         .setMaxValues(1);
       const row = new ActionRowBuilder().addComponents(selectMenu);
       return interaction.reply({
-        content: '\uD83D\uDD28 Select a user to ban from your VC:',
+        content: `${e.vcBan} Select a user to ban from your VC:`,
         components: [row],
         ephemeral: true,
       });
@@ -682,38 +683,38 @@ async function handleVcButton(interaction) {
 
     if (id === 'vc_lock') {
       await vc.permissionOverwrites.edit(interaction.guild.id, { Connect: false });
-      return interaction.editReply({ content: '\uD83D\uDD12 Voice channel locked.' });
+      return interaction.editReply({ content: `${e.lock} Voice channel locked.` });
     }
 
     if (id === 'vc_unlock') {
       await vc.permissionOverwrites.edit(interaction.guild.id, { Connect: null });
-      return interaction.editReply({ content: '\uD83D\uDD13 Voice channel unlocked.' });
+      return interaction.editReply({ content: `${e.unlock} Voice channel unlocked.` });
     }
 
     if (id === 'vc_hide') {
       await vc.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: false });
-      return interaction.editReply({ content: '\uD83D\uDC41\uFE0F Voice channel hidden.' });
+      return interaction.editReply({ content: `${e.hide} Voice channel hidden.` });
     }
 
     if (id === 'vc_unhide') {
       await vc.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: null });
-      return interaction.editReply({ content: '\uD83D\uDC41\uFE0F Voice channel is now visible.' });
+      return interaction.editReply({ content: `${e.unhide} Voice channel is now visible.` });
     }
 
     if (id === 'vc_waiting') {
       await vc.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: true, Connect: false });
-      return interaction.editReply({ content: '\u231B Waiting room enabled.' });
+      return interaction.editReply({ content: `${e.waiting} Waiting room enabled.` });
     }
 
     if (id === 'vc_delete') {
       tempVCs.delete(vcChannelId);
-      await interaction.editReply({ content: '\uD83D\uDDD1\uFE0F Deleting your voice channel...' });
+      await interaction.editReply({ content: `${e.delete} Deleting your voice channel...` });
       await vc?.delete().catch(() => {});
       return;
     }
   } catch (err) {
     console.error('[VC Control Error]', err);
-    const msg = '\u274C Something went wrong. Please try again.';
+    const msg = `${e.error} Something went wrong. Please try again.`;
     if (interaction.deferred || interaction.replied) {
       return interaction.editReply({ content: msg }).catch(() => {});
     }
@@ -738,7 +739,7 @@ async function handleVcModal(interaction) {
 
   if (!result) {
     return interaction.reply({
-      content: '\u274C You don\'t have an active voice channel. Join \u2795 Create VC first.',
+      content: `${e.error} You don't have an active voice channel. Join Create VC first.`,
       ephemeral: true,
     });
   }
@@ -747,13 +748,13 @@ async function handleVcModal(interaction) {
 
   const voiceChannel = interaction.guild.channels.cache.get(vcChannelId);
   if (!voiceChannel) {
-    return interaction.reply({ content: '\u274C Voice channel not found.', ephemeral: true });
+    return interaction.reply({ content: `${e.error} Voice channel not found.`, ephemeral: true });
   }
 
   const creatorInVC = interaction.member.voice?.channelId === vcChannelId;
   if (!creatorInVC) {
     return interaction.reply({
-      content: '\u274C You must be connected to your voice channel to use controls.',
+      content: `${e.error} You must be connected to your voice channel to use controls.`,
       ephemeral: true,
     });
   }
@@ -764,7 +765,7 @@ async function handleVcModal(interaction) {
     if (id === 'vc_rename_modal') {
       const newName = interaction.fields.getTextInputValue('new_name');
       await voiceChannel.setName(newName);
-      await interaction.editReply(`\u2705 Channel renamed to **${newName}**`);
+      await interaction.editReply(`${e.success} Channel renamed to **${newName}**`);
       return;
     }
 
@@ -772,23 +773,23 @@ async function handleVcModal(interaction) {
       const input = interaction.fields.getTextInputValue('user_limit');
       const limit = parseInt(input, 10);
       if (isNaN(limit) || limit < 0 || limit > 99) {
-        return interaction.editReply('\u274C Please enter a valid number between 0 and 99.');
+        return interaction.editReply(`${e.error} Please enter a valid number between 0 and 99.`);
       }
       if (vcData.type === 'duo') {
-        return interaction.editReply('\u274C Duo VCs are locked to 2 users.');
+        return interaction.editReply(`${e.error} Duo VCs are locked to 2 users.`);
       }
       await voiceChannel.setUserLimit(limit);
       if (limit === 0) {
-        await interaction.editReply('\u2705 User limit removed (unlimited).');
+        await interaction.editReply(`${e.success} User limit removed (unlimited).`);
       } else {
-        await interaction.editReply(`\u2705 User limit set to **${limit}**.`);
+        await interaction.editReply(`${e.success} User limit set to **${limit}**.`);
       }
       return;
     }
 
   } catch (err) {
     console.error(`[VC Modal] Error handling ${id}:`, err.message);
-    await interaction.editReply('\u274C An error occurred while processing your request.').catch(() => {});
+    await interaction.editReply(`${e.error} An error occurred while processing your request.`).catch(() => {});
   }
 }
 
@@ -810,7 +811,7 @@ async function handleVcSelectMenu(interaction) {
 
   if (!result) {
     return interaction.update({
-      content: '\u274C VC session expired. Leave and rejoin \u2795 Create VC.',
+      content: `${e.error} VC session expired. Leave and rejoin Create VC.`,
       components: [],
     });
   }
@@ -819,26 +820,26 @@ async function handleVcSelectMenu(interaction) {
 
   if (interaction.user.id !== result.vcData.creatorId) {
     return interaction.update({
-      content: '\u274C Only the VC creator can use these controls.',
+      content: `${e.error} Only the VC creator can use these controls.`,
       components: [],
     });
   }
 
   const selectedUser = interaction.users.first();
   if (!selectedUser) {
-    return interaction.update({ content: '\u274C No user selected.', components: [] });
+    return interaction.update({ content: `${e.error} No user selected.`, components: [] });
   }
 
   const member = interaction.guild.members.cache.get(selectedUser.id)
     || await interaction.guild.members.fetch(selectedUser.id).catch(() => null);
 
   if (!member) {
-    return interaction.update({ content: '\u274C User not found.', components: [] });
+    return interaction.update({ content: `${e.error} User not found.`, components: [] });
   }
 
   const vc = interaction.guild.channels.cache.get(vcChannelId);
   if (!vc) {
-    return interaction.update({ content: '\u274C Voice channel not found.', components: [] });
+    return interaction.update({ content: `${e.error} Voice channel not found.`, components: [] });
   }
 
   try {
@@ -849,7 +850,7 @@ async function handleVcSelectMenu(interaction) {
         Speak: true,
       });
       return interaction.update({
-        content: `\u2705 ${member.displayName} can now join your VC even if locked/hidden.`,
+        content: `${e.success} ${member.displayName} can now join your VC even if locked/hidden.`,
         components: [],
       });
     }
@@ -863,18 +864,18 @@ async function handleVcSelectMenu(interaction) {
         Connect: false,
       });
       return interaction.update({
-        content: `\uD83D\uDEAB ${member.displayName} has been rejected from your VC.`,
+        content: `${e.reject} ${member.displayName} has been rejected from your VC.`,
         components: [],
       });
     }
 
     if (id === 'vc_kick_select') {
       if (member.id === interaction.user.id) {
-        return interaction.update({ content: '\u274C You cannot kick yourself.', components: [] });
+        return interaction.update({ content: `${e.error} You cannot kick yourself.`, components: [] });
       }
       if (member.voice?.channelId !== vcChannelId) {
         return interaction.update({
-          content: '\u274C That user is not in your voice channel.',
+          content: `${e.error} That user is not in your voice channel.`,
           components: [],
         });
       }
@@ -884,14 +885,14 @@ async function handleVcSelectMenu(interaction) {
         ViewChannel: false,
       });
       return interaction.update({
-        content: `\uD83D\uDC62 ${member.displayName} has been kicked from your VC.`,
+        content: `${e.vcKick} ${member.displayName} has been kicked from your VC.`,
         components: [],
       });
     }
 
     if (id === 'vc_ban_select') {
       if (member.id === interaction.user.id) {
-        return interaction.update({ content: '\u274C You cannot ban yourself.', components: [] });
+        return interaction.update({ content: `${e.error} You cannot ban yourself.`, components: [] });
       }
       if (member.voice?.channelId === vcChannelId) {
         await member.voice.disconnect('Banned from VC by owner').catch(() => {});
@@ -905,7 +906,7 @@ async function handleVcSelectMenu(interaction) {
         await member.send({
           embeds: [
             new EmbedBuilder()
-              .setTitle('\uD83D\uDD28 Banned from Voice Channel')
+              .setTitle(`${e.vcBan} Banned from Voice Channel`)
               .setDescription(`You have been banned from **${vc.name}** in **${interaction.guild.name}**`)
               .setColor(0xED4245)
               .addFields(
@@ -913,16 +914,18 @@ async function handleVcSelectMenu(interaction) {
               ),
           ],
         });
-      } catch {}
+      } catch (err) {
+        console.error('[VC Ban DM Error]', err);
+      }
       return interaction.update({
-        content: `\uD83D\uDD28 ${member.displayName} has been banned from your VC.`,
+        content: `${e.vcBan} ${member.displayName} has been banned from your VC.`,
         components: [],
       });
     }
   } catch (err) {
     console.error('[VC Select Error]', err);
     return interaction.update({
-      content: '\u274C Something went wrong. Please try again.',
+      content: `${e.error} Something went wrong. Please try again.`,
       components: [],
     }).catch(() => {});
   }

@@ -1,4 +1,9 @@
-const { SlashCommandBuilder, PermissionFlagsBits, CommandInteraction } = require('discord.js');
+const {
+  SlashCommandBuilder,
+  PermissionFlagsBits,
+  CommandInteraction,
+  EmbedBuilder,
+} = require('discord.js');
 const config = require('../../config');
 const resolveUser = require('../../utils/resolveUser');
 const e = require('../../config/emojis');
@@ -27,32 +32,41 @@ module.exports = {
     const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
 
     try {
-      let member, targetUser, durationMinutes, reason, guild, executor, executorMember, replyFn;
+      let member;
+      let targetUser;
+      let durationMinutes;
+      let reason;
+      let guild;
+      let executor;
+      let executorMember;
+      let replyError;
+      let replySuccess;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
+        if (!interaction.guild) {
+          return interaction.reply({
+            content: 'This command only works in a server.',
+            ephemeral: true,
+          });
+        }
         guild = interaction.guild;
         executor = interaction.user;
         executorMember = interaction.member;
         durationMinutes = interaction.options.getInteger('duration');
         reason = interaction.options.getString('reason') || 'No reason provided';
-        replyFn = (content) => interaction.reply({ content, ephemeral: true });
+        replyError = (content) => interaction.reply({ content, ephemeral: true });
+        replySuccess = (payload) => interaction.reply(payload);
 
         if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-          return interaction.reply({
-            content: `${e.error} You need the **Timeout Members** permission to use this command.`,
-            ephemeral: true,
-          });
+          return replyError(`${e.error} You need the **Timeout Members** permission to use this command.`);
         }
 
         const userOption = interaction.options.getUser('user');
         const query = interaction.options.getString('query');
 
         if (!userOption && !query) {
-          return interaction.reply({
-            content: `${e.error} Please provide a user (select or type username/ID).`,
-            ephemeral: true,
-          });
+          return replyError(`${e.error} Please provide a user (select or type username/ID).`);
         }
 
         if (userOption) {
@@ -66,54 +80,76 @@ module.exports = {
         }
 
         if (!member) {
-          return replyFn(`${e.error} Could not find that user in this server.`);
+          return replyError(`${e.error} Could not find that user in this server.`);
         }
       } else {
         const message = interactionOrMessage;
         const args = argsOrClient;
+        if (!message.guild) {
+          return message.reply('This command only works in a server.');
+        }
         guild = message.guild;
         executor = message.author;
         executorMember = message.member;
+        replyError = (content) => message.reply(content);
+        replySuccess = (payload) => message.reply(payload);
 
         if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-          return message.reply(`${e.error} You need the **Timeout Members** permission to use this command.`);
+          return replyError(`${e.error} You need the **Timeout Members** permission to use this command.`);
         }
 
-        if (!args[0]) return message.reply('Please provide a user to mute.');
+        if (!args[0]) return replyError(`${e.error} Please provide a user to mute.`);
 
         const input = args[0];
         member = await resolveUser(input, guild);
-        replyFn = (content) => message.reply(content);
-
         if (!member) {
-          return replyFn(`${e.error} Could not find that user in this server.`);
+          return replyError(`${e.error} Could not find that user in this server.`);
         }
         targetUser = member.user;
 
         durationMinutes = parseInt(args[1], 10);
         if (isNaN(durationMinutes) || durationMinutes < 1) {
-          return message.reply('Please provide a valid duration in minutes. Usage: `!mute <user> <minutes> [reason]`');
+          return replyError(`${e.error} Please provide a valid duration in minutes. Usage: \`!mute <user> <minutes> [reason]\``);
         }
         reason = args.slice(2).join(' ') || 'No reason provided';
       }
 
-      if (!guild.members.me.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-        return replyFn(`${e.error} I don't have the **Timeout Members** permission to do this.`);
+      const botMember = guild.members.me;
+      if (!botMember || !botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        return replyError(`${e.error} I don't have the **Timeout Members** permission to do this.`);
       }
 
       const durationMs = Math.min(durationMinutes * 60 * 1000, MAX_TIMEOUT_MS);
 
       if (!isOwner && member.roles.highest.position >= executorMember.roles.highest.position) {
-        return replyFn(`${e.error} You cannot moderate someone with an equal or higher role than you.`);
+        return replyError(`${e.error} You cannot moderate someone with an equal or higher role than you.`);
       }
 
-      if (member.roles.highest.position >= guild.members.me.roles.highest.position) {
-        return replyFn(`${e.error} I cannot moderate this user as their role is higher than or equal to mine.`);
+      if (member.roles.highest.position >= botMember.roles.highest.position) {
+        return replyError(`${e.error} I cannot moderate this user as their role is higher than or equal to mine.`);
       }
 
       await member.timeout(durationMs, reason);
 
-      await replyFn(`**${targetUser.username}** has been muted for ${durationMinutes} minute(s). Reason: ${reason}`);
+      const targetTag = targetUser.tag || targetUser.username;
+      const moderatorTag = executor.tag || executor.username;
+      const embed = new EmbedBuilder()
+        .setColor('#FEE75C')
+        .setAuthor({
+          name: `Mute | ${targetTag}`,
+          iconURL: targetUser.displayAvatarURL({ dynamic: true }),
+        })
+        .addFields(
+          { name: `${e.user} User`, value: `${targetUser} (${targetTag})`, inline: true },
+          { name: `${e.id} ID`, value: targetUser.id, inline: true },
+          { name: 'Duration', value: `${durationMinutes} minute(s)`, inline: true },
+          { name: `${e.warn} Reason`, value: reason, inline: false },
+          { name: `${e.user} Moderator`, value: `${executor}`, inline: true },
+        )
+        .setFooter({ text: `Action by ${moderatorTag}` })
+        .setTimestamp();
+
+      await replySuccess({ embeds: [embed] });
     } catch (err) {
       console.error('[Mute]', err);
     }

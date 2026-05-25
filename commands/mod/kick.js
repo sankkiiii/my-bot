@@ -1,4 +1,9 @@
-const { SlashCommandBuilder, PermissionFlagsBits, CommandInteraction } = require('discord.js');
+const {
+  SlashCommandBuilder,
+  PermissionFlagsBits,
+  CommandInteraction,
+  EmbedBuilder,
+} = require('discord.js');
 const config = require('../../config');
 const resolveUser = require('../../utils/resolveUser');
 const e = require('../../config/emojis');
@@ -21,20 +26,31 @@ module.exports = {
     const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
 
     try {
-      let member, targetUser, reason, guild, executor, executorMember, replyFn;
+      let member;
+      let targetUser;
+      let reason;
+      let guild;
+      let executor;
+      let executorMember;
+      let replyError;
+      let replySuccess;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
+        if (!interaction.guild) {
+          return interaction.reply({
+            content: 'This command only works in a server.',
+            ephemeral: true,
+          });
+        }
         guild = interaction.guild;
         executor = interaction.user;
         executorMember = interaction.member;
-        replyFn = (content) => interaction.reply({ content, ephemeral: true });
+        replyError = (content) => interaction.reply({ content, ephemeral: true });
+        replySuccess = (payload) => interaction.reply(payload);
 
         if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) {
-          return interaction.reply({
-            content: `${e.error} You need the **Kick Members** permission to use this command.`,
-            ephemeral: true,
-          });
+          return replyError(`${e.error} You need the **Kick Members** permission to use this command.`);
         }
 
         const userOption = interaction.options.getUser('user');
@@ -42,10 +58,7 @@ module.exports = {
         reason = interaction.options.getString('reason') || 'No reason provided';
 
         if (!userOption && !query) {
-          return interaction.reply({
-            content: `${e.error} Please provide a user (select or type username/ID).`,
-            ephemeral: true,
-          });
+          return replyError(`${e.error} Please provide a user (select or type username/ID).`);
         }
 
         if (userOption) {
@@ -59,51 +72,75 @@ module.exports = {
         }
 
         if (!member) {
-          return replyFn(`${e.error} Could not find that user in this server.`);
+          return replyError(`${e.error} Could not find that user in this server.`);
         }
       } else {
         const message = interactionOrMessage;
         const args = argsOrClient;
+        if (!message.guild) {
+          return message.reply('This command only works in a server.');
+        }
         guild = message.guild;
         executor = message.author;
         executorMember = message.member;
+        replyError = (content) => message.reply(content);
+        replySuccess = (payload) => message.reply(payload);
 
         if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.KickMembers)) {
-          return message.reply(`${e.error} You need the **Kick Members** permission to use this command.`);
+          return replyError(`${e.error} You need the **Kick Members** permission to use this command.`);
         }
 
-        if (!args[0]) return message.reply('Please provide a user to kick.');
+        if (!args[0]) return replyError(`${e.error} Please provide a user to kick.`);
 
         const input = args[0];
         member = await resolveUser(input, guild);
         reason = args.slice(1).join(' ') || 'No reason provided';
-        replyFn = (content) => message.reply(content);
 
         if (!member) {
-          return replyFn(`${e.error} Could not find that user in this server.`);
+          return replyError(`${e.error} Could not find that user in this server.`);
         }
         targetUser = member.user;
       }
 
-      if (!guild.members.me.permissions.has(PermissionFlagsBits.KickMembers)) {
-        return replyFn(`${e.error} I don't have the **Kick Members** permission to do this.`);
+      const botMember = guild.members.me;
+      if (!botMember || !botMember.permissions.has(PermissionFlagsBits.KickMembers)) {
+        return replyError(`${e.error} I don't have the **Kick Members** permission to do this.`);
       }
 
       if (!isOwner && member.roles.highest.position >= executorMember.roles.highest.position) {
-        return replyFn(`${e.error} You cannot moderate someone with an equal or higher role than you.`);
+        return replyError(`${e.error} You cannot moderate someone with an equal or higher role than you.`);
       }
 
-      if (member.roles.highest.position >= guild.members.me.roles.highest.position) {
-        return replyFn(`${e.error} I cannot moderate this user as their role is higher than or equal to mine.`);
+      if (member.roles.highest.position >= botMember.roles.highest.position) {
+        return replyError(`${e.error} I cannot moderate this user as their role is higher than or equal to mine.`);
       }
 
       try {
         await targetUser.send(`You have been **kicked** from **${guild.name}**.\n**Reason:** ${reason}`);
-      } catch (_) { /* DMs may be disabled */ }
+      } catch (err) {
+        console.error('[Kick DM Error]', err);
+      }
 
       await member.kick(reason);
 
-      await replyFn(`**${targetUser.username}** has been kicked. Reason: ${reason}`);
+      const targetTag = targetUser.tag || targetUser.username;
+      const moderatorTag = executor.tag || executor.username;
+      const embed = new EmbedBuilder()
+        .setColor('#ED4245')
+        .setAuthor({
+          name: `Kick | ${targetTag}`,
+          iconURL: targetUser.displayAvatarURL({ dynamic: true }),
+        })
+        .addFields(
+          { name: `${e.user} User`, value: `${targetUser} (${targetTag})`, inline: true },
+          { name: `${e.id} ID`, value: targetUser.id, inline: true },
+          { name: `${e.warn} Reason`, value: reason, inline: false },
+          { name: `${e.user} Moderator`, value: `${executor}`, inline: true },
+        )
+        .setFooter({ text: `Action by ${moderatorTag}` })
+        .setTimestamp();
+
+      await replySuccess({ embeds: [embed] });
     } catch (err) {
       console.error('[Kick]', err);
     }

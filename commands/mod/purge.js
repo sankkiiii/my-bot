@@ -1,4 +1,9 @@
-const { SlashCommandBuilder, PermissionFlagsBits, CommandInteraction } = require('discord.js');
+const {
+  SlashCommandBuilder,
+  PermissionFlagsBits,
+  CommandInteraction,
+  EmbedBuilder,
+} = require('discord.js');
 const config = require('../../config');
 const e = require('../../config/emojis');
 
@@ -20,51 +25,67 @@ module.exports = {
     const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
 
     try {
-      let amount, channel, executor, guild, replyFn;
+      let amount;
+      let channel;
+      let executor;
+      let guild;
+      let replyError;
+      let replySuccess;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
+        if (!interaction.guild) {
+          return interaction.reply({
+            content: 'This command only works in a server.',
+            ephemeral: true,
+          });
+        }
         channel = interaction.channel;
         guild = interaction.guild;
         executor = interaction.user;
         amount = interaction.options.getInteger('amount');
-        replyFn = (content) => interaction.reply({ content, ephemeral: true });
+        replyError = (content) => interaction.reply({ content, ephemeral: true });
+        replySuccess = (payload) => interaction.reply(payload);
 
         if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-          return interaction.reply({
-            content: `${e.error} You need the **Manage Messages** permission to use this command.`,
-            ephemeral: true,
-          });
+          return replyError(`${e.error} You need the **Manage Messages** permission to use this command.`);
         }
       } else {
         const message = interactionOrMessage;
         const args = argsOrClient;
+        if (!message.guild) {
+          return message.reply('This command only works in a server.');
+        }
         channel = message.channel;
         guild = message.guild;
         executor = message.author;
+        replyError = (content) => message.reply(content);
+        replySuccess = (payload) => message.reply(payload);
 
         if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-          return message.reply(`${e.error} You need the **Manage Messages** permission to use this command.`);
+          return replyError(`${e.error} You need the **Manage Messages** permission to use this command.`);
         }
 
         amount = parseInt(args[0], 10);
         if (isNaN(amount) || amount < 1 || amount > 100) {
-          return message.reply('Please provide a number between 1 and 100.');
+          return replyError(`${e.error} Please provide a number between 1 and 100.`);
         }
-        replyFn = (content) => message.reply(content);
       }
 
-      if (!guild.members.me.permissions.has(PermissionFlagsBits.ManageMessages)) {
-        return replyFn(`${e.error} I don't have the **Manage Messages** permission to do this.`);
+      const botMember = guild.members.me;
+      if (!botMember || !botMember.permissions.has(PermissionFlagsBits.ManageMessages)) {
+        return replyError(`${e.error} I don't have the **Manage Messages** permission to do this.`);
       }
 
       const deleted = await channel.bulkDelete(amount, true);
 
-      try {
-        await replyFn(`Deleted **${deleted.size}** messages.`);
-      } catch {
-        await channel.send(`Deleted **${deleted.size}** messages.`).catch(() => {});
-      }
+      const moderatorTag = executor.tag || executor.username;
+      const embed = new EmbedBuilder()
+        .setColor('#5865F2')
+        .setDescription(`${e.purge} Deleted **${deleted.size}** messages`)
+        .setFooter({ text: `Requested by ${moderatorTag}` });
+
+      await replySuccess({ embeds: [embed] });
     } catch (err) {
       console.error('[Purge]', err);
     }
