@@ -11,7 +11,7 @@ module.exports = {
   warning:      '<a:warn_:1508546781577871542>',
   info:         '<:info_:1508547238371004478>',
   loading:      '<:loading:EMOJI_ID_HERE>',
-  afk:          '<:afk:EMOJI_ID_HERE>',
+  afk:          '<:ecitt:1508610759976943697>',
   away:         '<:reson:1508554272415944726>',
 
   // ── MODERATION ──────────────────────────
