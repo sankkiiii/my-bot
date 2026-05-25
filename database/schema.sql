@@ -32,3 +32,11 @@ CREATE TABLE IF NOT EXISTS noprefix_users (
   added_at TEXT,
   PRIMARY KEY (guild_id, user_id)
 );
+
+CREATE TABLE IF NOT EXISTS afk_users (
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  reason TEXT DEFAULT 'AFK',
+  set_at TEXT NOT NULL,
+  PRIMARY KEY (guild_id, user_id)
+);

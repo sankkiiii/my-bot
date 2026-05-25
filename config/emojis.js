@@ -11,6 +11,8 @@ module.exports = {
   warning:      '<:warning:EMOJI_ID_HERE>',
   info:         '<:info:EMOJI_ID_HERE>',
   loading:      '<:loading:EMOJI_ID_HERE>',
+  afk:          '<:afk:EMOJI_ID_HERE>',
+  away:         '<:away:EMOJI_ID_HERE>',
 
   // ── MODERATION ──────────────────────────
   ban:          '<:ban:EMOJI_ID_HERE>',

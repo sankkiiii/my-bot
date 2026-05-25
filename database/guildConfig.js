@@ -123,4 +123,31 @@ module.exports = {
     const users = this.getNoPrefixUsers(guildId);
     return users.includes(userId);
   },
+
+  // AFK operations
+  setAFK(guildId, userId, reason) {
+    db.prepare(`
+      INSERT OR REPLACE INTO afk_users
+      (guild_id, user_id, reason, set_at)
+      VALUES (?, ?, ?, ?)
+    `).run(guildId, userId, reason, new Date().toISOString());
+  },
+
+  removeAFK(guildId, userId) {
+    db.prepare(
+      'DELETE FROM afk_users WHERE guild_id = ? AND user_id = ?',
+    ).run(guildId, userId);
+  },
+
+  getAFK(guildId, userId) {
+    return db.prepare(
+      'SELECT * FROM afk_users WHERE guild_id = ? AND user_id = ?',
+    ).get(guildId, userId) || null;
+  },
+
+  isAFK(guildId, userId) {
+    return !!db.prepare(
+      'SELECT 1 FROM afk_users WHERE guild_id = ? AND user_id = ?',
+    ).get(guildId, userId);
+  },
 };
