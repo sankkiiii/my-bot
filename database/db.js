@@ -10,11 +10,29 @@ const schemaPath = path.join(__dirname, 'schema.sql');
 
 let db = null;
 let initPromise = null;
+let saveTimer = null;
+let dirty = false;
+const SAVE_DELAY_MS = 200;
 
 function saveToDisk() {
   if (!db) return;
   const data = db.export();
   fs.writeFileSync(dbPath, Buffer.from(data));
+}
+
+function scheduleSave() {
+  dirty = true;
+  if (saveTimer) return;
+  saveTimer = setTimeout(() => {
+    try {
+      if (dirty) {
+        saveToDisk();
+        dirty = false;
+      }
+    } finally {
+      saveTimer = null;
+    }
+  }, SAVE_DELAY_MS);
 }
 
 function rowsFromExec(results) {
@@ -70,14 +88,14 @@ module.exports = {
       },
       run(...params) {
         db.run(sql, params);
-        saveToDisk();
+        scheduleSave();
       },
     };
   },
   exec(sql) {
     ensureReady();
     db.exec(sql);
-    saveToDisk();
+    scheduleSave();
   },
   pragma(statement) {
     ensureReady();

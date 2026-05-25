@@ -1,5 +1,24 @@
 const db = require('./db');
 
+const noPrefixCache = new Map();
+const NO_PREFIX_TTL_MS = 60 * 1000;
+
+function getCachedNoPrefix(guildId) {
+  const cached = noPrefixCache.get(guildId);
+  if (cached && Date.now() - cached.timestamp < NO_PREFIX_TTL_MS) {
+    return cached.users;
+  }
+  return null;
+}
+
+function setCachedNoPrefix(guildId, users) {
+  noPrefixCache.set(guildId, { users, timestamp: Date.now() });
+}
+
+function invalidateNoPrefix(guildId) {
+  noPrefixCache.delete(guildId);
+}
+
 module.exports = {
 
   // Get full config for a guild
@@ -75,9 +94,13 @@ module.exports = {
 
   // Noprefix operations
   getNoPrefixUsers(guildId) {
-    return db.prepare(
+    const cached = getCachedNoPrefix(guildId);
+    if (cached) return cached;
+    const users = db.prepare(
       'SELECT user_id FROM noprefix_users WHERE guild_id = ?',
     ).all(guildId).map((r) => r.user_id);
+    setCachedNoPrefix(guildId, users);
+    return users;
   },
 
   addNoPrefixUser(guildId, userId, addedBy) {
@@ -86,17 +109,18 @@ module.exports = {
       (guild_id, user_id, added_by, added_at)
       VALUES (?, ?, ?, ?)
     `).run(guildId, userId, addedBy, new Date().toISOString());
+    invalidateNoPrefix(guildId);
   },
 
   removeNoPrefixUser(guildId, userId) {
     db.prepare(
       'DELETE FROM noprefix_users WHERE guild_id = ? AND user_id = ?',
     ).run(guildId, userId);
+    invalidateNoPrefix(guildId);
   },
 
   isNoPrefixUser(guildId, userId) {
-    return !!db.prepare(
-      'SELECT 1 FROM noprefix_users WHERE guild_id = ? AND user_id = ?',
-    ).get(guildId, userId);
+    const users = this.getNoPrefixUsers(guildId);
+    return users.includes(userId);
   },
 };

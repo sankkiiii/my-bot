@@ -161,117 +161,124 @@ async function handleTicketOpenButton(interaction, client) {
 async function handleTicketModalSubmit(interaction, client) {
   await interaction.deferReply({ ephemeral: true });
 
-  const guild = interaction.guild;
-  const user = interaction.user;
-  const reason = interaction.fields.getTextInputValue('ticket_reason_input');
-  const cfg = getConfig(guild.id);
+  try {
+    const guild = interaction.guild;
+    const user = interaction.user;
+    const reason = interaction.fields.getTextInputValue('ticket_reason_input');
+    const cfg = getConfig(guild.id);
 
-  if (!cfg?.ticket_category) {
-    return interaction.editReply({
-      content: '❌ Tickets are not configured. Admin: use `/setup tickets`',
-    });
-  }
+    if (!cfg?.ticket_category) {
+      return interaction.editReply({
+        content: '❌ Tickets are not configured. Admin: use `/setup tickets`',
+      });
+    }
 
-  const sanitizedName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const sanitizedName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-  // Double-check for existing ticket (race condition guard)
-  const existingChannel = guild.channels.cache.find(
-    (ch) =>
-      ch.name === `ticket-${sanitizedName}` &&
-      ch.parentId === cfg.ticket_category,
-  );
-  if (existingChannel) {
-    return interaction.editReply({
-      content: `\u274C You already have an open ticket: ${existingChannel}`,
-    });
-  }
+    // Double-check for existing ticket (race condition guard)
+    const existingChannel = guild.channels.cache.find(
+      (ch) =>
+        ch.name === `ticket-${sanitizedName}` &&
+        ch.parentId === cfg.ticket_category,
+    );
+    if (existingChannel) {
+      return interaction.editReply({
+        content: `\u274C You already have an open ticket: ${existingChannel}`,
+      });
+    }
 
-  const ticketNumber = incrementTicketCount(guild.id);
+    const ticketNumber = incrementTicketCount(guild.id);
 
-  const ticketChannel = await guild.channels.create({
-    name: `ticket-${sanitizedName}`,
-    type: ChannelType.GuildText,
-    topic: `Opened by: ${user.id} | Reason: ${reason}`,
-    parent: cfg.ticket_category || undefined,
-    permissionOverwrites: [
-      {
-        id: guild.roles.everyone.id,
-        deny: [PermissionFlagsBits.ViewChannel],
-      },
-      {
-        id: user.id,
-        allow: [
-          PermissionFlagsBits.ViewChannel,
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.ReadMessageHistory,
-          PermissionFlagsBits.AttachFiles,
-        ],
-      },
-      {
-        id: client.user.id,
-        allow: [
-          PermissionFlagsBits.ViewChannel,
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.ReadMessageHistory,
-          PermissionFlagsBits.ManageMessages,
-          PermissionFlagsBits.ManageChannels,
-        ],
-      },
-      ...guild.roles.cache
-        .filter(
-          (role) =>
-            role.id !== guild.id &&
-            (role.permissions.has(PermissionFlagsBits.ManageMessages) ||
-              role.permissions.has(PermissionFlagsBits.KickMembers) ||
-              role.permissions.has(PermissionFlagsBits.BanMembers)),
-        )
-        .map((role) => ({
-          id: role.id,
+    const ticketChannel = await guild.channels.create({
+      name: `ticket-${sanitizedName}`,
+      type: ChannelType.GuildText,
+      topic: `Opened by: ${user.id} | Reason: ${reason}`,
+      parent: cfg.ticket_category || undefined,
+      permissionOverwrites: [
+        {
+          id: guild.roles.everyone.id,
+          deny: [PermissionFlagsBits.ViewChannel],
+        },
+        {
+          id: user.id,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory,
+            PermissionFlagsBits.AttachFiles,
+          ],
+        },
+        {
+          id: client.user.id,
           allow: [
             PermissionFlagsBits.ViewChannel,
             PermissionFlagsBits.SendMessages,
             PermissionFlagsBits.ReadMessageHistory,
             PermissionFlagsBits.ManageMessages,
-            PermissionFlagsBits.AttachFiles,
+            PermissionFlagsBits.ManageChannels,
           ],
-        })),
-    ],
-  });
+        },
+        ...guild.roles.cache
+          .filter(
+            (role) =>
+              role.id !== guild.id &&
+              (role.permissions.has(PermissionFlagsBits.ManageMessages) ||
+                role.permissions.has(PermissionFlagsBits.KickMembers) ||
+                role.permissions.has(PermissionFlagsBits.BanMembers)),
+          )
+          .map((role) => ({
+            id: role.id,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory,
+              PermissionFlagsBits.ManageMessages,
+              PermissionFlagsBits.AttachFiles,
+            ],
+          })),
+      ],
+    });
 
-  const welcomeEmbed = new EmbedBuilder()
-    .setTitle('\uD83C\uDFAB Ticket Opened')
-    .setColor(0x57f287)
-    .addFields(
-      { name: '\uD83D\uDC64 Opened by', value: `${user}`, inline: true },
-      { name: '\uD83C\uDFAB Ticket', value: `#${ticketNumber}`, inline: true },
-      { name: '\uD83D\uDCCB Reason', value: reason, inline: false },
-      { name: '\uD83D\uDFE2 Status', value: 'Open', inline: true },
-    )
-    .setFooter({ text: 'Only staff can close this ticket' })
-    .setTimestamp();
+    const welcomeEmbed = new EmbedBuilder()
+      .setTitle('\uD83C\uDFAB Ticket Opened')
+      .setColor(0x57f287)
+      .addFields(
+        { name: '\uD83D\uDC64 Opened by', value: `${user}`, inline: true },
+        { name: '\uD83C\uDFAB Ticket', value: `#${ticketNumber}`, inline: true },
+        { name: '\uD83D\uDCCB Reason', value: reason, inline: false },
+        { name: '\uD83D\uDFE2 Status', value: 'Open', inline: true },
+      )
+      .setFooter({ text: 'Only staff can close this ticket' })
+      .setTimestamp();
 
-  const closeRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('close_ticket')
-      .setLabel('\uD83D\uDD12 Close Ticket')
-      .setStyle(ButtonStyle.Danger),
-  );
+    const closeRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('close_ticket')
+        .setLabel('\uD83D\uDD12 Close Ticket')
+        .setStyle(ButtonStyle.Danger),
+    );
 
-  await ticketChannel.send({ embeds: [welcomeEmbed], components: [closeRow] });
+    await ticketChannel.send({ embeds: [welcomeEmbed], components: [closeRow] });
 
-  const logEmbed = new EmbedBuilder()
-    .setTitle('Ticket Opened')
-    .setColor(0x57f287)
-    .addFields(
-      { name: 'Opened By', value: `${user.username} (${user.id})` },
-      { name: 'Channel', value: `<#${ticketChannel.id}> (${ticketChannel.name})` },
-      { name: 'Ticket #', value: `${ticketNumber}` },
-      { name: 'Reason', value: reason },
-    )
-    .setTimestamp();
-  await sendLog(client, cfg.ticket_log_channel, logEmbed);
+    const logEmbed = new EmbedBuilder()
+      .setTitle('Ticket Opened')
+      .setColor(0x57f287)
+      .addFields(
+        { name: 'Opened By', value: `${user.username} (${user.id})` },
+        { name: 'Channel', value: `<#${ticketChannel.id}> (${ticketChannel.name})` },
+        { name: 'Ticket #', value: `${ticketNumber}` },
+        { name: 'Reason', value: reason },
+      )
+      .setTimestamp();
+    await sendLog(client, cfg.ticket_log_channel, logEmbed);
 
-  await interaction.editReply({ content: `Your ticket has been created: ${ticketChannel}` });
+    await interaction.editReply({ content: `Your ticket has been created: ${ticketChannel}` });
+  } catch (err) {
+    console.error('[TicketModalSubmit]', err);
+    await interaction.editReply(
+      '❌ Failed to create the ticket. Check bot permissions for the ticket category and try again.',
+    ).catch(() => {});
+  }
 }
 
 async function handleTicketClose(interaction, client) {
