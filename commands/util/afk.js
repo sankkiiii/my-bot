@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const guildConfig = require('../../database/guildConfig');
 const e = require('../../config/emojis');
 
@@ -33,15 +33,9 @@ module.exports = {
 
       guildConfig.setAFK(guildId, userId, reason);
 
-      const embed = new EmbedBuilder()
-        .setDescription(
-          `${e.afk} **${member.displayName}** is now AFK\n` +
-          `${e.reason} **Reason:** ${reason}`,
-        )
-        .setColor('#FEE75C')
-        .setFooter({ text: 'You will be marked as returned when you send a message' });
-
-      await interaction.reply({ embeds: [embed] });
+      await interaction.reply({
+        content: `${e.afk} **${member.displayName}** is now AFK\n${e.reason} **Reason:** ${reason}`,
+      });
 
       try {
         if (!member.displayName.startsWith('[AFK]')) {

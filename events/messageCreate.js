@@ -1,4 +1,4 @@
-const { Events, EmbedBuilder } = require('discord.js');
+const { Events } = require('discord.js');
 const config = require('../config');
 const guildConfig = require('../database/guildConfig');
 const formatDuration = require('../utils/formatDuration');
@@ -34,14 +34,11 @@ module.exports = {
           }
         } catch {}
 
-        const welcomeEmbed = new EmbedBuilder()
-          .setDescription(
+        const msg = await message.channel.send({
+          content:
             `${e.success} Welcome back **${message.member.displayName}**! I removed your AFK.\n` +
             `${e.uptime} You were away for **${duration}**`,
-          )
-          .setColor('#57F287');
-
-        const msg = await message.channel.send({ embeds: [welcomeEmbed] });
+        });
         setTimeout(() => msg.delete().catch(() => {}), 5000);
       }
 
@@ -61,14 +58,11 @@ module.exports = {
           const afkMember = message.guild.members.cache.get(userId);
           const displayName = afkMember?.displayName || user.username;
 
-          const afkEmbed = new EmbedBuilder()
-            .setDescription(
+          const notif = await message.channel.send({
+            content:
               `${e.afk} **${displayName}** went AFK **${duration} ago**\n` +
               `${e.reason} **Reason:** ${afkData.reason}`,
-            )
-            .setColor('#FEE75C');
-
-          const notif = await message.channel.send({ embeds: [afkEmbed] });
+          });
           setTimeout(() => notif.delete().catch(() => {}), 5000);
         }
       }
