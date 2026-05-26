@@ -9,9 +9,10 @@ const resolveUser = require('../../utils/resolveUser');
 const cooldown = require('../../utils/cooldown');
 const {
   slashError,
-  slashSuccess,
+  slashSuccessTemp,
   prefixError,
-  prefixSuccess,
+  prefixSuccessTemp,
+  deleteTrigger,
 } = require('../../utils/replyHelper');
 const e = require('../../config/emojis');
 
@@ -68,32 +69,19 @@ module.exports = {
       );
       if (remaining > 0) {
         const secs = (remaining / 1000).toFixed(1);
-        if (isSlash) {
-          return slashError(
-            interaction,
-            `${e.warning} You are on cooldown. Try again in **${secs}s**.`
-          );
-        } else {
-          return prefixError(
-            message,
-            `${e.warning} You are on cooldown. Try again in **${secs}s**.`
-          );
-        }
+        const msg = `${e.warning} You are on cooldown. Try again in **${secs}s**.`;
+        return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
       }
 
       if (!executor.permissions.has(PermissionFlagsBits.MoveMembers)) {
         const errMsg = `${e.error} You need **Move Members** permission.`;
-        return isSlash
-          ? slashError(interaction, errMsg)
-          : prefixError(message, errMsg);
+        return isSlash ? slashError(interaction, errMsg) : prefixError(message, errMsg);
       }
 
       const botMember = guild.members.me;
       if (!botMember.permissions.has(PermissionFlagsBits.MoveMembers)) {
         const errMsg = `${e.error} I need **Move Members** permission.`;
-        return isSlash
-          ? slashError(interaction, errMsg)
-          : prefixError(message, errMsg);
+        return isSlash ? slashError(interaction, errMsg) : prefixError(message, errMsg);
       }
 
       // Get target member
@@ -123,16 +111,12 @@ module.exports = {
 
       if (!target) {
         const errMsg = `${e.error} User not found.`;
-        return isSlash
-          ? slashError(interaction, errMsg)
-          : prefixError(message, errMsg);
+        return isSlash ? slashError(interaction, errMsg) : prefixError(message, errMsg);
       }
 
       if (target.id === executor.id) {
         const errMsg = `${e.error} You cannot kick yourself from VC.`;
-        return isSlash
-          ? slashError(interaction, errMsg)
-          : prefixError(message, errMsg);
+        return isSlash ? slashError(interaction, errMsg) : prefixError(message, errMsg);
       }
 
       // Get VC to kick from
@@ -146,7 +130,6 @@ module.exports = {
         if (chMention) {
           vcArg = chMention;
         } else if (args[1]) {
-          // Check if args[0] is user ID (17-19 digits), if so args[1] is the VC
           vcArg = guild.channels.cache.get(args[1]);
         }
         fromVC = vcArg || target.voice?.channel;
@@ -154,24 +137,23 @@ module.exports = {
 
       if (!fromVC) {
         const errMsg = `${e.error} **${target.displayName}** is not in a voice channel.`;
-        return isSlash
-          ? slashError(interaction, errMsg)
-          : prefixError(message, errMsg);
+        return isSlash ? slashError(interaction, errMsg) : prefixError(message, errMsg);
       }
 
       if (fromVC.type !== ChannelType.GuildVoice) {
         const errMsg = `${e.error} That is not a voice channel.`;
-        return isSlash
-          ? slashError(interaction, errMsg)
-          : prefixError(message, errMsg);
+        return isSlash ? slashError(interaction, errMsg) : prefixError(message, errMsg);
       }
 
       // Check if user is actually in that VC
       if (target.voice?.channelId !== fromVC.id) {
         const errMsg = `${e.error} **${target.displayName}** is not in **${fromVC.name}**.`;
-        return isSlash
-          ? slashError(interaction, errMsg)
-          : prefixError(message, errMsg);
+        return isSlash ? slashError(interaction, errMsg) : prefixError(message, errMsg);
+      }
+
+      // Disconnect trigger for prefix
+      if (!isSlash) {
+        await deleteTrigger(message, 0);
       }
 
       // Disconnect the user
@@ -198,9 +180,9 @@ module.exports = {
         .setTimestamp();
 
       if (isSlash) {
-        return slashSuccess(interaction, { embeds: [embed] });
+        return slashSuccessTemp(interaction, { embeds: [embed] });
       } else {
-        return prefixSuccess(message, { embeds: [embed] });
+        return prefixSuccessTemp(message, { embeds: [embed] });
       }
     } catch (err) {
       console.error('[VCKick]', err);

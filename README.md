@@ -12,7 +12,7 @@
 - Multi-server SQLite architecture
 - Per-guild configuration
 - Custom emoji support
-- Multi-owner No-prefix system
+- Multi-owner Bot management
 - Rich Presence control
 
 ---
@@ -35,7 +35,7 @@ All commands work as both Slash Commands (`/`) and Prefix Commands (default `!`)
 | `/drag` | `pull`, `move`, `summon` | Drag a user to a voice channel | `Move Members` |
 | `/vckick` | `vcremove`, `disconnectuser`, `dvc`, `forcedc` | Disconnect a user from a voice channel | `Move Members` |
 | `/vckickall` | `vcpurge`, `kickall`, `emptyvc`, `clearvc` | Disconnect everyone from a voice channel | `Move Members` |
-| `/dump` | `rolememebers`, `rolelist`, | Show all members with a specific role | `Manage Roles` |
+| `/dump` | `rolememebers`, `rmembers`, `rolelist`, `rd` | Show all members with a specific role | `Manage Roles` |
 
 *(Note: Users with `Change Nickname` can change their own nickname without `Manage Nicknames`)*
 
@@ -248,12 +248,12 @@ my-bot/
 Ownership is managed globally via the database. The initial owner is seeded from the `.env` file on first startup.
 - Owners can add other owners.
 - Owners can grant/revoke no-prefix access.
-- Owners have no-prefix access automatically.
 
 ### No-Prefix System
 - `/noprefix add <user>` — Grant a user no-prefix access (Owner only).
 - `/noprefix remove <user>` — Revoke no-prefix access (Owner only).
 - `/noprefix list` — View all owners and no-prefix users.
+- **Note:** Bot owners must be added to no-prefix explicitly if they wish to use commands without a prefix.
 
 ### Rich Presence
 Admin-only commands to update the bot's status across all servers. Persists across restarts.
@@ -267,6 +267,7 @@ Admin-only commands to update the bot's status across all servers. Persists acro
 - **All normal commands:** 3 second cooldown.
 - **Setup & Noprefix commands:** 5 second cooldown.
 - Command error replies are ephemeral in slash commands and automatically deleted after 5 seconds for prefix commands.
+- Success messages for mass-action commands (Purge, VC Kick) are also deleted after 5 seconds.
 
 ---
 

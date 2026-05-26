@@ -85,8 +85,7 @@ module.exports = {
         }
       }
 
-      // Ownership and No-Prefix checks
-      const isOwner = guildConfig.isOwner(message.author.id);
+      // No-Prefix check (separate from ownership)
       let isNoPrefix = false;
       try {
         isNoPrefix = guildConfig.isNoPrefixUser(message.guild.id, message.author.id);
@@ -102,7 +101,7 @@ module.exports = {
       if (startsWithPrefix) {
         args = message.content.slice(config.prefix.length).trim().split(/\s+/);
         commandName = args.shift().toLowerCase();
-      } else if (isOwner || isNoPrefix) {
+      } else if (isNoPrefix) {
         args = message.content.trim().split(/\s+/);
         commandName = args.shift().toLowerCase();
       } else {

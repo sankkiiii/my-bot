@@ -22,6 +22,27 @@ module.exports = {
     return null;
   },
 
+  async slashSuccessTemp(interaction, options, delay = 5000) {
+    try {
+      if (interaction.deferred || interaction.replied) {
+        const msg = await interaction.editReply(options);
+        setTimeout(async () => {
+          await interaction.deleteReply().catch(() => {});
+        }, delay);
+        return msg;
+      } else {
+        const msg = await interaction.reply({ ...options, fetchReply: true });
+        setTimeout(async () => {
+          await interaction.deleteReply().catch(() => {});
+        }, delay);
+        return msg;
+      }
+    } catch (err) {
+      console.error('[ReplyHelper] slashSuccessTemp failed:', err);
+    }
+    return null;
+  },
+
   async prefixError(message, content) {
     try {
       const msg = await message.reply({ content });
@@ -40,6 +61,19 @@ module.exports = {
       return await message.reply(options);
     } catch (err) {
       console.error('[ReplyHelper] prefixSuccess failed:', err);
+    }
+    return null;
+  },
+
+  async prefixSuccessTemp(message, options, delay = 5000) {
+    try {
+      const msg = await message.reply(options);
+      setTimeout(() => msg.delete().catch((err) => {
+        console.error('[ReplyHelper] prefixSuccessTemp delete failed:', err);
+      }), delay);
+      return msg;
+    } catch (err) {
+      console.error('[ReplyHelper] prefixSuccessTemp failed:', err);
     }
     return null;
   },

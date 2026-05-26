@@ -8,9 +8,10 @@ const {
 const cooldown = require('../../utils/cooldown');
 const {
   slashError,
-  slashSuccess,
+  slashSuccessTemp,
   prefixError,
-  prefixSuccess,
+  prefixSuccessTemp,
+  deleteTrigger,
 } = require('../../utils/replyHelper');
 const e = require('../../config/emojis');
 
@@ -93,6 +94,11 @@ module.exports = {
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
+    // Delete trigger for prefix
+    if (!isSlash) {
+      await deleteTrigger(message, 0);
+    }
+
     // Kick all members
     let kicked = 0;
     let failed = 0;
@@ -151,9 +157,9 @@ module.exports = {
 
     const replyOptions = { embeds: [embed] };
     if (isSlash) {
-      return slashSuccess(interaction, replyOptions);
+      return slashSuccessTemp(interaction, replyOptions);
     } else {
-      return prefixSuccess(message, replyOptions);
+      return prefixSuccessTemp(message, replyOptions);
     }
   },
 };
