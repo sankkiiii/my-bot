@@ -1,4 +1,4 @@
-const DELETE_DELAY = 3000;
+const DELETE_DELAY = 5000;
 
 module.exports = {
   async slashError(interaction, content) {

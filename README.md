@@ -35,6 +35,7 @@ All commands work as both Slash Commands (`/`) and Prefix Commands (default `!`)
 | `/drag` | `pull`, `move`, `summon` | Drag a user to a voice channel | `Move Members` |
 | `/vckick` | `vcremove`, `disconnectuser`, `dvc`, `forcedc` | Disconnect a user from a voice channel | `Move Members` |
 | `/vckickall` | `vcpurge`, `kickall`, `emptyvc`, `clearvc` | Disconnect everyone from a voice channel | `Move Members` |
+| `/dump` | `rolememebers`, `rmembers`, `rolelist`, `rd` | Show all members with a specific role | `Manage Roles` |
 
 *(Note: Users with `Change Nickname` can change their own nickname without `Manage Nicknames`)*
 
@@ -65,8 +66,8 @@ All commands work as both Slash Commands (`/`) and Prefix Commands (default `!`)
 | `/sbanner` | `serverbanner`, `guildbanner` | Show the server banner | `@everyone` |
 | `/serverinfo` | `si`, `server`, `guildinfo`, `guild` | Show server information | `@everyone` |
 | `/userinfo` | `ui`, `whois`, `user`, `lookup` | Show user information | `@everyone` |
-| `/purgebots` | `cleanbots`, `deletebots` | Purge last X bot messages from this channel | `Manage Messages` |
-| `/purgeuser` | `cleanuser`, `deleteuser` | Purge last X messages from a specific user | `Manage Messages` |
+| `/purgebots` | `cleanbots`, `deletebots`, `pb` | Purge last X bot messages from this channel | `Manage Messages` |
+| `/purgeuser` | `cleanuser`, `deleteuser`, `pu` | Purge last X messages from a specific user | `Manage Messages` |
 | `/afk` | `away`, `brb` | Set your AFK status | `@everyone` |
 
 ---
@@ -258,7 +259,7 @@ Admin-only commands to update the bot's status across all servers. Persists acro
 ### Cooldowns
 - **All normal commands:** 3 second cooldown.
 - **Setup & Noprefix commands:** 5 second cooldown.
-- Command error replies are ephemeral in slash commands and automatically deleted after 3 seconds for prefix commands.
+- Command error replies are ephemeral in slash commands and automatically deleted after 5 seconds for prefix commands.
 
 ---
 

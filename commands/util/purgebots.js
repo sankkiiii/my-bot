@@ -7,10 +7,7 @@ const config = require('../../config');
 const cooldown = require('../../utils/cooldown');
 const {
   slashError,
-  slashSuccess,
   prefixError,
-  prefixSuccess,
-  deleteTrigger,
 } = require('../../utils/replyHelper');
 const e = require('../../config/emojis');
 
@@ -19,98 +16,88 @@ module.exports = {
     .setName('purgebots')
     .setDescription('Purge last X bot messages from this channel')
     .addIntegerOption((opt) =>
-      opt.setName('amount')
+      opt
+        .setName('amount')
         .setDescription('Number of bot messages to delete (default: 50)')
         .setMinValue(1)
         .setMaxValue(100)
-        .setRequired(false),
+        .setRequired(false)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   name: 'purgebots',
-  aliases: ['cleanbots', 'deletebots'],
+  aliases: ['cleanbots', 'deletebots', 'pb'],
 
-  async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
+  async execute(interactionOrMessage) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
-    const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
+    const interaction = isSlash ? interactionOrMessage : null;
+    const message = isSlash ? null : interactionOrMessage;
+    const guild = interactionOrMessage.guild;
+    const executor = isSlash ? interaction.member : message.member;
+
+    if (!guild) return;
+
+    // Cooldown check
+    const remaining = cooldown.check('purgebots', executor.id, guild.id, 3000);
+    if (remaining > 0) {
+      const secs = (remaining / 1000).toFixed(1);
+      const msg = `${e.warning} You are on cooldown. Try again in **${secs}s**.`;
+      return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
+    }
+
+    // Permission check
+    if (!executor.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      const msg = `${e.error} You need the **Manage Messages** permission.`;
+      return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
+    }
+
+    const botMember = guild.members.me;
+    if (!botMember.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      const msg = `${e.error} I need **Manage Messages** permission.`;
+      return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
+    }
+
+    let amount;
+    if (isSlash) {
+      await interaction.deferReply({ ephemeral: true });
+      amount = interaction.options.getInteger('amount') || 50;
+    } else {
+      const args = message.content.trim().split(/\s+/).slice(1);
+      amount = parseInt(args[0], 10) || 50;
+      if (amount < 1 || amount > 100) {
+        return prefixError(message, `${e.error} Please provide a number between 1 and 100.`);
+      }
+      // Delete trigger instantly
+      await message.delete().catch(() => {});
+    }
 
     try {
-      let amount;
-      let channel;
-      let replyError;
-      let replySuccess;
-
-      if (isSlash) {
-        const interaction = interactionOrMessage;
-        if (!interaction.guild) {
-          return slashError(interaction, 'This command only works in a server.');
-        }
-        channel = interaction.channel;
-        amount = interaction.options.getInteger('amount') || 50;
-        replyError = (content) => slashError(interaction, content);
-        replySuccess = (opts) => slashSuccess(interaction, opts);
-
-        const remaining = cooldown.check('purgebots', interaction.user.id, interaction.guild.id, 3000);
-        if (remaining > 0) {
-          const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
-        }
-
-        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-          return replyError(`${e.error} You need the **Manage Messages** permission.`);
-        }
-      } else {
-        const message = interactionOrMessage;
-        const args = argsOrClient;
-        if (!message.guild) {
-          return prefixError(message, 'This command only works in a server.');
-        }
-        channel = message.channel;
-        amount = parseInt(args[0], 10) || 50;
-        replyError = (content) => prefixError(message, content);
-        replySuccess = (opts) => prefixSuccess(message, opts);
-
-        const remaining = cooldown.check('purgebots', message.author.id, message.guild.id, 3000);
-        if (remaining > 0) {
-          const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
-        }
-
-        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-          return replyError(`${e.error} You need the **Manage Messages** permission.`);
-        }
-
-        if (amount < 1 || amount > 100) {
-          return replyError(`${e.error} Please provide a number between 1 and 100.`);
-        }
-      }
-
-      if (!isSlash) {
-        await deleteTrigger(interactionOrMessage, 0);
-      }
-
+      const channel = interactionOrMessage.channel;
       const fetched = await channel.messages.fetch({ limit: 100 });
-      const botMessages = fetched.filter((m) => m.author.bot);
-      const toDelete = [...botMessages.values()].slice(0, amount);
+      const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
 
-      if (toDelete.length === 0) {
-        return replyError(`${e.error} No bot messages found to delete.`);
+      const botMessages = fetched
+        .filter((m) => m.author.bot && m.createdTimestamp > twoWeeksAgo)
+        .first(amount);
+
+      if (botMessages.length === 0) {
+        const msg = `${e.error} No recent bot messages found to delete.`;
+        return isSlash ? interaction.editReply(msg) : prefixError(message, msg);
       }
 
-      const deleted = await channel.bulkDelete(toDelete, true);
+      const deleted = await channel.bulkDelete(botMessages, true);
 
       if (isSlash) {
-        await replySuccess({ content: `${e.bot} Deleted **${deleted.size}** bot messages.` });
+        return interaction.editReply(`${e.purge} Deleted **${deleted.size}** bot messages.`);
       } else {
-        const msg = await replySuccess({ content: `${e.bot} Deleted **${deleted.size}** bot messages.` });
-        if (msg) {
-          setTimeout(() => msg.delete().catch((err) => {
-            console.error('[PurgeBots Cleanup Error]', err);
-          }), 3000);
-        }
+        const successMsg = await channel.send(`${e.purge} Deleted **${deleted.size}** bot messages.`);
+        setTimeout(() => successMsg.delete().catch(() => {}), 5000);
       }
     } catch (err) {
       console.error('[PurgeBots]', err);
+      const msg = `${e.error} An error occurred while purging bot messages.`;
+      if (isSlash) return interaction.editReply(msg);
+      return prefixError(message, msg);
     }
   },
 };
