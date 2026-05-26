@@ -72,6 +72,7 @@ module.exports = {
   nick:         '<:nick:EMOJI_ID_HERE>',
   drag:         '<:drag:EMOJI_ID_HERE>',
   vckick:       '<:vckick:EMOJI_ID_HERE>',
+  vckickall:    '<:vckickall:EMOJI_ID_HERE>',
 
   // ── NO PREFIX ───────────────────────────
   noprefix:     '<:reson:1508554272415944726>',
