@@ -12,7 +12,7 @@
 - Multi-server SQLite architecture
 - Per-guild configuration
 - Custom emoji support
-- No-prefix system
+- Multi-owner No-prefix system
 - Rich Presence control
 
 ---
@@ -46,7 +46,8 @@ All commands work as both Slash Commands (`/`) and Prefix Commands (default `!`)
 | `/setup` | `configure`, `botsetup` | Configure the bot for this server | `Administrator` |
 | `/config` | *(None)* | View current bot configuration | `Administrator` |
 | `/resetconfig` | *(None)* | Reset configuration for this server | `Administrator` |
-| `/noprefix` | `np` | Manage no-prefix users | `Administrator` |
+| `/noprefix` | `np` | Manage no-prefix users | `Bot Owner` |
+| `/owner` | `addowner`, `botowner`, `owners` | Manage bot owners | `Bot Owner` |
 | `/rpc` | `presence`, `activity` | Change the bot rich presence | `Administrator` |
 | `/status` | `stats`, `botinfo`, `info` | Show the bot current stats and health | `Administrator` |
 
@@ -215,6 +216,7 @@ This bot uses SQLite via the `sql.js` library (pure JavaScript, no native binari
   - `ticket_count`: Tracks the incremental ticket numbers per server.
   - `noprefix_users`: Stores users with no-prefix access per server.
   - `afk_users`: Stores current AFK status and reasons per server.
+  - `bot_owners`: Stores users with global bot owner status.
 
 ---
 
@@ -242,11 +244,16 @@ my-bot/
 
 ## 🔧 Advanced
 
+### Bot Ownership
+Ownership is managed globally via the database. The initial owner is seeded from the `.env` file on first startup.
+- Owners can add other owners.
+- Owners can grant/revoke no-prefix access.
+- Owners have no-prefix access automatically.
+
 ### No-Prefix System
-- `/noprefix add <user>` — Grant a user no-prefix access.
-- `/noprefix remove <user>` — Revoke no-prefix access.
-- `/noprefix list` — View all users with no-prefix access.
-- The bot owner (defined in `.env`) *always* has no-prefix access automatically.
+- `/noprefix add <user>` — Grant a user no-prefix access (Owner only).
+- `/noprefix remove <user>` — Revoke no-prefix access (Owner only).
+- `/noprefix list` — View all owners and no-prefix users.
 
 ### Rich Presence
 Admin-only commands to update the bot's status across all servers. Persists across restarts.

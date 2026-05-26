@@ -13,6 +13,18 @@ module.exports = {
     try {
       console.log(`[Ready] Logged in as ${client.user.username}`);
 
+      // --- Seed initial owner from OWNER_ID env ---
+      const guildConfig = require('../database/guildConfig');
+      const envOwnerId = config.ownerId;
+      if (envOwnerId) {
+        if (!guildConfig.isOwner(envOwnerId)) {
+          guildConfig.addOwner(envOwnerId, 'system');
+          console.log(`[Ready] Seeded initial owner from .env: ${envOwnerId}`);
+        }
+      } else {
+        console.warn('[Ready] WARNING: OWNER_ID not set in .env');
+      }
+
       // --- Load saved presence or set default ---
       let presenceRestored = false;
       try {

@@ -150,4 +150,30 @@ module.exports = {
       'SELECT 1 FROM afk_users WHERE guild_id = ? AND user_id = ?',
     ).get(guildId, userId);
   },
+
+  // Bot owner operations
+  getOwners() {
+    return db.prepare(
+      'SELECT user_id FROM bot_owners'
+    ).all().map(r => r.user_id);
+  },
+
+  isOwner(userId) {
+    return !!db.prepare(
+      'SELECT 1 FROM bot_owners WHERE user_id = ?'
+    ).get(userId);
+  },
+
+  addOwner(userId, addedBy) {
+    db.prepare(`
+      INSERT OR IGNORE INTO bot_owners (user_id, added_by, added_at)
+      VALUES (?, ?, ?)
+    `).run(userId, addedBy, new Date().toISOString());
+  },
+
+  removeOwner(userId) {
+    db.prepare(
+      'DELETE FROM bot_owners WHERE user_id = ?'
+    ).run(userId);
+  },
 };

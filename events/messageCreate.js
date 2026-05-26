@@ -85,13 +85,15 @@ module.exports = {
         }
       }
 
-      const isOwner = config.ownerId && message.author.id === config.ownerId;
+      // Ownership and No-Prefix checks
+      const isOwner = guildConfig.isOwner(message.author.id);
       let isNoPrefix = false;
       try {
         isNoPrefix = guildConfig.isNoPrefixUser(message.guild.id, message.author.id);
       } catch (err) {
         console.error('[NoPrefix Error]', err);
       }
+
       const startsWithPrefix = message.content.startsWith(config.prefix);
 
       let args;

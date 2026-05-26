@@ -1,10 +1,8 @@
 const {
   SlashCommandBuilder,
   EmbedBuilder,
-  PermissionFlagsBits,
   CommandInteraction,
 } = require('discord.js');
-const config = require('../../config');
 const resolveUser = require('../../utils/resolveUser');
 const guildConfig = require('../../database/guildConfig');
 const cooldown = require('../../utils/cooldown');
@@ -20,7 +18,6 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('noprefix')
     .setDescription('Manage no-prefix users')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand((sub) =>
       sub
         .setName('add')
@@ -46,178 +43,108 @@ module.exports = {
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const client = isSlash ? interactionOrMessage.client : clientOrUndefined;
+    const executorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+    const guild = interactionOrMessage.guild;
 
-    try {
-      let guild;
-      let replyError;
-      let replySuccess;
-      let subcommand;
+    if (!guild) return;
+
+    // Permission check: Only bot owners can manage no-prefix users
+    if (!guildConfig.isOwner(executorId)) {
+      const msg = `${e.error} Only bot owners can manage no-prefix users.`;
+      return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
+    }
+
+    // Cooldown check (5s)
+    const remaining = cooldown.check('noprefix', executorId, guild.id, 5000);
+    if (remaining > 0) {
+      const secs = (remaining / 1000).toFixed(1);
+      const msg = `${e.warning} You are on cooldown. Try again in **${secs}s**.`;
+      return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
+    }
+
+    const subcommand = isSlash ? interactionOrMessage.options.getSubcommand() : (argsOrClient[0] || '').toLowerCase();
+    const replyError = (content) => isSlash ? slashError(interactionOrMessage, content) : prefixError(interactionOrMessage, content);
+    const replySuccess = (opts) => isSlash ? slashSuccess(interactionOrMessage, opts) : prefixSuccess(interactionOrMessage, opts);
+
+    if (subcommand === 'add' || subcommand === 'remove') {
       let targetUser;
-
-      const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
-
       if (isSlash) {
-        const interaction = interactionOrMessage;
-        guild = interaction.guild;
-        if (!guild) {
-          return slashError(interaction, 'This command only works in a server.');
-        }
-
-        const remaining = cooldown.check('noprefix', interaction.user.id, interaction.guild.id, 5000);
-        if (remaining > 0) {
-          const secs = (remaining / 1000).toFixed(1);
-          return slashError(interaction, `${e.warning} You are on cooldown. Try again in **${secs}s**.`);
-        }
-
-        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return slashError(interaction, `${e.error} You need the **Administrator** permission to manage no-prefix users.`);
-        }
-
-        replyError = (content) => slashError(interaction, content);
-        replySuccess = (payload) => slashSuccess(interaction, payload);
-        subcommand = interaction.options.getSubcommand();
-        if (subcommand === 'add' || subcommand === 'remove') {
-          targetUser = interaction.options.getUser('user');
-        }
+        targetUser = interactionOrMessage.options.getUser('user');
       } else {
-        const message = interactionOrMessage;
-        const args = argsOrClient || [];
-        guild = message.guild;
-        if (!guild) {
-          return prefixError(message, 'This command only works in a server.');
+        const userInput = argsOrClient.slice(1).join(' ');
+        if (!userInput) {
+          return replyError(`${e.error} Please provide a user (@mention, username, or ID).`);
         }
-
-        const remaining = cooldown.check('noprefix', message.author.id, message.guild.id, 5000);
-        if (remaining > 0) {
-          const secs = (remaining / 1000).toFixed(1);
-          return prefixError(message, `${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+        const member = await resolveUser(userInput, guild);
+        if (!member) {
+          return replyError(`${e.error} Could not find that user. Try @mention, username, or user ID.`);
         }
-
-        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return prefixError(message, `${e.error} You need the **Administrator** permission to manage no-prefix users.`);
-        }
-
-        replyError = (content) => prefixError(message, content);
-        replySuccess = (payload) => prefixSuccess(message, payload);
-        subcommand = (args[0] || '').toLowerCase();
-
-        if (!['add', 'remove', 'list'].includes(subcommand)) {
-          return replyError(`${e.error} Usage: \`!noprefix add <user>\` / \`!noprefix remove <user>\` / \`!noprefix list\``);
-        }
-
-        if (subcommand === 'add' || subcommand === 'remove') {
-          const userInput = args.slice(1).join(' ');
-          if (!userInput) {
-            return replyError(`${e.error} Please provide a user (@mention, username, or ID).`);
-          }
-          const member = await resolveUser(userInput, guild);
-          if (!member) {
-            return replyError(`${e.error} Could not find that user. Try @mention, username, or user ID.`);
-          }
-          targetUser = member.user;
-        }
+        targetUser = member.user;
       }
 
       if (subcommand === 'add') {
         if (targetUser.bot) {
           return replyError(`${e.error} You cannot give no-prefix to a bot.`);
         }
-        if (config.ownerId && targetUser.id === config.ownerId) {
-          return replyError(`${e.warning} The bot owner already has no-prefix access (hardcoded).`);
+        if (guildConfig.isOwner(targetUser.id)) {
+          return replyError(`${e.warning} ${targetUser.tag} is a bot owner and already has no-prefix access.`);
         }
-        let exists = false;
-        try {
-          exists = guildConfig.isNoPrefixUser(guild.id, targetUser.id);
-        } catch (err) {
-          console.error('[NoPrefix]', err);
-          return replyError(`${e.error} Error: ${err.message}`);
+        if (guildConfig.isNoPrefixUser(guild.id, targetUser.id)) {
+          return replyError(`${e.warning} ${targetUser.tag} already has no-prefix access.`);
         }
-        if (exists) {
-          return replyError(`${e.warning} ${targetUser} already has no-prefix access.`);
-        }
-        const addedBy = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
-        try {
-          guildConfig.addNoPrefixUser(guild.id, targetUser.id, addedBy);
-        } catch (err) {
-          console.error('[NoPrefix]', err);
-          return replyError(`${e.error} Error: ${err.message}`);
-        }
+        guildConfig.addNoPrefixUser(guild.id, targetUser.id, executorId);
         return replySuccess({ content: `${e.success} ${targetUser} has been given no-prefix access.` });
       }
 
       if (subcommand === 'remove') {
-        if (config.ownerId && targetUser.id === config.ownerId) {
-          return replyError(`${e.error} Cannot remove no-prefix from the bot owner (hardcoded).`);
+        if (!guildConfig.isNoPrefixUser(guild.id, targetUser.id)) {
+          return replyError(`${e.warning} ${targetUser.tag} doesn't have no-prefix access.`);
         }
-        let exists = false;
-        try {
-          exists = guildConfig.isNoPrefixUser(guild.id, targetUser.id);
-        } catch (err) {
-          console.error('[NoPrefix]', err);
-          return replyError(`${e.error} Error: ${err.message}`);
-        }
-        if (!exists) {
-          return replyError(`${e.warning} ${targetUser} doesn't have no-prefix access.`);
-        }
-        try {
-          guildConfig.removeNoPrefixUser(guild.id, targetUser.id);
-        } catch (err) {
-          console.error('[NoPrefix]', err);
-          return replyError(`${e.error} Error: ${err.message}`);
-        }
+        guildConfig.removeNoPrefixUser(guild.id, targetUser.id);
         return replySuccess({ content: `${e.success} No-prefix access removed from ${targetUser}.` });
       }
+    }
 
-      if (subcommand === 'list') {
-        const client = isSlash ? argsOrClient : clientOrUndefined;
-        let users = [];
-        try {
-          users = guildConfig.getNoPrefixUsers(guild.id);
-        } catch (err) {
-          console.error('[NoPrefix]', err);
-          return replyError(`${e.error} Error: ${err.message}`);
+    if (subcommand === 'list') {
+      const owners = guildConfig.getOwners();
+      const npUsers = guildConfig.getNoPrefixUsers(guild.id);
+
+      let description = '';
+
+      if (owners.length > 0) {
+        description += `**👑 Bot Owners (${owners.length}):**\n`;
+        for (const id of owners) {
+          const user = await client.users.fetch(id).catch(() => null);
+          description += `• ${user ? user.tag : 'Unknown'} (${id})\n`;
         }
-
-        const embed = new EmbedBuilder()
-          .setTitle(`${e.noprefix} No-Prefix Users`)
-          .setColor(0x5865f2)
-          .setTimestamp();
-
-        let ownerLine = 'Not set';
-        if (config.ownerId) {
-          try {
-            const owner = await client.users.fetch(config.ownerId);
-            ownerLine = `${owner.username} (${config.ownerId})`;
-          } catch (err) {
-            console.error('[NoPrefix]', err);
-            ownerLine = `User ${config.ownerId}`;
-          }
-        }
-        embed.addFields({ name: `${e.owner} Owner`, value: ownerLine });
-
-        if (users.length === 0) {
-          embed.addFields({ name: `${e.noprefix} No-Prefix Users`, value: 'None' });
-        } else {
-          const lines = [];
-          for (const userId of users) {
-            try {
-              const u = await client.users.fetch(userId);
-              lines.push(`${u.username} (${userId})`);
-            } catch (err) {
-              console.error('[NoPrefix]', err);
-              lines.push(`User ${userId}`);
-            }
-          }
-          embed.addFields({ name: `${e.noprefix} No-Prefix Users`, value: lines.join('\n') });
-        }
-
-        if (isSlash) {
-          return replySuccess({ embeds: [embed], ephemeral: true });
-        }
-        return replySuccess({ embeds: [embed] });
+        description += '\n';
       }
-    } catch (err) {
-      console.error('[NoPrefix]', err);
+
+      if (npUsers.length > 0) {
+        description += `**⚡ No-Prefix Users (${npUsers.length}):**\n`;
+        for (const id of npUsers) {
+          const user = await client.users.fetch(id).catch(() => null);
+          description += `• ${user ? user.tag : 'Unknown'} (${id})\n`;
+        }
+      } else {
+        description += '**⚡ No-Prefix Users:** None';
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle('⚡ No-Prefix System')
+        .setColor('#5865F2')
+        .setDescription(description)
+        .setTimestamp();
+
+      if (isSlash) {
+        return replySuccess({ embeds: [embed], ephemeral: true });
+      }
+      return replySuccess({ embeds: [embed] });
+    }
+
+    if (!isSlash) {
+      return replyError(`${e.error} Usage: \`!noprefix add/remove/list <user>\``);
     }
   },
 };
