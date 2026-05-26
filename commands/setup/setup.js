@@ -8,6 +8,13 @@ const {
 const guildConfig = require('../../database/guildConfig');
 const configCache = require('../../utils/configCache');
 const getConfig = require('../../utils/getConfig');
+const cooldown = require('../../utils/cooldown');
+const {
+  slashError,
+  slashSuccess,
+  prefixError,
+} = require('../../utils/replyHelper');
+const e = require('../../config/emojis');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -65,16 +72,26 @@ module.exports = {
 
     try {
       if (!isSlash) {
-        return interactionOrMessage.reply('⚙️ Please use `/setup` for bot configuration.');
+        return prefixError(interactionOrMessage, `${e.setup} Please use \`/setup\` for bot configuration.`);
       }
 
       const interaction = interactionOrMessage;
       const guild = interaction.guild;
+      if (!guild) {
+        return slashError(interaction, 'This command only works in a server.');
+      }
+
+      const remaining = cooldown.check('setup', interaction.user.id, interaction.guild.id, 5000);
+      if (remaining > 0) {
+        const secs = (remaining / 1000).toFixed(1);
+        return slashError(interaction, `${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+      }
+
       const me = guild.members.me;
       const subcommand = interaction.options.getSubcommand();
 
       if (!me) {
-        return interaction.reply({ content: '❌ Could not verify bot permissions.', ephemeral: true });
+        return slashError(interaction, `${e.error} Could not verify bot permissions.`);
       }
 
       if (subcommand === 'tickets') {
@@ -83,44 +100,49 @@ module.exports = {
         const transcriptChannel = interaction.options.getChannel('transcript_channel');
 
         if (category.type !== ChannelType.GuildCategory) {
-          return interaction.reply({ content: '❌ Ticket category must be a **Category** channel.', ephemeral: true });
+          return slashError(interaction, `${e.error} Ticket category must be a **Category** channel.`);
         }
         if (logChannel.type !== ChannelType.GuildText) {
-          return interaction.reply({ content: '❌ Log channel must be a **Text** channel.', ephemeral: true });
+          return slashError(interaction, `${e.error} Log channel must be a **Text** channel.`);
         }
         if (transcriptChannel.type !== ChannelType.GuildText) {
-          return interaction.reply({ content: '❌ Transcript channel must be a **Text** channel.', ephemeral: true });
+          return slashError(interaction, `${e.error} Transcript channel must be a **Text** channel.`);
         }
         if (!category.permissionsFor(me).has(PermissionFlagsBits.ManageChannels)) {
-          return interaction.reply({ content: '❌ I need **Manage Channels** in the ticket category.', ephemeral: true });
+          return slashError(interaction, `${e.error} I need **Manage Channels** in the ticket category.`);
         }
         if (!logChannel.permissionsFor(me).has(PermissionFlagsBits.SendMessages)) {
-          return interaction.reply({ content: '❌ I need **Send Messages** in the log channel.', ephemeral: true });
+          return slashError(interaction, `${e.error} I need **Send Messages** in the log channel.`);
         }
         if (!transcriptChannel.permissionsFor(me).has(PermissionFlagsBits.SendMessages)) {
-          return interaction.reply({ content: '❌ I need **Send Messages** in the transcript channel.', ephemeral: true });
+          return slashError(interaction, `${e.error} I need **Send Messages** in the transcript channel.`);
         }
 
-        guildConfig.setMany(guild.id, {
-          ticket_category: category.id,
-          ticket_log_channel: logChannel.id,
-          transcript_channel: transcriptChannel.id,
-          setup_by: interaction.user.id,
-          setup_at: new Date().toISOString(),
-        });
-        configCache.invalidate(guild.id);
+        try {
+          guildConfig.setMany(guild.id, {
+            ticket_category: category.id,
+            ticket_log_channel: logChannel.id,
+            transcript_channel: transcriptChannel.id,
+            setup_by: interaction.user.id,
+            setup_at: new Date().toISOString(),
+          });
+          configCache.invalidate(guild.id);
+        } catch (err) {
+          console.error('[Setup]', err);
+          return slashError(interaction, `${e.error} Error: ${err.message}`);
+        }
 
         const embed = new EmbedBuilder()
-          .setTitle('✅ Setup Complete')
+          .setTitle(`${e.success} Setup Complete`)
           .setColor(0x57F287)
           .addFields(
-            { name: '🎫 Ticket Category', value: `${category}`, inline: true },
-            { name: '📜 Log Channel', value: `${logChannel}`, inline: true },
-            { name: '🧾 Transcript Channel', value: `${transcriptChannel}`, inline: true },
+            { name: `${e.ticket} Ticket Category`, value: `${category}`, inline: true },
+            { name: `${e.config} Log Channel`, value: `${logChannel}`, inline: true },
+            { name: `${e.transcript} Transcript Channel`, value: `${transcriptChannel}`, inline: true },
           )
           .setFooter({ text: `Setup by ${interaction.user.username} • ${new Date().toLocaleString()}` });
 
-        return interaction.reply({ embeds: [embed], ephemeral: true });
+        return slashSuccess(interaction, { embeds: [embed], ephemeral: true });
       }
 
       if (subcommand === 'tempvc') {
@@ -128,36 +150,41 @@ module.exports = {
         const hubTrigger = interaction.options.getChannel('hub_trigger');
 
         if (category.type !== ChannelType.GuildCategory) {
-          return interaction.reply({ content: '❌ Temp VC category must be a **Category** channel.', ephemeral: true });
+          return slashError(interaction, `${e.error} Temp VC category must be a **Category** channel.`);
         }
         if (hubTrigger.type !== ChannelType.GuildVoice) {
-          return interaction.reply({ content: '❌ Hub trigger must be a **Voice** channel.', ephemeral: true });
+          return slashError(interaction, `${e.error} Hub trigger must be a **Voice** channel.`);
         }
         if (!category.permissionsFor(me).has(PermissionFlagsBits.ManageChannels)) {
-          return interaction.reply({ content: '❌ I need **Manage Channels** in the temp VC category.', ephemeral: true });
+          return slashError(interaction, `${e.error} I need **Manage Channels** in the temp VC category.`);
         }
         if (!hubTrigger.permissionsFor(me).has(PermissionFlagsBits.MoveMembers)) {
-          return interaction.reply({ content: '❌ I need **Move Members** in the hub trigger channel.', ephemeral: true });
+          return slashError(interaction, `${e.error} I need **Move Members** in the hub trigger channel.`);
         }
 
-        guildConfig.setMany(guild.id, {
-          temp_vc_category: category.id,
-          create_vc_channel: hubTrigger.id,
-          setup_by: interaction.user.id,
-          setup_at: new Date().toISOString(),
-        });
-        configCache.invalidate(guild.id);
+        try {
+          guildConfig.setMany(guild.id, {
+            temp_vc_category: category.id,
+            create_vc_channel: hubTrigger.id,
+            setup_by: interaction.user.id,
+            setup_at: new Date().toISOString(),
+          });
+          configCache.invalidate(guild.id);
+        } catch (err) {
+          console.error('[Setup]', err);
+          return slashError(interaction, `${e.error} Error: ${err.message}`);
+        }
 
         const embed = new EmbedBuilder()
-          .setTitle('✅ Setup Complete')
+          .setTitle(`${e.success} Setup Complete`)
           .setColor(0x57F287)
           .addFields(
-            { name: '🔊 Temp VC Category', value: `${category}`, inline: true },
-            { name: '➕ Hub Trigger', value: `${hubTrigger}`, inline: true },
+            { name: `${e.voiceHub} Temp VC Category`, value: `${category}`, inline: true },
+            { name: `${e.voiceHub} Hub Trigger`, value: `${hubTrigger}`, inline: true },
           )
           .setFooter({ text: `Setup by ${interaction.user.username} • ${new Date().toLocaleString()}` });
 
-        return interaction.reply({ embeds: [embed], ephemeral: true });
+        return slashSuccess(interaction, { embeds: [embed], ephemeral: true });
       }
 
       if (subcommand === 'duo') {
@@ -165,28 +192,33 @@ module.exports = {
         const existing = getConfig(guild.id);
 
         if (duoTrigger.type !== ChannelType.GuildVoice) {
-          return interaction.reply({ content: '❌ Duo trigger must be a **Voice** channel.', ephemeral: true });
+          return slashError(interaction, `${e.error} Duo trigger must be a **Voice** channel.`);
         }
         if (existing?.create_vc_channel && existing.create_vc_channel === duoTrigger.id) {
-          return interaction.reply({ content: '❌ Duo trigger cannot be the same as the hub trigger.', ephemeral: true });
+          return slashError(interaction, `${e.error} Duo trigger cannot be the same as the hub trigger.`);
         }
 
-        guildConfig.setMany(guild.id, {
-          create_duo_channel: duoTrigger.id,
-          setup_by: interaction.user.id,
-          setup_at: new Date().toISOString(),
-        });
-        configCache.invalidate(guild.id);
+        try {
+          guildConfig.setMany(guild.id, {
+            create_duo_channel: duoTrigger.id,
+            setup_by: interaction.user.id,
+            setup_at: new Date().toISOString(),
+          });
+          configCache.invalidate(guild.id);
+        } catch (err) {
+          console.error('[Setup]', err);
+          return slashError(interaction, `${e.error} Error: ${err.message}`);
+        }
 
         const embed = new EmbedBuilder()
-          .setTitle('✅ Setup Complete')
+          .setTitle(`${e.success} Setup Complete`)
           .setColor(0x57F287)
           .addFields(
-            { name: '🎧 Duo Trigger', value: `${duoTrigger}`, inline: true },
+            { name: `${e.voiceDuo} Duo Trigger`, value: `${duoTrigger}`, inline: true },
           )
           .setFooter({ text: `Setup by ${interaction.user.username} • ${new Date().toLocaleString()}` });
 
-        return interaction.reply({ embeds: [embed], ephemeral: true });
+        return slashSuccess(interaction, { embeds: [embed], ephemeral: true });
       }
     } catch (err) {
       console.error('[Setup]', err);

@@ -5,6 +5,14 @@ const {
   EmbedBuilder,
 } = require('discord.js');
 const config = require('../../config');
+const cooldown = require('../../utils/cooldown');
+const {
+  slashError,
+  slashSuccess,
+  prefixError,
+  prefixSuccess,
+  deleteTrigger,
+} = require('../../utils/replyHelper');
 const e = require('../../config/emojis');
 
 module.exports = {
@@ -44,8 +52,14 @@ module.exports = {
         guild = interaction.guild;
         executor = interaction.user;
         amount = interaction.options.getInteger('amount');
-        replyError = (content) => interaction.reply({ content, ephemeral: true });
-        replySuccess = (payload) => interaction.reply(payload);
+        replyError = (content) => slashError(interaction, content);
+        replySuccess = (payload) => slashSuccess(interaction, payload);
+
+        const remaining = cooldown.check('purge', interaction.user.id, interaction.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+        }
 
         if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
           return replyError(`${e.error} You need the **Manage Messages** permission to use this command.`);
@@ -59,8 +73,14 @@ module.exports = {
         channel = message.channel;
         guild = message.guild;
         executor = message.author;
-        replyError = (content) => message.reply(content);
-        replySuccess = (payload) => message.reply(payload);
+        replyError = (content) => prefixError(message, content);
+        replySuccess = (payload) => prefixSuccess(message, payload);
+
+        const remaining = cooldown.check('purge', message.author.id, message.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+        }
 
         if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
           return replyError(`${e.error} You need the **Manage Messages** permission to use this command.`);
@@ -77,6 +97,10 @@ module.exports = {
         return replyError(`${e.error} I don't have the **Manage Messages** permission to do this.`);
       }
 
+      if (!isSlash) {
+        await deleteTrigger(interactionOrMessage, 0);
+      }
+
       const deleted = await channel.bulkDelete(amount, true);
 
       const moderatorTag = executor.tag || executor.username;
@@ -85,7 +109,16 @@ module.exports = {
         .setDescription(`${e.purge} Deleted **${deleted.size}** messages`)
         .setFooter({ text: `Requested by ${moderatorTag}` });
 
-      await replySuccess({ embeds: [embed] });
+      if (isSlash) {
+        await replySuccess({ embeds: [embed] });
+      } else {
+        const msg = await replySuccess({ embeds: [embed] });
+        if (msg) {
+          setTimeout(() => msg.delete().catch((err) => {
+            console.error('[Purge Cleanup Error]', err);
+          }), 3000);
+        }
+      }
     } catch (err) {
       console.error('[Purge]', err);
     }

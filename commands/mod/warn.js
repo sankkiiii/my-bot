@@ -5,6 +5,13 @@ const {
   EmbedBuilder,
 } = require('discord.js');
 const config = require('../../config');
+const cooldown = require('../../utils/cooldown');
+const {
+  slashError,
+  slashSuccess,
+  prefixError,
+  prefixSuccess,
+} = require('../../utils/replyHelper');
 const resolveUser = require('../../utils/resolveUser');
 const e = require('../../config/emojis');
 
@@ -43,8 +50,14 @@ module.exports = {
         }
         guild = interaction.guild;
         executor = interaction.user;
-        replyError = (content) => interaction.reply({ content, ephemeral: true });
-        replySuccess = (payload) => interaction.reply(payload);
+        replyError = (content) => slashError(interaction, content);
+        replySuccess = (payload) => slashSuccess(interaction, payload);
+
+        const remaining = cooldown.check('warn', interaction.user.id, interaction.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+        }
 
         if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
           return replyError(`${e.error} You need the **Timeout Members** permission to use this command.`);
@@ -78,8 +91,14 @@ module.exports = {
         }
         guild = message.guild;
         executor = message.author;
-        replyError = (content) => message.reply(content);
-        replySuccess = (payload) => message.reply(payload);
+        replyError = (content) => prefixError(message, content);
+        replySuccess = (payload) => prefixSuccess(message, payload);
+
+        const remaining = cooldown.check('warn', message.author.id, message.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+        }
 
         if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
           return replyError(`${e.error} You need the **Timeout Members** permission to use this command.`);

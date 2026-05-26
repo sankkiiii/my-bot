@@ -8,6 +8,13 @@ const {
   CommandInteraction,
 } = require('discord.js');
 const config = require('../../config');
+const cooldown = require('../../utils/cooldown');
+const {
+  slashError,
+  slashSuccess,
+  prefixError,
+  prefixSuccess,
+} = require('../../utils/replyHelper');
 const e = require('../../config/emojis');
 
 module.exports = {
@@ -23,26 +30,46 @@ module.exports = {
     const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
 
     try {
-      let channel, guild, replyFn;
+      let channel, guild, replyError, replySuccess;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
+        if (!interaction.guild) {
+          return slashError(interaction, 'This command only works in a server.');
+        }
         channel = interaction.channel;
         guild = interaction.guild;
-        replyFn = (content) => interaction.reply({ content, ephemeral: true });
+        replyError = (content) => slashError(interaction, content);
+        replySuccess = (content) => slashSuccess(interaction, { content, ephemeral: true });
+
+        const remaining = cooldown.check('panel', interaction.user.id, interaction.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+        }
 
         if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-          return interaction.reply({ content: `${e.error} You need the **Manage Channels** permission to use this command.`, ephemeral: true });
+          return replyError(`${e.error} You need the **Manage Channels** permission to use this command.`);
         }
       } else {
         const message = interactionOrMessage;
+        if (!message.guild) {
+          return prefixError(message, 'This command only works in a server.');
+        }
         channel = message.channel;
         guild = message.guild;
 
         if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-          return message.reply(`${e.error} You need the **Manage Channels** permission to use this command.`);
+          return prefixError(message, `${e.error} You need the **Manage Channels** permission to use this command.`);
         }
-        replyFn = (content) => message.reply(content);
+        replyError = (content) => prefixError(message, content);
+        replySuccess = (content) => prefixSuccess(message, { content });
+
+        const remaining = cooldown.check('panel', message.author.id, message.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+        }
       }
 
       const client = isSlash ? argsOrClient : clientOrUndefined;
@@ -56,7 +83,7 @@ module.exports = {
             m.components?.[0]?.components?.some((c) => c.customId === 'open_ticket'),
         );
         if (existingPanel) {
-          return replyFn(`${e.warning} A ticket panel already exists in this channel.`);
+          return replyError(`${e.warning} A ticket panel already exists in this channel.`);
         }
       } catch (err) {
         console.error('[Panel] Failed to check for existing panel:', err.message);
@@ -77,7 +104,7 @@ module.exports = {
       );
 
       await channel.send({ embeds: [embed], components: [row] });
-      await replyFn(`${e.success} Ticket panel sent!`);
+      await replySuccess(`${e.success} Ticket panel sent!`);
     } catch (err) {
       console.error('[Panel]', err);
     }

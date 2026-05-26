@@ -6,6 +6,13 @@ const {
   ActionRowBuilder,
   CommandInteraction,
 } = require('discord.js');
+const cooldown = require('../../utils/cooldown');
+const {
+  slashError,
+  slashSuccess,
+  prefixError,
+  prefixSuccess,
+} = require('../../utils/replyHelper');
 const resolveUserGlobal = require('../../utils/resolveUserGlobal');
 const e = require('../../config/emojis');
 
@@ -28,13 +35,23 @@ module.exports = {
     const client = isSlash ? argsOrClient : clientOrUndefined;
 
     try {
-      let resolved, replyFn, requester;
+      let resolved, replyError, replySuccess, requester;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
         const guild = interaction.guild;
+        if (!guild) {
+          return slashError(interaction, 'This command only works in a server.');
+        }
         requester = interaction.user.username;
-        replyFn = (opts) => interaction.reply(opts);
+        replyError = (content) => slashError(interaction, content);
+        replySuccess = (opts) => slashSuccess(interaction, opts);
+
+        const remaining = cooldown.check('av', interaction.user.id, interaction.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+        }
 
         const userOption = interaction.options.getUser('user');
         const queryOption = interaction.options.getString('query');
@@ -52,13 +69,23 @@ module.exports = {
         }
 
         if (!resolved.user) {
-          return interaction.reply({ content: `${e.error} Could not find that user. Try their @mention, username, or user ID.`, ephemeral: true });
+          return replyError(`${e.error} Could not find that user. Try their @mention, username, or user ID.`);
         }
       } else {
         const message = interactionOrMessage;
         const args = argsOrClient;
+        if (!message.guild) {
+          return prefixError(message, 'This command only works in a server.');
+        }
         requester = message.author.username;
-        replyFn = (opts) => message.reply(opts);
+        replyError = (content) => prefixError(message, content);
+        replySuccess = (opts) => prefixSuccess(message, opts);
+
+        const remaining = cooldown.check('av', message.author.id, message.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+        }
 
         const input = message.mentions.users.first()?.id || args.join(' ');
 
@@ -71,7 +98,7 @@ module.exports = {
         }
 
         if (!resolved.user) {
-          return message.reply(`${e.error} Could not find that user. Try their @mention, username, or user ID.`);
+          return replyError(`${e.error} Could not find that user. Try their @mention, username, or user ID.`);
         }
       }
 
@@ -123,7 +150,7 @@ module.exports = {
         embeds.push(globalEmbed);
       }
 
-      await replyFn({ embeds, components });
+      await replySuccess({ embeds, components });
     } catch (err) {
       console.error('[Avatar]', err);
     }

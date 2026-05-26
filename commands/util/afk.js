@@ -1,5 +1,12 @@
 const { SlashCommandBuilder, CommandInteraction } = require('discord.js');
 const guildConfig = require('../../database/guildConfig');
+const cooldown = require('../../utils/cooldown');
+const {
+  slashError,
+  slashSuccess,
+  prefixError,
+  prefixSuccess,
+} = require('../../utils/replyHelper');
 const e = require('../../config/emojis');
 
 module.exports = {
@@ -20,45 +27,39 @@ module.exports = {
         const interaction = interactionOrMessage;
         const guildId = interaction.guild?.id;
         if (!guildId) {
-          return interaction.reply({
-            content: 'This command only works in a server.',
-            ephemeral: true,
-          });
+          return slashError(interaction, 'This command only works in a server.');
         }
 
         const userId = interaction.user.id;
         const member = interaction.member;
         const reason = interaction.options?.getString('reason') || 'AFK';
 
+        const remaining = cooldown.check('afk', interaction.user.id, interaction.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return slashError(interaction, `${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+        }
+
         let existing;
         try {
           existing = guildConfig.getAFK(guildId, userId);
         } catch (err) {
           console.error('[AFK Error]', err);
-          return interaction.reply({
-            content: `${e.error} Error: ${err.message}`,
-            ephemeral: true,
-          });
+          return slashError(interaction, `${e.error} Error: ${err.message}`);
         }
 
         if (existing) {
-          return interaction.reply({
-            content: `${e.warning} You are already AFK with reason: **${existing.reason}**`,
-            ephemeral: true,
-          });
+          return slashError(interaction, `${e.warning} You are already AFK with reason: **${existing.reason}**`);
         }
 
         try {
           guildConfig.setAFK(guildId, userId, reason);
         } catch (err) {
           console.error('[AFK Error]', err);
-          return interaction.reply({
-            content: `${e.error} Error: ${err.message}`,
-            ephemeral: true,
-          });
+          return slashError(interaction, `${e.error} Error: ${err.message}`);
         }
 
-        await interaction.reply({
+        await slashSuccess(interaction, {
           content: `${e.afk} **${member.displayName}** is now AFK\n${e.reason} **Reason:** ${reason}`,
         });
 
@@ -76,33 +77,39 @@ module.exports = {
       const args = argsOrClient || [];
       const guildId = message.guild?.id;
       if (!guildId) {
-        return message.reply('This command only works in a server.');
+        return prefixError(message, 'This command only works in a server.');
       }
 
       const userId = message.author.id;
       const member = message.member;
       const reason = args.join(' ') || 'AFK';
 
+      const remaining = cooldown.check('afk', message.author.id, message.guild.id, 3000);
+      if (remaining > 0) {
+        const secs = (remaining / 1000).toFixed(1);
+        return prefixError(message, `${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+      }
+
       let existing;
       try {
         existing = guildConfig.getAFK(guildId, userId);
       } catch (err) {
         console.error('[AFK Error]', err);
-        return message.reply(`${e.error} Error: ${err.message}`);
+        return prefixError(message, `${e.error} Error: ${err.message}`);
       }
 
       if (existing) {
-        return message.reply(`${e.warning} You are already AFK with reason: **${existing.reason}**`);
+        return prefixError(message, `${e.warning} You are already AFK with reason: **${existing.reason}**`);
       }
 
       try {
         guildConfig.setAFK(guildId, userId, reason);
       } catch (err) {
         console.error('[AFK Error]', err);
-        return message.reply(`${e.error} Error: ${err.message}`);
+        return prefixError(message, `${e.error} Error: ${err.message}`);
       }
 
-      await message.reply({
+      await prefixSuccess(message, {
         content: `${e.afk} **${member.displayName}** is now AFK\n${e.reason} **Reason:** ${reason}`,
       });
 
@@ -119,17 +126,11 @@ module.exports = {
         if (isSlash) {
           const interaction = interactionOrMessage;
           if (interaction.deferred || interaction.replied) {
-            return interaction.editReply({
-              content: `${e.error} Error: ${err.message}`,
-              ephemeral: true,
-            });
+            return slashError(interaction, `${e.error} Error: ${err.message}`);
           }
-          return interaction.reply({
-            content: `${e.error} Error: ${err.message}`,
-            ephemeral: true,
-          });
+          return slashError(interaction, `${e.error} Error: ${err.message}`);
         }
-        return interactionOrMessage.reply(`${e.error} Error: ${err.message}`);
+        return prefixError(interactionOrMessage, `${e.error} Error: ${err.message}`);
       } catch (err) {
         console.error('[AFK Reply Error]', err);
       }

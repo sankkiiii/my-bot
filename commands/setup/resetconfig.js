@@ -6,6 +6,9 @@ const {
   ButtonStyle,
   CommandInteraction,
 } = require('discord.js');
+const cooldown = require('../../utils/cooldown');
+const { slashError, slashSuccess } = require('../../utils/replyHelper');
+const e = require('../../config/emojis');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -33,6 +36,21 @@ module.exports = {
       }
 
       const interaction = interactionOrMessage;
+
+      if (!interaction.guild) {
+        return slashError(interaction, 'This command only works in a server.');
+      }
+
+      const remaining = cooldown.check('resetconfig', interaction.user.id, interaction.guild.id, 5000);
+      if (remaining > 0) {
+        const secs = (remaining / 1000).toFixed(1);
+        return slashError(interaction, `${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+      }
+
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return slashError(interaction, `${e.error} You need **Administrator** permission.`);
+      }
+
       const system = interaction.options.getString('system') || 'all';
 
       const row = new ActionRowBuilder().addComponents(
@@ -46,8 +64,8 @@ module.exports = {
           .setStyle(ButtonStyle.Secondary),
       );
 
-      await interaction.reply({
-        content: '⚠️ Are you sure?',
+      await slashSuccess(interaction, {
+        content: `${e.warning} Are you sure? This will reset ${system === 'all' ? 'all configuration' : `${system} configuration`}.`,
         components: [row],
         ephemeral: true,
       });

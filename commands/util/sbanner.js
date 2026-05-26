@@ -6,6 +6,14 @@ const {
   ActionRowBuilder,
   CommandInteraction,
 } = require('discord.js');
+const cooldown = require('../../utils/cooldown');
+const {
+  slashError,
+  slashSuccess,
+  prefixError,
+  prefixSuccess,
+} = require('../../utils/replyHelper');
+const e = require('../../config/emojis');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -19,22 +27,42 @@ module.exports = {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
 
     try {
-      let guild, replyFn, requester;
+      let guild, replyError, replySuccess, requester;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
         guild = interaction.guild;
+        if (!guild) {
+          return slashError(interaction, 'This command only works in a server.');
+        }
         requester = interaction.user.username;
-        replyFn = (opts) => interaction.reply(opts);
+        replyError = (content) => slashError(interaction, content);
+        replySuccess = (opts) => slashSuccess(interaction, opts);
+
+        const remaining = cooldown.check('serverbanner', interaction.user.id, interaction.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+        }
       } else {
         const message = interactionOrMessage;
         guild = message.guild;
+        if (!guild) {
+          return prefixError(message, 'This command only works in a server.');
+        }
         requester = message.author.username;
-        replyFn = (opts) => message.reply(opts);
+        replyError = (content) => prefixError(message, content);
+        replySuccess = (opts) => prefixSuccess(message, opts);
+
+        const remaining = cooldown.check('serverbanner', message.author.id, message.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+        }
       }
 
       if (!guild.banner) {
-        return replyFn({ content: '\u274C This server does not have a banner.' });
+        return replyError(`${e.error} This server does not have a banner.`);
       }
 
       const bannerUrl = guild.bannerURL({ size: 4096, dynamic: true });
@@ -52,7 +80,7 @@ module.exports = {
       buttons.push(new ButtonBuilder().setLabel('WEBP').setStyle(ButtonStyle.Link).setURL(baseUrl + '?size=4096&format=webp'));
       const row = new ActionRowBuilder().addComponents(buttons);
 
-      await replyFn({ embeds: [embed], components: [row] });
+      await replySuccess({ embeds: [embed], components: [row] });
     } catch (err) {
       console.error('[ServerBanner]', err);
     }

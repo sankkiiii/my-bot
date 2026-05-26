@@ -69,6 +69,7 @@ module.exports = {
   uptime:       '<a:blablabla:1508554783907254292>',
   memory:       '<a:blablabla:1508554783907254292>',
   stats:        '<a:blablabla:1508554783907254292>',
+  nick:         '<:nick:EMOJI_ID_HERE>',
 
   // ── NO PREFIX ───────────────────────────
   noprefix:     '<:reson:1508554272415944726>',

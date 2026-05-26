@@ -8,6 +8,13 @@ const {
   ActivityType,
 } = require('discord.js');
 const config = require('../../config');
+const cooldown = require('../../utils/cooldown');
+const {
+  slashError,
+  slashSuccess,
+  prefixError,
+  prefixSuccess,
+} = require('../../utils/replyHelper');
 const e = require('../../config/emojis');
 
 const PRESENCE_PATH = path.join(__dirname, '..', '..', 'data', 'presence.json');
@@ -76,41 +83,58 @@ module.exports = {
     const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
 
     try {
-      let type, text, status, replyFn, user;
+      let type, text, status, replyError, replySuccess, user;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
+        if (!interaction.guild) {
+          return slashError(interaction, 'This command only works in a server.');
+        }
         user = interaction.user;
 
-        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return interaction.reply({
-            content: `${e.error} You need **Administrator** permission to change my presence.`,
-            ephemeral: true,
-          });
+        const remaining = cooldown.check('rpc', interaction.user.id, interaction.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return slashError(interaction, `${e.warning} You are on cooldown. Try again in **${secs}s**.`);
         }
 
-        replyFn = (opts) => interaction.reply({ ...opts, ephemeral: true });
+        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+          return slashError(interaction, `${e.error} You need **Administrator** permission to change my presence.`);
+        }
+
+        replyError = (content) => slashError(interaction, content);
+        replySuccess = (opts) => slashSuccess(interaction, { ...opts, ephemeral: true });
         type = interaction.options.getString('type');
         text = interaction.options.getString('text');
         status = interaction.options.getString('status') || 'online';
       } else {
         const message = interactionOrMessage;
         const args = argsOrClient;
+        if (!message.guild) {
+          return prefixError(message, 'This command only works in a server.');
+        }
         user = message.author;
 
-        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return message.reply(`${e.error} You need **Administrator** permission to change my presence.`);
+        const remaining = cooldown.check('rpc', message.author.id, message.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return prefixError(message, `${e.warning} You are on cooldown. Try again in **${secs}s**.`);
         }
 
-        replyFn = (opts) => message.reply(opts);
+        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+          return prefixError(message, `${e.error} You need **Administrator** permission to change my presence.`);
+        }
+
+        replyError = (content) => prefixError(message, content);
+        replySuccess = (opts) => prefixSuccess(message, opts);
 
         if (!args[0]) {
-          return message.reply(`${e.error} Usage: \`!rpc <playing|watching|listening|competing|clear> [text]\``);
+          return replyError(`${e.error} Usage: \`!rpc <playing|watching|listening|competing|clear> [text]\``);
         }
 
         type = args[0].toUpperCase();
         if (!['PLAYING', 'WATCHING', 'LISTENING', 'COMPETING', 'CLEAR'].includes(type)) {
-          return message.reply(`${e.error} Invalid type. Use: \`playing\`, \`watching\`, \`listening\`, \`competing\`, or \`clear\`.`);
+          return replyError(`${e.error} Invalid type. Use: \`playing\`, \`watching\`, \`listening\`, \`competing\`, or \`clear\`.`);
         }
 
         text = args.slice(1).join(' ') || null;
@@ -129,11 +153,11 @@ module.exports = {
         };
         fs.writeFileSync(PRESENCE_PATH, JSON.stringify(presenceData, null, 2));
 
-        return replyFn({ content: `${e.success} Bot presence cleared.` });
+        return replySuccess({ content: `${e.success} Bot presence cleared.` });
       }
 
       if (!text) {
-        return replyFn({ content: `${e.error} Please provide a status text.` });
+        return replyError(`${e.error} Please provide a status text.`);
       }
 
       client.user.setPresence({
@@ -161,7 +185,7 @@ module.exports = {
         )
         .setTimestamp();
 
-      return replyFn({ embeds: [embed] });
+      return replySuccess({ embeds: [embed] });
     } catch (err) {
       console.error('[RPC]', err);
     }

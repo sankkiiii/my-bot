@@ -5,6 +5,15 @@ const {
 } = require('discord.js');
 const config = require('../../config');
 const resolveUser = require('../../utils/resolveUser');
+const cooldown = require('../../utils/cooldown');
+const {
+  slashError,
+  slashSuccess,
+  prefixError,
+  prefixSuccess,
+  deleteTrigger,
+} = require('../../utils/replyHelper');
+const e = require('../../config/emojis');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -37,15 +46,30 @@ module.exports = {
     const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
 
     try {
-      let member, amount, channel, replyFn;
+      let member;
+      let amount;
+      let channel;
+      let replyError;
+      let replySuccess;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
+        if (!interaction.guild) {
+          return slashError(interaction, 'This command only works in a server.');
+        }
         channel = interaction.channel;
         amount = interaction.options.getInteger('amount') || 50;
+        replyError = (content) => slashError(interaction, content);
+        replySuccess = (opts) => slashSuccess(interaction, opts);
+
+        const remaining = cooldown.check('purgeuser', interaction.user.id, interaction.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+        }
 
         if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-          return interaction.reply({ content: '\u274C You need the **Manage Messages** permission.', ephemeral: true });
+          return replyError(`${e.error} You need the **Manage Messages** permission.`);
         }
 
         const userOption = interaction.options.getUser('user');
@@ -58,17 +82,26 @@ module.exports = {
         }
 
         if (!member) {
-          return interaction.reply({ content: '\u274C Could not find that user. Try their @mention, username, or user ID.', ephemeral: true });
+          return replyError(`${e.error} Could not find that user. Try their @mention, username, or user ID.`);
         }
-
-        replyFn = (content) => interaction.reply({ content, ephemeral: true });
       } else {
         const message = interactionOrMessage;
         const args = argsOrClient;
+        if (!message.guild) {
+          return prefixError(message, 'This command only works in a server.');
+        }
         channel = message.channel;
+        replyError = (content) => prefixError(message, content);
+        replySuccess = (opts) => prefixSuccess(message, opts);
+
+        const remaining = cooldown.check('purgeuser', message.author.id, message.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+        }
 
         if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-          return message.reply('\u274C You need the **Manage Messages** permission.');
+          return replyError(`${e.error} You need the **Manage Messages** permission.`);
         }
 
         let userInput;
@@ -88,17 +121,19 @@ module.exports = {
         }
 
         if (!userInput) {
-          return message.reply('\u274C Please provide a user. Usage: `!purgeuser @user [amount]` or `!purgeuser username [amount]`');
+          return replyError(`${e.error} Please provide a user. Usage: \`!purgeuser @user [amount]\` or \`!purgeuser username [amount]\``);
         }
 
         amount = Math.min(Math.max(amount, 1), 100);
         member = await resolveUser(userInput, message.guild);
 
         if (!member) {
-          return message.reply('\u274C Could not find that user. Try their @mention, username, or user ID.');
+          return replyError(`${e.error} Could not find that user. Try their @mention, username, or user ID.`);
         }
+      }
 
-        replyFn = (content) => message.reply(content);
+      if (!isSlash) {
+        await deleteTrigger(interactionOrMessage, 0);
       }
 
       const fetched = await channel.messages.fetch({ limit: 100 });
@@ -106,17 +141,22 @@ module.exports = {
       const toDelete = [...userMessages.values()].slice(0, amount);
 
       if (toDelete.length === 0) {
-        return replyFn('\u274C No messages found from that user.');
+        return replyError(`${e.error} No messages found from that user.`);
       }
 
       const deleted = await channel.bulkDelete(toDelete, true);
       const displayName = member.displayName;
 
-      const reply = await (isSlash
-        ? interactionOrMessage.reply({ content: `\uD83D\uDDD1\uFE0F Deleted **${deleted.size}** messages from **${displayName}**.`, ephemeral: true, fetchReply: true })
-        : channel.send(`\uD83D\uDDD1\uFE0F Deleted **${deleted.size}** messages from **${displayName}**.`));
-
-      setTimeout(() => reply.delete().catch(() => {}), 5000);
+      if (isSlash) {
+        await replySuccess({ content: `${e.delete} Deleted **${deleted.size}** messages from **${displayName}**.` });
+      } else {
+        const msg = await replySuccess({ content: `${e.delete} Deleted **${deleted.size}** messages from **${displayName}**.` });
+        if (msg) {
+          setTimeout(() => msg.delete().catch((err) => {
+            console.error('[PurgeUser Cleanup Error]', err);
+          }), 3000);
+        }
+      }
     } catch (err) {
       console.error('[PurgeUser]', err);
     }

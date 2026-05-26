@@ -8,6 +8,13 @@ const {
   version: djsVersion,
 } = require('discord.js');
 const config = require('../../config');
+const cooldown = require('../../utils/cooldown');
+const {
+  slashError,
+  slashSuccess,
+  prefixError,
+  prefixSuccess,
+} = require('../../utils/replyHelper');
 const e = require('../../config/emojis');
 
 const PRESENCE_PATH = path.join(__dirname, '..', '..', 'data', 'presence.json');
@@ -28,8 +35,8 @@ function getPresenceInfo() {
         return `${saved.type}: ${saved.text}`;
       }
     }
-  } catch {
-    // ignore
+  } catch (err) {
+    console.error('[Status] Failed to read presence:', err);
   }
   return 'None';
 }
@@ -86,15 +93,21 @@ module.exports = {
     try {
       if (isSlash) {
         const interaction = interactionOrMessage;
-
-        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return interaction.reply({
-            content: `${e.error} You need **Administrator** permission.`,
-            ephemeral: true,
-          });
+        if (!interaction.guild) {
+          return slashError(interaction, 'This command only works in a server.');
         }
 
-        const sent = await interaction.reply({ content: 'Calculating...', fetchReply: true });
+        const remaining = cooldown.check('status', interaction.user.id, interaction.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return slashError(interaction, `${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+        }
+
+        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+          return slashError(interaction, `${e.error} You need **Administrator** permission.`);
+        }
+
+        const sent = await slashSuccess(interaction, { content: 'Calculating...', fetchReply: true });
         const latency = sent.createdTimestamp - interaction.createdTimestamp;
         const ping = client.ws.ping;
 
@@ -102,14 +115,23 @@ module.exports = {
         await interaction.editReply({ content: null, embeds: [embed] });
       } else {
         const message = interactionOrMessage;
+        if (!message.guild) {
+          return prefixError(message, 'This command only works in a server.');
+        }
+
+        const remaining = cooldown.check('status', message.author.id, message.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return prefixError(message, `${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+        }
 
         if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return message.reply(`${e.error} You need **Administrator** permission.`);
+          return prefixError(message, `${e.error} You need **Administrator** permission.`);
         }
 
         const start = Date.now();
         const ping = client.ws.ping;
-        const placeholder = await message.reply('Calculating...');
+        const placeholder = await prefixSuccess(message, { content: 'Calculating...' });
         const latency = Date.now() - start;
 
         const embed = buildStatusEmbed(client, ping, latency, message.author);
