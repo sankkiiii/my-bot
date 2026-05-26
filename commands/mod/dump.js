@@ -27,7 +27,7 @@ module.exports = {
     ),
 
   name: 'dump',
-  aliases: ['rolememebers', 'rmembers', 'rolelist', 'rd'],
+  aliases: ['rolememebers', 'rolelist'],
 
   async execute(interactionOrMessage) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
