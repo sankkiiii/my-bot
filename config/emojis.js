@@ -70,6 +70,8 @@ module.exports = {
   memory:       '<a:blablabla:1508554783907254292>',
   stats:        '<a:blablabla:1508554783907254292>',
   nick:         '<:nick:EMOJI_ID_HERE>',
+  drag:         '<:drag:EMOJI_ID_HERE>',
+  vckick:       '<:vckick:EMOJI_ID_HERE>',
 
   // ── NO PREFIX ───────────────────────────
   noprefix:     '<:reson:1508554272415944726>',
