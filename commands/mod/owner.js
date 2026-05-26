@@ -134,7 +134,7 @@ module.exports = {
       }
 
       const embed = new EmbedBuilder()
-        .setTitle(`${e.ownerCrown} Bot Owners`)
+        .setTitle('👑 Bot Owners')
         .setColor('#FEE75C')
         .setDescription(ownerLines.join('\n'))
         .setFooter({ text: `Total: ${owners.length} owner(s)` })

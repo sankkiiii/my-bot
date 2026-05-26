@@ -87,11 +87,8 @@ module.exports = {
         if (targetUser.bot) {
           return replyError(`${e.error} You cannot give no-prefix to a bot.`);
         }
-        if (guildConfig.isOwner(targetUser.id)) {
-          return replyError(`${e.warning} ${targetUser.tag} is a bot owner and already has no-prefix access.`);
-        }
         if (guildConfig.isNoPrefixUser(guild.id, targetUser.id)) {
-          return replyError(`${e.warning} ${targetUser.tag} already has no-prefix access.`);
+          return replyError(`${e.warning} That user already has no-prefix access.`);
         }
         guildConfig.addNoPrefixUser(guild.id, targetUser.id, executorId);
         return replySuccess({ content: `${e.success} ${targetUser} has been given no-prefix access.` });
@@ -107,34 +104,25 @@ module.exports = {
     }
 
     if (subcommand === 'list') {
-      const owners = guildConfig.getOwners();
       const npUsers = guildConfig.getNoPrefixUsers(guild.id);
 
       let description = '';
 
-      if (owners.length > 0) {
-        description += `**👑 Bot Owners (${owners.length}):**\n`;
-        for (const id of owners) {
-          const user = await client.users.fetch(id).catch(() => null);
-          description += `• ${user ? user.tag : 'Unknown'} (${id})\n`;
-        }
-        description += '\n';
-      }
-
       if (npUsers.length > 0) {
-        description += `**⚡ No-Prefix Users (${npUsers.length}):**\n`;
-        for (const id of npUsers) {
+        for (let i = 0; i < npUsers.length; i++) {
+          const id = npUsers[i];
           const user = await client.users.fetch(id).catch(() => null);
-          description += `• ${user ? user.tag : 'Unknown'} (${id})\n`;
+          description += `${i + 1}. ${user ? user.tag : 'Unknown'} (${id})\n`;
         }
       } else {
-        description += '**⚡ No-Prefix Users:** None';
+        description = 'No users have no-prefix access.';
       }
 
       const embed = new EmbedBuilder()
-        .setTitle('⚡ No-Prefix System')
+        .setTitle('⚡ No-Prefix Users')
         .setColor('#5865F2')
         .setDescription(description)
+        .setFooter({ text: `Total: ${npUsers.length} user(s)` })
         .setTimestamp();
 
       if (isSlash) {
