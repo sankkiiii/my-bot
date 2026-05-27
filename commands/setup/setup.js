@@ -179,8 +179,8 @@ module.exports = {
           .setTitle(`${e.success} Setup Complete`)
           .setColor(0x57F287)
           .addFields(
-            { name: `${e.voiceHub} Temp VC Category`, value: `${category}`, inline: true },
-            { name: `${e.voiceHub} Hub Trigger`, value: `${hubTrigger}`, inline: true },
+            { name: '🎙️ Temp VC Category', value: `${category}`, inline: true },
+            { name: '🎙️ Hub Trigger', value: `${hubTrigger}`, inline: true },
           )
           .setFooter({ text: `Setup by ${interaction.user.username} • ${new Date().toLocaleString()}` });
 
@@ -214,7 +214,7 @@ module.exports = {
           .setTitle(`${e.success} Setup Complete`)
           .setColor(0x57F287)
           .addFields(
-            { name: `${e.voiceDuo} Duo Trigger`, value: `${duoTrigger}`, inline: true },
+            { name: '🎙️ Duo Trigger', value: `${duoTrigger}`, inline: true },
           )
           .setFooter({ text: `Setup by ${interaction.user.username} • ${new Date().toLocaleString()}` });
 

@@ -323,7 +323,7 @@ async function handleTicketClose(interaction, client) {
   const closer = interaction.member;
   const cfg = getConfig(guild.id);
 
-  const isOwner = config.ownerId && closer.user.id === config.ownerId;
+  const isOwner = guildConfig.isOwner(closer.user.id);
 
   if (
     !isOwner &&
@@ -631,7 +631,7 @@ async function handleVcButton(interaction) {
         .setMaxValues(1);
       const row = new ActionRowBuilder().addComponents(selectMenu);
       return interaction.reply({
-        content: `${e.trust} Select a user to give access to your VC:`,
+        content: `${e.vcTrustBtn} Select a user to give access to your VC:`,
         components: [row],
         ephemeral: true,
       });
@@ -645,7 +645,7 @@ async function handleVcButton(interaction) {
         .setMaxValues(1);
       const row = new ActionRowBuilder().addComponents(selectMenu);
       return interaction.reply({
-        content: `${e.reject} Select a user to reject from your VC:`,
+        content: `${e.vcRejectBtn} Select a user to reject from your VC:`,
         components: [row],
         ephemeral: true,
       });
@@ -659,7 +659,7 @@ async function handleVcButton(interaction) {
         .setMaxValues(1);
       const row = new ActionRowBuilder().addComponents(selectMenu);
       return interaction.reply({
-        content: `${e.vcKick} Select a user to kick from your VC:`,
+        content: `${e.vcKickBtn} Select a user to kick from your VC:`,
         components: [row],
         ephemeral: true,
       });
@@ -673,7 +673,7 @@ async function handleVcButton(interaction) {
         .setMaxValues(1);
       const row = new ActionRowBuilder().addComponents(selectMenu);
       return interaction.reply({
-        content: `${e.vcBan} Select a user to ban from your VC:`,
+        content: `${e.vcBanBtn} Select a user to ban from your VC:`,
         components: [row],
         ephemeral: true,
       });
@@ -683,32 +683,32 @@ async function handleVcButton(interaction) {
 
     if (id === 'vc_lock') {
       await vc.permissionOverwrites.edit(interaction.guild.id, { Connect: false });
-      return interaction.editReply({ content: `${e.lock} Voice channel locked.` });
+      return interaction.editReply({ content: `${e.vcLockBtn} Voice channel locked.` });
     }
 
     if (id === 'vc_unlock') {
       await vc.permissionOverwrites.edit(interaction.guild.id, { Connect: null });
-      return interaction.editReply({ content: `${e.unlock} Voice channel unlocked.` });
+      return interaction.editReply({ content: `${e.vcUnlockBtn} Voice channel unlocked.` });
     }
 
     if (id === 'vc_hide') {
       await vc.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: false });
-      return interaction.editReply({ content: `${e.hide} Voice channel hidden.` });
+      return interaction.editReply({ content: `${e.vcHideBtn} Voice channel hidden.` });
     }
 
     if (id === 'vc_unhide') {
       await vc.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: null });
-      return interaction.editReply({ content: `${e.unhide} Voice channel is now visible.` });
+      return interaction.editReply({ content: `${e.vcUnhideBtn} Voice channel is now visible.` });
     }
 
     if (id === 'vc_waiting') {
       await vc.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: true, Connect: false });
-      return interaction.editReply({ content: `${e.waiting} Waiting room enabled.` });
+      return interaction.editReply({ content: `${e.vcWaitBtn} Waiting room enabled.` });
     }
 
     if (id === 'vc_delete') {
       tempVCs.delete(vcChannelId);
-      await interaction.editReply({ content: `${e.delete} Deleting your voice channel...` });
+      await interaction.editReply({ content: `${e.vcDeleteBtn} Deleting your voice channel...` });
       await vc?.delete().catch(() => {});
       return;
     }
@@ -864,7 +864,7 @@ async function handleVcSelectMenu(interaction) {
         Connect: false,
       });
       return interaction.update({
-        content: `${e.reject} ${member.displayName} has been rejected from your VC.`,
+        content: `${e.vcRejectBtn} ${member.displayName} has been rejected from your VC.`,
         components: [],
       });
     }
@@ -885,7 +885,7 @@ async function handleVcSelectMenu(interaction) {
         ViewChannel: false,
       });
       return interaction.update({
-        content: `${e.vcKick} ${member.displayName} has been kicked from your VC.`,
+        content: `${e.vcKickBtn} ${member.displayName} has been kicked from your VC.`,
         components: [],
       });
     }
@@ -906,7 +906,7 @@ async function handleVcSelectMenu(interaction) {
         await member.send({
           embeds: [
             new EmbedBuilder()
-              .setTitle(`${e.vcBan} Banned from Voice Channel`)
+              .setTitle(`${e.vcBanBtn} Banned from Voice Channel`)
               .setDescription(`You have been banned from **${vc.name}** in **${interaction.guild.name}**`)
               .setColor(0xED4245)
               .addFields(
@@ -918,7 +918,7 @@ async function handleVcSelectMenu(interaction) {
         console.error('[VC Ban DM Error]', err);
       }
       return interaction.update({
-        content: `${e.vcBan} ${member.displayName} has been banned from your VC.`,
+        content: `${e.vcBanBtn} ${member.displayName} has been banned from your VC.`,
         components: [],
       });
     }

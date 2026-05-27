@@ -124,7 +124,7 @@ module.exports = {
       })
       .addFields(
         {
-          name: `${e.vcKick} Disconnected`,
+          name: `${e.vckick} Disconnected`,
           value: `**${kicked}** member${kicked !== 1 ? 's' : ''}`,
           inline: true
         },

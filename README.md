@@ -6,7 +6,7 @@
 - Moderation system
 - Ticket system
 - Temp Voice Channels
-- VC Control Panel
+- VC Control Panel (with custom image support)
 - AFK system
 - Utility commands
 - Multi-server SQLite architecture
@@ -67,9 +67,12 @@ All commands work as both Slash Commands (`/`) and Prefix Commands (default `!`)
 | `/sbanner` | `serverbanner`, `guildbanner` | Show the server banner | `@everyone` |
 | `/serverinfo` | `si`, `server`, `guildinfo`, `guild` | Show server information | `@everyone` |
 | `/userinfo` | `ui`, `whois`, `user`, `lookup` | Show user information | `@everyone` |
-| `/purgebots` | `cleanbots`, `deletebots`, `pb` | Purge last X bot messages from this channel | `Manage Messages` |
+| `/purgebots` | `cleanbots`, `deletebots` | Purge last X bot messages from this channel | `Manage Messages` |
 | `/purgeuser` | `cleanuser`, `deleteuser`, `pu` | Purge last X messages from a specific user | `Manage Messages` |
 | `/afk` | `away`, `brb` | Set your AFK status | `@everyone` |
+| `/vcpanel` | `vcp`, `voicepanel`, `vccontrols` | Resend the VC control panel in your voice channel | `@everyone`* |
+
+*(Note: `/vcpanel` is only usable by the creator of the temporary voice channel)*
 
 ---
 
@@ -101,6 +104,7 @@ All commands work as both Slash Commands (`/`) and Prefix Commands (default `!`)
    GUILD_ID=your_guild_id
    PREFIX=!
    OWNER_ID=your_discord_id
+   VC_PANEL_IMAGE=optional_panel_image_url
    ```
 
 4. **Register slash commands**
@@ -163,6 +167,7 @@ Before running the `/setup` commands, you should create the following channels i
 - **Duo VC:** Max 2 users. Channels are sequentially named `𝄢・duo ¹`, `𝄢・duo ²`, etc.
 - Auto-deletes when all humans leave the channel.
 - A VC Control Panel is sent inside each VC's text chat automatically upon creation.
+- If deleted, the creator can resend it using `/vcpanel`.
 
 ### VC Control Panel Buttons
 The creator of the VC can use the following buttons:
@@ -232,6 +237,7 @@ my-bot/
 ├── database/         ← SQLite DB layer
 ├── events/           ← Discord event handlers
 ├── utils/            ← Shared utilities
+│   └── buildVcPanel.js← VC panel builder
 ├── config/
 │   └── emojis.js     ← Custom emoji config
 ├── data/             ← Runtime data (DB, presence)

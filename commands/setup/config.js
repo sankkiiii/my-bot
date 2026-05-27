@@ -96,7 +96,7 @@ module.exports = {
             inline: false,
           },
           {
-            name: `${e.voiceHub} Temp VC System`,
+            name: '🎙️ Temp VC System',
             value: [
               `Category: ${formatChannel(guild, cfg.temp_vc_category)}`,
               `Hub Trigger: ${formatChannel(guild, cfg.create_vc_channel)}`,

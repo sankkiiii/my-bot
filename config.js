@@ -16,4 +16,5 @@ module.exports = {
   guildId: process.env.GUILD_ID,
   prefix: process.env.PREFIX || '!',
   ownerId: process.env.OWNER_ID,
+  vcPanelImage: process.env.VC_PANEL_IMAGE || null,
 };

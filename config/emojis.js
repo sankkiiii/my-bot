@@ -30,22 +30,6 @@ module.exports = {
   transcript:   '<:heart_:1508553878709473371>',
   reason:       '<:reson:1508554272415944726>',
 
-  // ── VOICE CHANNELS ──────────────────────
-  voiceHub:     '<a:blablabla:1508554783907254292>',
-  voiceDuo:     '<a:blablabla:1508554783907254292>',
-  rename:       ':label:',
-  lock:         '<:lock_:1508557349911134338>',
-  unlock:       '<:unlock_:1508558736254570647>',
-  hide:         '<a:eyesss:1508607198253682698>',
-  unhide:       '<a:eyesss:1508607198253682698>',
-  waiting:      '<:wait__:1508607521043124424>',
-  trust:        '<:reson:1508554272415944726>',
-  reject:       '<:not_ok:1508544640394068171>',
-  vcKick:       '<:kick:1508551927150018630>',
-  vcBan:        '<:ban_:1508546202076053556>',
-  limit:        '<:limit_:1508559890459656232>',
-  delete:       '<:delete_:1508595725267894424>',
-
   // VC Panel Button Emojis (custom server emojis)
   vcRenameBtn:  '<:vc_rename:EMOJI_ID_HERE>',
   vcLimitBtn:   '<:vc_limit:EMOJI_ID_HERE>',

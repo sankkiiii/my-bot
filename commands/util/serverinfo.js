@@ -79,18 +79,17 @@ module.exports = {
         `${e.owner} **Owner:** ${owner.user}`,
         `${e.calendar} **Created:** <t:${createdTimestamp}:F>`,
         `${e.region} **Region:** ${guild.preferredLocale || 'Auto'}`,
-        `${e.verified} **Verified:** ${guild.verified ? 'Yes' : 'No'}  •  ${e.lock} **2FA:** ${guild.mfaLevel === 1 ? 'Yes' : 'No'}`,
-      ].join('\n');
+        `${e.verified} **Verified:** ${guild.verified ? 'Yes' : 'No'}  •  🔒 **2FA:** ${guild.mfaLevel === 1 ? 'Yes' : 'No'}`,
+        ].join('\n');
 
-      const fields = [
+        const fields = [
         { name: `${e.members} Members`, value: `${guild.memberCount}`, inline: true },
         { name: `${e.bot} Bots`, value: `${bots}`, inline: true },
         { name: `${e.user} Humans`, value: `${humans}`, inline: true },
 
         { name: `${e.channels} Text`, value: `${textChannels}`, inline: true },
-        { name: `${e.voiceHub} Voice`, value: `${voiceChannels}`, inline: true },
+        { name: '🎙️ Voice', value: `${voiceChannels}`, inline: true },
         { name: `${e.info} Categories`, value: `${categories}`, inline: true },
-
         { name: `${e.role} Roles`, value: `${guild.roles.cache.size}`, inline: true },
         { name: `${e.emojis} Emojis`, value: `${guild.emojis.cache.size}`, inline: true },
         { name: `${e.info} Stickers`, value: `${guild.stickers.cache.size}`, inline: true },
