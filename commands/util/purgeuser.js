@@ -73,7 +73,6 @@ module.exports = {
     let amount = 50;
 
     if (isSlash) {
-      await interaction.deferReply({ ephemeral: true });
       amount = interaction.options.getInteger('amount') || 50;
       const userOption = interaction.options.getUser('user');
       const queryOption = interaction.options.getString('query');
@@ -103,24 +102,36 @@ module.exports = {
       if (userInput && !targetMember) {
         targetMember = await resolveUser(userInput, guild);
       }
-
-      if (targetMember) {
-        // Delete trigger instantly
-        await message.delete().catch(() => {});
-      }
     }
 
     if (!targetMember) {
       const msg = `${e.error} Could not find that user. Try their @mention, username, or user ID.`;
-      return isSlash ? interaction.editReply(msg) : prefixError(message, msg);
+      return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
     amount = Math.min(Math.max(amount, 1), 100);
 
     try {
       const channel = interactionOrMessage.channel;
-      const fetched = await channel.messages.fetch({ limit: 100 });
-      const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+      let fetched;
+
+      if (isSlash) {
+        await interaction.reply({
+          content: `${e.loading} Purging...`,
+          ephemeral: true,
+        });
+        fetched = await channel.messages.fetch({ limit: 100 });
+      } else {
+        // Fetch and delete trigger in parallel
+        const [_, fetchedMsgs] = await Promise.all([
+          message.delete().catch(() => {}),
+          channel.messages.fetch({ limit: 100 })
+        ]);
+        fetched = fetchedMsgs;
+      }
+
+      // Use 12 days to avoid edge case errors
+      const twoWeeksAgo = Date.now() - 12 * 24 * 60 * 60 * 1000;
 
       const userMessages = fetched
         .filter(
@@ -132,26 +143,31 @@ module.exports = {
 
       if (userMessages.length === 0) {
         const msg = `${e.error} No recent messages found from **${targetMember.displayName}**.`;
-        return isSlash ? interaction.editReply(msg) : prefixError(message, msg);
+        if (isSlash) {
+          return interaction.editReply(msg);
+        } else {
+          const errReply = await channel.send(msg);
+          setTimeout(() => errReply.delete().catch(() => {}), 5000);
+          return;
+        }
       }
 
+      // Single bulkDelete call
       const deleted = await channel.bulkDelete(userMessages, true);
+      const successMsgContent = `${e.purge} Deleted **${deleted.size}** messages from **${targetMember.displayName}**.`;
 
       if (isSlash) {
-        return interaction.editReply(
-          `${e.purge} Deleted **${deleted.size}** messages from **${targetMember.displayName}**.`
-        );
+        return interaction.editReply(successMsgContent);
       } else {
-        const successMsg = await channel.send(
-          `${e.purge} Deleted **${deleted.size}** messages from **${targetMember.displayName}**.`
-        );
+        const successMsg = await channel.send(successMsgContent);
         setTimeout(() => successMsg.delete().catch(() => {}), 5000);
       }
     } catch (err) {
       console.error('[PurgeUser]', err);
       const msg = `${e.error} An error occurred while purging messages.`;
       if (isSlash) return interaction.editReply(msg);
-      return prefixError(message, msg);
+      const errReply = await interactionOrMessage.channel.send(msg);
+      setTimeout(() => errReply.delete().catch(() => {}), 5000);
     }
   },
 };

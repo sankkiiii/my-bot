@@ -2,15 +2,11 @@ const {
   SlashCommandBuilder,
   PermissionFlagsBits,
   CommandInteraction,
-  EmbedBuilder,
 } = require('discord.js');
-const config = require('../../config');
 const cooldown = require('../../utils/cooldown');
 const {
   slashError,
-  slashSuccess,
   prefixError,
-  prefixSuccess,
 } = require('../../utils/replyHelper');
 const e = require('../../config/emojis');
 
@@ -60,50 +56,68 @@ module.exports = {
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
-    let amount;
-    if (isSlash) {
-      await interaction.deferReply({ ephemeral: true });
-      amount = interaction.options.getInteger('amount');
-    } else {
-      const args = message.content.trim().split(/\s+/).slice(1);
-      amount = parseInt(args[0], 10);
-      if (isNaN(amount) || amount < 1 || amount > 100) {
-        return prefixError(message, `${e.error} Please provide a number between 1 and 100.`);
-      }
-      // Delete trigger instantly
-      await message.delete().catch(() => {});
-    }
-
     try {
       const channel = interactionOrMessage.channel;
-      const messages = await channel.messages.fetch({ limit: amount });
+      let amount;
+      let messages;
 
-      const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+      if (isSlash) {
+        amount = interaction.options.getInteger('amount') || 100;
+        await interaction.reply({
+          content: `${e.loading} Purging...`,
+          ephemeral: true,
+        });
+        messages = await channel.messages.fetch({
+          limit: Math.min(amount, 100),
+        });
+      } else {
+        const args = message.content.trim().split(/\s+/).slice(1);
+        amount = parseInt(args[0], 10);
+        if (isNaN(amount) || amount < 1 || amount > 100) {
+          return prefixError(
+            message,
+            `${e.error} Please provide a number between 1 and 100.`
+          );
+        }
+        
+        // Do fetch and delete trigger in parallel
+        const [_, fetchedMsgs] = await Promise.all([
+          message.delete().catch(() => {}),
+          channel.messages.fetch({ limit: Math.min(amount + 1, 100) })
+        ]);
+        messages = fetchedMsgs;
+      }
+
+      // Use 12 days to avoid edge case errors with Discord API
+      const twoWeeksAgo = Date.now() - 12 * 24 * 60 * 60 * 1000;
       const deletable = messages.filter((m) => m.createdTimestamp > twoWeeksAgo);
 
       if (deletable.size === 0) {
-        const msg = `${e.error} No messages found that can be deleted (must be under 14 days old).`;
-        return isSlash ? interaction.editReply(msg) : prefixError(message, msg);
+        const msg = `${e.error} No deletable messages found (must be under 12 days old).`;
+        if (isSlash) {
+          return interaction.editReply(msg);
+        } else {
+          return prefixError(channel, msg); // Note: using channel since message is deleted
+        }
       }
 
+      // Single bulkDelete call
       const deleted = await channel.bulkDelete(deletable, true);
-
-      const embed = new EmbedBuilder()
-        .setColor('#5865F2')
-        .setDescription(`${e.purge} Deleted **${deleted.size}** messages`)
-        .setFooter({ text: `Requested by ${executor.user.tag}` });
+      const successMsgContent = `${e.purge} Deleted **${deleted.size}** messages.`;
 
       if (isSlash) {
-        return interaction.editReply({ embeds: [embed] });
+        return interaction.editReply(successMsgContent);
       } else {
-        const successMsg = await channel.send({ embeds: [embed] });
-        setTimeout(() => successMsg.delete().catch(() => {}), 5000);
+        const msg = await channel.send(successMsgContent);
+        setTimeout(() => msg.delete().catch(() => {}), 5000);
       }
     } catch (err) {
       console.error('[Purge]', err);
       const msg = `${e.error} An error occurred while purging messages.`;
       if (isSlash) return interaction.editReply(msg);
-      return prefixError(message, msg);
+      // Since message is already deleted, send to channel
+      const errReply = await interactionOrMessage.channel.send(msg);
+      setTimeout(() => errReply.delete().catch(() => {}), 5000);
     }
   },
 };

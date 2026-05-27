@@ -3,7 +3,6 @@ const {
   PermissionFlagsBits,
   CommandInteraction,
 } = require('discord.js');
-const config = require('../../config');
 const cooldown = require('../../utils/cooldown');
 const {
   slashError,
@@ -57,47 +56,71 @@ module.exports = {
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
-    let amount;
-    if (isSlash) {
-      await interaction.deferReply({ ephemeral: true });
-      amount = interaction.options.getInteger('amount') || 50;
-    } else {
-      const args = message.content.trim().split(/\s+/).slice(1);
-      amount = parseInt(args[0], 10) || 50;
-      if (amount < 1 || amount > 100) {
-        return prefixError(message, `${e.error} Please provide a number between 1 and 100.`);
-      }
-      // Delete trigger instantly
-      await message.delete().catch(() => {});
-    }
-
     try {
       const channel = interactionOrMessage.channel;
-      const fetched = await channel.messages.fetch({ limit: 100 });
-      const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
-
-      const botMessages = fetched
-        .filter((m) => m.author.bot && m.createdTimestamp > twoWeeksAgo)
-        .first(amount);
-
-      if (botMessages.length === 0) {
-        const msg = `${e.error} No recent bot messages found to delete.`;
-        return isSlash ? interaction.editReply(msg) : prefixError(message, msg);
-      }
-
-      const deleted = await channel.bulkDelete(botMessages, true);
+      let amount;
+      let fetched;
 
       if (isSlash) {
-        return interaction.editReply(`${e.purge} Deleted **${deleted.size}** bot messages.`);
+        amount = interaction.options.getInteger('amount') || 50;
+        await interaction.reply({
+          content: `${e.loading} Purging...`,
+          ephemeral: true,
+        });
+        fetched = await channel.messages.fetch({ limit: 100 });
       } else {
-        const successMsg = await channel.send(`${e.purge} Deleted **${deleted.size}** bot messages.`);
-        setTimeout(() => successMsg.delete().catch(() => {}), 5000);
+        const args = message.content.trim().split(/\s+/).slice(1);
+        amount = parseInt(args[0], 10) || 50;
+        if (amount < 1 || amount > 100) {
+          return prefixError(
+            message,
+            `${e.error} Please provide a number between 1 and 100.`
+          );
+        }
+        
+        // Do fetch and delete trigger in parallel
+        const [_, fetchedMsgs] = await Promise.all([
+          message.delete().catch(() => {}),
+          channel.messages.fetch({ limit: 100 })
+        ]);
+        fetched = fetchedMsgs;
+      }
+
+      // Use 12 days to avoid edge case errors
+      const twoWeeksAgo = Date.now() - 12 * 24 * 60 * 60 * 1000;
+      
+      const botMsgs = fetched
+        .filter((m) => m.author.bot && m.createdTimestamp > twoWeeksAgo)
+        .first(Math.min(amount, 100));
+
+      if (!botMsgs.length) {
+        const msg = `${e.error} No bot messages found to delete.`;
+        if (isSlash) {
+          return interaction.editReply(msg);
+        } else {
+          // Fallback to sending in channel if message was deleted
+          const errReply = await channel.send(msg);
+          setTimeout(() => errReply.delete().catch(() => {}), 5000);
+          return;
+        }
+      }
+
+      // Single bulkDelete call
+      const deleted = await channel.bulkDelete(botMsgs, true);
+      const successMsgContent = `${e.purge} Deleted **${deleted.size}** bot messages.`;
+
+      if (isSlash) {
+        return interaction.editReply(successMsgContent);
+      } else {
+        const msg = await channel.send(successMsgContent);
+        setTimeout(() => msg.delete().catch(() => {}), 5000);
       }
     } catch (err) {
       console.error('[PurgeBots]', err);
       const msg = `${e.error} An error occurred while purging bot messages.`;
       if (isSlash) return interaction.editReply(msg);
-      return prefixError(message, msg);
+      const errReply = await interactionOrMessage.channel.send(msg);
+      setTimeout(() => errReply.delete().catch(() => {}), 5000);
     }
   },
 };
