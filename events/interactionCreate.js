@@ -511,35 +511,6 @@ async function handleResetConfigCancel(interaction) {
 // VC CONTROL PANEL HANDLERS
 // ═══════════════════════════════════════
 
-// Find a user's active temp VC from the Map.
-// Works whether clicked from the VC text chat OR a permanent control panel.
-function findUserVc(tempVCs, userId, interactionChannelId, userVoiceChannelId) {
-  // 1. Direct match: button clicked inside the VC's built-in text chat
-  if (tempVCs.has(interactionChannelId)) {
-    const data = tempVCs.get(interactionChannelId);
-    if (data.creatorId === userId) {
-      return { vcChannelId: interactionChannelId, vcData: data };
-    }
-  }
-
-  // 2. User is in a VC they own
-  if (userVoiceChannelId && tempVCs.has(userVoiceChannelId)) {
-    const data = tempVCs.get(userVoiceChannelId);
-    if (data.creatorId === userId) {
-      return { vcChannelId: userVoiceChannelId, vcData: data };
-    }
-  }
-
-  // 3. Search the entire Map for any VC owned by this user
-  for (const [channelId, data] of tempVCs.entries()) {
-    if (data.creatorId === userId) {
-      return { vcChannelId: channelId, vcData: data };
-    }
-  }
-
-  return null;
-}
-
 async function handleVcButton(interaction) {
   const id = interaction.customId;
   const tempVCs = interaction.client.tempVCs;
@@ -560,24 +531,26 @@ async function handleVcButton(interaction) {
     return interaction.reply({ content: msg, ephemeral: true });
   };
 
-  // --- Find the user's temp VC ---
-  const result = findUserVc(
-    tempVCs,
-    interaction.user.id,
-    interaction.channelId,
-    interaction.member.voice?.channelId,
-  );
+  const userVoiceChannelId = interaction.member.voice?.channelId;
 
-  if (!result) {
-    return errorReply(`${e.error} You don't have an active voice channel. Join Create VC first.`);
+  if (!userVoiceChannelId) {
+    return errorReply(`${e.error} You must be in a voice channel to use these controls.`);
   }
 
-  const { vcChannelId, vcData } = result;
+  const vcData = tempVCs.get(userVoiceChannelId);
 
-  // Check if creator is in the VC (except for delete)
-  const creatorInVC = interaction.member.voice?.channelId === vcChannelId;
-  if (!creatorInVC && id !== 'vc_delete') {
-    return errorReply(`${e.error} You must be connected to your voice channel to use controls.`);
+  if (!vcData) {
+    return errorReply(`${e.error} You are not in a temporary voice channel.`);
+  }
+
+  if (interaction.user.id !== vcData.creatorId) {
+    return errorReply(`${e.error} Only the voice channel creator can use these controls.`);
+  }
+
+  const voiceChannel = interaction.guild.channels.cache.get(userVoiceChannelId);
+
+  if (!voiceChannel) {
+    return errorReply(`${e.error} Your voice channel no longer exists.`);
   }
 
   // --- Handle each button ---
@@ -679,37 +652,35 @@ async function handleVcButton(interaction) {
       });
     }
 
-    const vc = interaction.guild.channels.cache.get(vcChannelId);
-
     if (id === 'vc_lock') {
-      await vc.permissionOverwrites.edit(interaction.guild.id, { Connect: false });
+      await voiceChannel.permissionOverwrites.edit(interaction.guild.id, { Connect: false });
       return interaction.editReply({ content: `${e.vcLockBtn} Voice channel locked.` });
     }
 
     if (id === 'vc_unlock') {
-      await vc.permissionOverwrites.edit(interaction.guild.id, { Connect: null });
+      await voiceChannel.permissionOverwrites.edit(interaction.guild.id, { Connect: null });
       return interaction.editReply({ content: `${e.vcUnlockBtn} Voice channel unlocked.` });
     }
 
     if (id === 'vc_hide') {
-      await vc.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: false });
+      await voiceChannel.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: false });
       return interaction.editReply({ content: `${e.vcHideBtn} Voice channel hidden.` });
     }
 
     if (id === 'vc_unhide') {
-      await vc.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: null });
+      await voiceChannel.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: null });
       return interaction.editReply({ content: `${e.vcUnhideBtn} Voice channel is now visible.` });
     }
 
     if (id === 'vc_waiting') {
-      await vc.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: true, Connect: false });
+      await voiceChannel.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: true, Connect: false });
       return interaction.editReply({ content: `${e.vcWaitBtn} Waiting room enabled.` });
     }
 
     if (id === 'vc_delete') {
-      tempVCs.delete(vcChannelId);
+      tempVCs.delete(userVoiceChannelId);
       await interaction.editReply({ content: `${e.vcDeleteBtn} Deleting your voice channel...` });
-      await vc?.delete().catch(() => {});
+      await voiceChannel.delete().catch(() => {});
       return;
     }
   } catch (err) {
@@ -726,35 +697,36 @@ async function handleVcModal(interaction) {
   const id = interaction.customId;
   const tempVCs = interaction.client.tempVCs;
 
-  console.log('[VC Modal] customId:', id, 'channelId:', interaction.channelId);
-  console.log('[VC Modal] Map size:', tempVCs?.size);
+  const userVoiceChannelId = interaction.member.voice?.channelId;
 
-  // Find the user's temp VC (works from VC text chat or permanent panel)
-  const result = findUserVc(
-    tempVCs,
-    interaction.user.id,
-    interaction.channelId,
-    interaction.member.voice?.channelId,
-  );
-
-  if (!result) {
+  if (!userVoiceChannelId) {
     return interaction.reply({
-      content: `${e.error} You don't have an active voice channel. Join Create VC first.`,
+      content: `${e.error} You must be in a voice channel to use these controls.`,
       ephemeral: true,
     });
   }
 
-  const { vcChannelId, vcData } = result;
+  const vcData = tempVCs.get(userVoiceChannelId);
 
-  const voiceChannel = interaction.guild.channels.cache.get(vcChannelId);
-  if (!voiceChannel) {
-    return interaction.reply({ content: `${e.error} Voice channel not found.`, ephemeral: true });
+  if (!vcData) {
+    return interaction.reply({
+      content: `${e.error} You are not in a temporary voice channel.`,
+      ephemeral: true,
+    });
   }
 
-  const creatorInVC = interaction.member.voice?.channelId === vcChannelId;
-  if (!creatorInVC) {
+  if (interaction.user.id !== vcData.creatorId) {
     return interaction.reply({
-      content: `${e.error} You must be connected to your voice channel to use controls.`,
+      content: `${e.error} Only the voice channel creator can use these controls.`,
+      ephemeral: true,
+    });
+  }
+
+  const voiceChannel = interaction.guild.channels.cache.get(userVoiceChannelId);
+
+  if (!voiceChannel) {
+    return interaction.reply({
+      content: `${e.error} Your voice channel no longer exists.`,
       ephemeral: true,
     });
   }
@@ -801,26 +773,36 @@ async function handleVcSelectMenu(interaction) {
   const id = interaction.customId;
   const tempVCs = interaction.client.tempVCs;
 
-  // Find the user's temp VC
-  const result = findUserVc(
-    tempVCs,
-    interaction.user.id,
-    interaction.channelId,
-    interaction.member.voice?.channelId,
-  );
+  const userVoiceChannelId = interaction.member.voice?.channelId;
 
-  if (!result) {
+  if (!userVoiceChannelId) {
     return interaction.update({
-      content: `${e.error} VC session expired. Leave and rejoin Create VC.`,
+      content: `${e.error} You must be in a voice channel to use these controls.`,
       components: [],
     });
   }
 
-  const { vcChannelId } = result;
+  const vcData = tempVCs.get(userVoiceChannelId);
 
-  if (interaction.user.id !== result.vcData.creatorId) {
+  if (!vcData) {
     return interaction.update({
-      content: `${e.error} Only the VC creator can use these controls.`,
+      content: `${e.error} You are not in a temporary voice channel.`,
+      components: [],
+    });
+  }
+
+  if (interaction.user.id !== vcData.creatorId) {
+    return interaction.update({
+      content: `${e.error} Only the voice channel creator can use these controls.`,
+      components: [],
+    });
+  }
+
+  const voiceChannel = interaction.guild.channels.cache.get(userVoiceChannelId);
+
+  if (!voiceChannel) {
+    return interaction.update({
+      content: `${e.error} Your voice channel no longer exists.`,
       components: [],
     });
   }
@@ -837,14 +819,9 @@ async function handleVcSelectMenu(interaction) {
     return interaction.update({ content: `${e.error} User not found.`, components: [] });
   }
 
-  const vc = interaction.guild.channels.cache.get(vcChannelId);
-  if (!vc) {
-    return interaction.update({ content: `${e.error} Voice channel not found.`, components: [] });
-  }
-
   try {
     if (id === 'vc_trust_select') {
-      await vc.permissionOverwrites.edit(member.id, {
+      await voiceChannel.permissionOverwrites.edit(member.id, {
         ViewChannel: true,
         Connect: true,
         Speak: true,
@@ -856,10 +833,10 @@ async function handleVcSelectMenu(interaction) {
     }
 
     if (id === 'vc_reject_select') {
-      if (member.voice?.channelId === vcChannelId) {
+      if (member.voice?.channelId === userVoiceChannelId) {
         await member.voice.disconnect('Rejected by VC owner').catch(() => {});
       }
-      await vc.permissionOverwrites.edit(member.id, {
+      await voiceChannel.permissionOverwrites.edit(member.id, {
         ViewChannel: false,
         Connect: false,
       });
@@ -873,14 +850,14 @@ async function handleVcSelectMenu(interaction) {
       if (member.id === interaction.user.id) {
         return interaction.update({ content: `${e.error} You cannot kick yourself.`, components: [] });
       }
-      if (member.voice?.channelId !== vcChannelId) {
+      if (member.voice?.channelId !== userVoiceChannelId) {
         return interaction.update({
           content: `${e.error} That user is not in your voice channel.`,
           components: [],
         });
       }
       await member.voice.disconnect('Kicked from VC by owner');
-      await vc.permissionOverwrites.edit(member.id, {
+      await voiceChannel.permissionOverwrites.edit(member.id, {
         Connect: false,
         ViewChannel: false,
       });
@@ -894,10 +871,10 @@ async function handleVcSelectMenu(interaction) {
       if (member.id === interaction.user.id) {
         return interaction.update({ content: `${e.error} You cannot ban yourself.`, components: [] });
       }
-      if (member.voice?.channelId === vcChannelId) {
+      if (member.voice?.channelId === userVoiceChannelId) {
         await member.voice.disconnect('Banned from VC by owner').catch(() => {});
       }
-      await vc.permissionOverwrites.edit(member.id, {
+      await voiceChannel.permissionOverwrites.edit(member.id, {
         Connect: false,
         ViewChannel: false,
         Speak: false,
@@ -907,7 +884,7 @@ async function handleVcSelectMenu(interaction) {
           embeds: [
             new EmbedBuilder()
               .setTitle(`${e.vcBanBtn} Banned from Voice Channel`)
-              .setDescription(`You have been banned from **${vc.name}** in **${interaction.guild.name}**`)
+              .setDescription(`You have been banned from **${voiceChannel.name}** in **${interaction.guild.name}**`)
               .setColor(0xED4245)
               .addFields(
                 { name: 'Banned By', value: interaction.user.username },
