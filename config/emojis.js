@@ -46,6 +46,20 @@ module.exports = {
   limit:        '<:limit_:1508559890459656232>',
   delete:       '<:delete_:1508595725267894424>',
 
+  // VC Panel Button Emojis (custom server emojis)
+  vcRenameBtn:  '<:vc_rename:EMOJI_ID_HERE>',
+  vcLimitBtn:   '<:vc_limit:EMOJI_ID_HERE>',
+  vcLockBtn:    '<:vc_lock:EMOJI_ID_HERE>',
+  vcUnlockBtn:  '<:vc_unlock:EMOJI_ID_HERE>',
+  vcHideBtn:    '<:vc_hide:EMOJI_ID_HERE>',
+  vcUnhideBtn:  '<:vc_unhide:EMOJI_ID_HERE>',
+  vcWaitBtn:    '<:vc_waiting:EMOJI_ID_HERE>',
+  vcDeleteBtn:  '<:vc_delete:EMOJI_ID_HERE>',
+  vcTrustBtn:   '<:vc_trust:EMOJI_ID_HERE>',
+  vcRejectBtn:  '<:vc_reject:EMOJI_ID_HERE>',
+  vcKickBtn:    '<:vc_kick:EMOJI_ID_HERE>',
+  vcBanBtn:     '<:vc_ban:EMOJI_ID_HERE>',
+
   // ── USER / SERVER INFO ───────────────────
   user:         '<a:blablabla:1508554783907254292>',
   bot:          '<:bot_:1508596477654470767>',
