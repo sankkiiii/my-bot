@@ -186,20 +186,10 @@ module.exports = {
       const embed = new EmbedBuilder()
         .setColor('#57F287')
         .setAuthor({
-          name: `${target.displayName} has been dragged to ${targetVC.name}`,
+          name: target.user.username,
           iconURL: target.user.displayAvatarURL({ dynamic: true }),
         })
-        .addFields(
-          { name: `${e.user} User`, value: `${target}`, inline: true },
-          {
-            name: `${e.channels} Channel`,
-            value: `${targetVC}`,
-            inline: true,
-          },
-          { name: `${e.user} Moved by`, value: `${executor}`, inline: true }
-        )
-        .setFooter({ text: executor.user.tag })
-        .setTimestamp();
+        .setDescription(`🎙️ | Dragged **${target.displayName}** to **${targetVC.name}**`);
 
       if (isSlash) {
         return slashSuccess(interaction, { embeds: [embed] });

@@ -92,13 +92,18 @@ module.exports = {
       (m) => `${m.displayName}, ${m.user.id}, ${m}`
     );
 
+    const embed = new EmbedBuilder()
+      .setColor(role.color || 0x5865f2)
+      .setAuthor({
+        name: role.name,
+        iconURL: role.iconURL() || guild.iconURL({ dynamic: true })
+      })
+      .setDescription(`🎭 | **${role.name}** has **${members.size}** member${members.size !== 1 ? 's' : ''}${members.size <= 25 ? `\n\n${memberLines.join('\n')}` : ''}`);
+
     if (members.size <= 25) {
-      const content =
-        `${e.role} **Role:** ${role} \`${role.name}\`  ${e.members} **Members:** ${members.size}\n\n` +
-        memberLines.join('\n');
       return isSlash
-        ? slashSuccess(interaction, { content })
-        : prefixSuccess(message, { content });
+        ? slashSuccess(interaction, { embeds: [embed] })
+        : prefixSuccess(message, { embeds: [embed] });
     }
 
     // More than 25 members -> send as .txt file
@@ -114,26 +119,6 @@ module.exports = {
     const attachment = new AttachmentBuilder(buffer, {
       name: `dump-${role.name.replace(/\s+/g, '-')}-${Date.now()}.txt`,
     });
-
-    const embed = new EmbedBuilder()
-      .setColor(role.color || 0x5865f2)
-      .setTitle(`${e.role} Role Dump — ${role.name}`)
-      .setDescription(
-        `Too many members to display inline.\nDownload the file below for the full list.`
-      )
-      .addFields(
-        {
-          name: `${e.members} Members`,
-          value: `${members.size}`,
-          inline: true,
-        },
-        { name: `${e.role} Role`, value: `${role}`, inline: true },
-        { name: `${e.id} Role ID`, value: role.id, inline: true }
-      )
-      .setFooter({
-        text: `Requested by ${executor.user?.tag || message.author.tag}`,
-      })
-      .setTimestamp();
 
     const replyOptions = { embeds: [embed], files: [attachment] };
     return isSlash

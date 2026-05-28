@@ -175,15 +175,12 @@ module.exports = {
       fs.writeFileSync(PRESENCE_PATH, JSON.stringify(presenceData, null, 2));
 
       const embed = new EmbedBuilder()
-        .setTitle(`${e.success} Rich Presence Updated`)
-        .setColor(0x57f287)
-        .addFields(
-          { name: 'Type', value: typeEmojis[type] || type, inline: true },
-          { name: 'Text', value: text, inline: true },
-          { name: 'Status', value: statusEmojis[status] || status, inline: true },
-          { name: 'Set by', value: `${user}`, inline: true },
-        )
-        .setTimestamp();
+        .setColor('#57F287')
+        .setAuthor({
+          name: client.user.username,
+          iconURL: client.user.displayAvatarURL({ dynamic: true }),
+        })
+        .setDescription(`✅ | Presence updated\n**Type:** ${type}\n**Text:** ${text}\n**Status:** ${status}`);
 
       return replySuccess({ embeds: [embed] });
     } catch (err) {

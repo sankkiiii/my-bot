@@ -164,22 +164,13 @@ module.exports = {
         await guild.members.ban(targetUser, { reason });
       }
 
-      const targetTag = targetUser.tag || targetUser.username;
-      const moderatorTag = executor.tag || executor.username;
       const embed = new EmbedBuilder()
         .setColor('#ED4245')
         .setAuthor({
-          name: `Ban | ${targetTag}`,
+          name: targetUser.username,
           iconURL: targetUser.displayAvatarURL({ dynamic: true }),
         })
-        .addFields(
-          { name: `${e.user} User`, value: `${targetUser} (${targetTag})`, inline: true },
-          { name: `${e.id} ID`, value: targetUser.id, inline: true },
-          { name: `${e.warn} Reason`, value: reason, inline: false },
-          { name: `${e.user} Moderator`, value: `${executor}`, inline: true },
-        )
-        .setFooter({ text: `Action by ${moderatorTag}` })
-        .setTimestamp();
+        .setDescription(`🔨 | Banned **${targetUser.tag}**\n**Reason:** ${reason}`);
 
       await replySuccess({ embeds: [embed] });
     } catch (err) {

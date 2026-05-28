@@ -119,14 +119,13 @@ module.exports = {
 
       const mainAvatar = serverAvatar || globalAvatar;
       const embed = new EmbedBuilder()
-        .setTitle(`${displayName}'s Avatar`)
         .setColor(color)
-        .setImage(mainAvatar)
-        .setFooter({ text: `Requested by ${requester}` });
-
-      if (!inGuild) {
-        embed.setDescription(`${e.warning} This user is not in the server — showing global profile only.`);
-      }
+        .setAuthor({
+          name: user.username,
+          iconURL: user.displayAvatarURL({ dynamic: true }),
+        })
+        .setDescription(`🖼️ | Avatar for **${displayName}**`)
+        .setImage(mainAvatar);
 
       embeds.push(embed);
 
@@ -144,8 +143,12 @@ module.exports = {
       // If server avatar differs from global, show both
       if (serverAvatar && globalAvatar && serverAvatar !== globalAvatar) {
         const globalEmbed = new EmbedBuilder()
-          .setTitle(`${displayName}'s Global Avatar`)
           .setColor(color)
+          .setAuthor({
+            name: user.username,
+            iconURL: user.displayAvatarURL({ dynamic: true }),
+          })
+          .setDescription(`🖼️ | Global Avatar for **${displayName}**`)
           .setImage(globalAvatar);
         embeds.push(globalEmbed);
       }

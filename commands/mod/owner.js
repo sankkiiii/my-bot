@@ -105,7 +105,7 @@ module.exports = {
           return replyError(`${e.warning} That user is already a bot owner.`);
         }
         guildConfig.addOwner(targetUser.id, executorId);
-        return replySuccess({ content: `${e.success} **${targetUser.tag}** has been added as a bot owner.` });
+        return replySuccess({ content: `✅ **${targetUser.username}** has been added as a bot owner.` });
       }
 
       if (subcommand === 'remove') {
@@ -116,7 +116,7 @@ module.exports = {
           return replyError(`${e.warning} That user is not a bot owner.`);
         }
         guildConfig.removeOwner(targetUser.id);
-        return replySuccess({ content: `${e.success} **${targetUser.tag}** has been removed from bot owners.` });
+        return replySuccess({ content: `✅ **${targetUser.username}** has been removed from bot owners.` });
       }
     }
 
@@ -130,15 +130,16 @@ module.exports = {
       for (let i = 0; i < owners.length; i++) {
         const id = owners[i];
         const user = await client.users.fetch(id).catch(() => null);
-        ownerLines.push(`${i + 1}. ${user ? user.tag : 'Unknown User'} (${id})`);
+        ownerLines.push(`${i + 1}. ${user ? user.tag : 'Unknown User'} (\`${id}\`)`);
       }
 
       const embed = new EmbedBuilder()
-        .setTitle('👑 Bot Owners')
         .setColor('#FEE75C')
-        .setDescription(ownerLines.join('\n'))
-        .setFooter({ text: `Total: ${owners.length} owner(s)` })
-        .setTimestamp();
+        .setAuthor({
+          name: client.user.username,
+          iconURL: client.user.displayAvatarURL({ dynamic: true })
+        })
+        .setDescription(`👑 **Bot Owners**\n\n${ownerLines.join('\n')}`);
 
       return replySuccess({ embeds: [embed] });
     }

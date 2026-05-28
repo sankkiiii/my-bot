@@ -2,6 +2,7 @@ const {
   SlashCommandBuilder,
   PermissionFlagsBits,
   CommandInteraction,
+  EmbedBuilder,
 } = require('discord.js');
 const cooldown = require('../../utils/cooldown');
 const {
@@ -103,12 +104,18 @@ module.exports = {
 
       // Single bulkDelete call
       const deleted = await channel.bulkDelete(deletable, true);
-      const successMsgContent = `${e.purge} Deleted **${deleted.size}** messages.`;
+      const embed = new EmbedBuilder()
+        .setColor('#5865F2')
+        .setAuthor({
+          name: (isSlash ? interaction.user : message.author).username,
+          iconURL: (isSlash ? interaction.user : message.author).displayAvatarURL({ dynamic: true }),
+        })
+        .setDescription(`🗑️ | Deleted **${deleted.size}** messages`);
 
       if (isSlash) {
-        return interaction.editReply(successMsgContent);
+        return interaction.editReply({ embeds: [embed] });
       } else {
-        const msg = await channel.send(successMsgContent);
+        const msg = await channel.send({ embeds: [embed] });
         setTimeout(() => msg.delete().catch(() => {}), 5000);
       }
     } catch (err) {

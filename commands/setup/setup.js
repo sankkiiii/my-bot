@@ -133,14 +133,12 @@ module.exports = {
         }
 
         const embed = new EmbedBuilder()
-          .setTitle(`${e.success} Setup Complete`)
           .setColor(0x57F287)
-          .addFields(
-            { name: `${e.ticket} Ticket Category`, value: `${category}`, inline: true },
-            { name: `${e.config} Log Channel`, value: `${logChannel}`, inline: true },
-            { name: `${e.transcript} Transcript Channel`, value: `${transcriptChannel}`, inline: true },
-          )
-          .setFooter({ text: `Setup by ${interaction.user.username} • ${new Date().toLocaleString()}` });
+          .setAuthor({
+            name: guild.name,
+            iconURL: guild.iconURL({ dynamic: true }),
+          })
+          .setDescription(`✅ | Setup complete\n\n🎫 **Tickets:** ${category} • ${logChannel} • ${transcriptChannel}`);
 
         return slashSuccess(interaction, { embeds: [embed], ephemeral: true });
       }
@@ -176,13 +174,12 @@ module.exports = {
         }
 
         const embed = new EmbedBuilder()
-          .setTitle(`${e.success} Setup Complete`)
           .setColor(0x57F287)
-          .addFields(
-            { name: '🎙️ Temp VC Category', value: `${category}`, inline: true },
-            { name: '🎙️ Hub Trigger', value: `${hubTrigger}`, inline: true },
-          )
-          .setFooter({ text: `Setup by ${interaction.user.username} • ${new Date().toLocaleString()}` });
+          .setAuthor({
+            name: guild.name,
+            iconURL: guild.iconURL({ dynamic: true }),
+          })
+          .setDescription(`✅ | Setup complete\n\n🔊 **Temp VC:** ${category} • ${hubTrigger}`);
 
         return slashSuccess(interaction, { embeds: [embed], ephemeral: true });
       }
@@ -211,12 +208,12 @@ module.exports = {
         }
 
         const embed = new EmbedBuilder()
-          .setTitle(`${e.success} Setup Complete`)
           .setColor(0x57F287)
-          .addFields(
-            { name: '🎙️ Duo Trigger', value: `${duoTrigger}`, inline: true },
-          )
-          .setFooter({ text: `Setup by ${interaction.user.username} • ${new Date().toLocaleString()}` });
+          .setAuthor({
+            name: guild.name,
+            iconURL: guild.iconURL({ dynamic: true }),
+          })
+          .setDescription(`✅ | Setup complete\n\n🎙️ **Duo VC:** ${duoTrigger}`);
 
         return slashSuccess(interaction, { embeds: [embed], ephemeral: true });
       }

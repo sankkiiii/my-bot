@@ -116,14 +116,13 @@ module.exports = {
       const color = fetchedUser.accentColor || 0x5865F2;
 
       const embed = new EmbedBuilder()
-        .setTitle(`${displayName}'s Banner`)
         .setColor(color)
-        .setImage(bannerUrl)
-        .setFooter({ text: `Requested by ${requester}` });
-
-      if (!inGuild) {
-        embed.setDescription(`${e.warning} This user is not in the server — showing global profile only.`);
-      }
+        .setAuthor({
+          name: user.username,
+          iconURL: user.displayAvatarURL({ dynamic: true }),
+        })
+        .setDescription(`🖼️ | Banner for **${displayName}**`)
+        .setImage(bannerUrl);
 
       const buttons = [];
       const baseUrl = bannerUrl.split('?')[0];

@@ -68,10 +68,13 @@ module.exports = {
       const bannerUrl = guild.bannerURL({ size: 4096, dynamic: true });
 
       const embed = new EmbedBuilder()
-        .setTitle(`${guild.name}'s Banner`)
         .setColor(0x5865F2)
-        .setImage(bannerUrl)
-        .setFooter({ text: `Requested by ${requester}` });
+        .setAuthor({
+          name: guild.name,
+          iconURL: guild.iconURL({ dynamic: true }),
+        })
+        .setDescription(`🖼️ | Server banner for **${guild.name}**`)
+        .setImage(bannerUrl);
 
       const buttons = [];
       const baseUrl = bannerUrl.split('?')[0];

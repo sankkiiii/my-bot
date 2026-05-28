@@ -119,41 +119,10 @@ module.exports = {
     const embed = new EmbedBuilder()
       .setColor('#ED4245')
       .setAuthor({
-        name: `Voice Channel Purged — ${targetVC.name}`,
+        name: executor.user.username,
         iconURL: executor.user.displayAvatarURL({ dynamic: true })
       })
-      .addFields(
-        {
-          name: `${e.vckick} Disconnected`,
-          value: `**${kicked}** member${kicked !== 1 ? 's' : ''}`,
-          inline: true
-        },
-        {
-          name: `${e.channels} Channel`,
-          value: targetVC.name,
-          inline: true
-        },
-        {
-          name: `${e.user} By`,
-          value: `${executor}`,
-          inline: true
-        }
-      )
-      .setFooter({
-        text: failed > 0
-          ? `${failed} member(s) could not be disconnected`
-          : `All members disconnected successfully`
-      })
-      .setTimestamp();
-
-    // Show names if 10 or fewer
-    if (kickedNames.length > 0 && kickedNames.length <= 10) {
-      embed.addFields({
-        name: 'Members',
-        value: kickedNames.join(', '),
-        inline: false
-      });
-    }
+      .setDescription(`💥 | Disconnected **${kicked}** members from **${targetVC.name}**${failed > 0 ? `\n⚠️ ${failed} could not be disconnected` : ''}`);
 
     const replyOptions = { embeds: [embed] };
     if (isSlash) {

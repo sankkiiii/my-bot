@@ -128,85 +128,50 @@ module.exports = {
         .map((f) => flagsMap[f])
         .filter(Boolean) || [];
 
-      if (!inGuild) {
-        const createdTimestamp = Math.floor(fetchedUser.createdTimestamp / 1000);
+      const color = inGuild ? (member.displayColor || 0x5865F2) : 0x5865F2;
+      const created = Math.floor(fetchedUser.createdTimestamp / 1000);
+      const joined = inGuild ? Math.floor(member.joinedTimestamp / 1000) : null;
+      const topRole = inGuild ? member.roles.highest : null;
+      const hexColor = inGuild ? member.displayHexColor : null;
 
-        const description = [
-          `${e.warning} This user is not in this server.`,
-          'Showing global Discord profile only.',
-          '',
-          `${e.id} **${fetchedUser.id}**  •  ${e.bot} Bot: ${fetchedUser.bot ? 'Yes' : 'No'}`,
-          `${e.calendar} Created: <t:${createdTimestamp}:R> (<t:${createdTimestamp}:D>)`,
-        ].join('\n');
-
-        const fields = [];
-
-        if (badges.length > 0) {
-          fields.push({ name: `${e.badge} Badges`, value: badges.join('\n'), inline: false });
-        }
-
-        const embed = new EmbedBuilder()
-          .setTitle(`${fetchedUser.username} (Not in server)`)
-          .setThumbnail(fetchedUser.displayAvatarURL({ size: 256, dynamic: true }))
-          .setColor(0x5865F2)
-          .setDescription(description)
-          .setFooter({ text: `Requested by ${requester.username} • Not a server member`, iconURL: requester.displayAvatarURL({ dynamic: true }) })
-          .setTimestamp();
-
-        if (fields.length > 0) {
-          embed.addFields(fields);
-        }
-
-        return replySuccess({ embeds: [embed] });
-      }
-
-      const color = member.displayColor || 0x5865F2;
-      const createdTimestamp = Math.floor(fetchedUser.createdTimestamp / 1000);
-      const joinedTimestamp = Math.floor(member.joinedTimestamp / 1000);
-
-      const roles = member.roles.cache
+      const roles = inGuild ? member.roles.cache
         .filter((r) => r.id !== guild.id)
         .sort((a, b) => b.position - a.position)
-        .map((r) => r.toString());
+        .map((r) => r.toString()) : [];
       const rolesDisplay = roles.length > 0
         ? roles.slice(0, 15).join(' ') + (roles.length > 15 ? ` +${roles.length - 15} more` : '')
-        : 'None';
+        : '';
 
-      const description = [
-        `${e.id} **${fetchedUser.id}**  •  ${e.bot} Bot: ${fetchedUser.bot ? 'Yes' : 'No'}`,
-        `${e.calendar} Created: <t:${createdTimestamp}:R> (<t:${createdTimestamp}:D>)`,
-        `${e.join} Joined: <t:${joinedTimestamp}:R> (<t:${joinedTimestamp}:D>)`,
-      ].join('\n');
+      const boosting = inGuild && member.premiumSince;
+      const boostTimestamp = boosting ? Math.floor(member.premiumSinceTimestamp / 1000) : null;
+      const timeout = inGuild && member.communicationDisabledUntil;
+      const timeoutTimestamp = timeout ? Math.floor(member.communicationDisabledUntilTimestamp / 1000) : null;
 
-      const fields = [
-        { name: `${e.user} Display Name`, value: member.displayName, inline: true },
-        { name: `${e.role} Top Role`, value: `${member.roles.highest}`, inline: true },
-        { name: `${e.color} Color`, value: member.displayHexColor, inline: true },
-        { name: `${e.role} Roles (${roles.length})`, value: rolesDisplay, inline: false },
+      const descriptionLines = [
+        `🆔 **ID:** ${fetchedUser.id}`,
+        `📅 **Created:** <t:${created}:R>`,
       ];
 
-      if (member.premiumSince) {
-        const boostTimestamp = Math.floor(member.premiumSinceTimestamp / 1000);
-        fields.push({ name: `${e.boost} Boosting`, value: `<t:${boostTimestamp}:R>`, inline: true });
-      }
+      if (joined) descriptionLines.push(`📥 **Joined:** <t:${joined}:R>`);
+      if (topRole) descriptionLines.push(`🌈 **Top Role:** ${topRole}`);
+      if (hexColor) descriptionLines.push(`🎨 **Color:** ${hexColor}`);
+      if (rolesDisplay) descriptionLines.push(`📋 **Roles:** ${rolesDisplay}`);
+      if (boosting) descriptionLines.push(`🚀 **Boosting since:** <t:${boostTimestamp}:R>`);
+      if (timeout) descriptionLines.push(`⏰ **Timeout until:** <t:${timeoutTimestamp}:R>`);
+      if (badges.length > 0) descriptionLines.push(`🏷️ **Badges:** ${badges.join(' ')}`);
 
-      if (member.communicationDisabledUntil) {
-        const timeoutTimestamp = Math.floor(member.communicationDisabledUntilTimestamp / 1000);
-        fields.push({ name: `${e.info} Timeout`, value: `<t:${timeoutTimestamp}:R>`, inline: true });
-      }
-
-      if (badges.length > 0) {
-        fields.push({ name: `${e.badge} Badges`, value: badges.join('\n'), inline: false });
+      if (!inGuild) {
+        descriptionLines.unshift(`${e.warning} **This user is not in this server.**\n`);
       }
 
       const embed = new EmbedBuilder()
-        .setTitle(`${member.displayName} (${fetchedUser.username})`)
-        .setThumbnail(member.displayAvatarURL({ size: 256, dynamic: true }))
         .setColor(color)
-        .setDescription(description)
-        .addFields(fields)
-        .setFooter({ text: `Requested by ${requester.username}`, iconURL: requester.displayAvatarURL({ dynamic: true }) })
-        .setTimestamp();
+        .setAuthor({
+          name: fetchedUser.username,
+          iconURL: fetchedUser.displayAvatarURL({ dynamic: true }),
+        })
+        .setThumbnail(fetchedUser.displayAvatarURL({ size: 256, dynamic: true }))
+        .setDescription(descriptionLines.join('\n'));
 
       await replySuccess({ embeds: [embed] });
     } catch (err) {

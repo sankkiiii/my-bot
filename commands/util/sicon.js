@@ -68,10 +68,13 @@ module.exports = {
       const iconUrl = guild.iconURL({ size: 4096, dynamic: true });
 
       const embed = new EmbedBuilder()
-        .setTitle(`${guild.name}'s Icon`)
         .setColor(0x5865F2)
-        .setImage(iconUrl)
-        .setFooter({ text: `Requested by ${requester}` });
+        .setAuthor({
+          name: guild.name,
+          iconURL: guild.iconURL({ dynamic: true }),
+        })
+        .setDescription(`🖼️ | Server icon for **${guild.name}**`)
+        .setImage(iconUrl);
 
       const buttons = [];
       const baseUrl = iconUrl.split('?')[0];

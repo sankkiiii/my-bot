@@ -134,13 +134,14 @@ module.exports = {
       const embed = new EmbedBuilder()
         .setColor('#5865F2')
         .setAuthor({
-          name: nickname
-            ? `${target.user.tag}'s nickname has been set to ${nickname}`
-            : `${target.user.tag}'s nickname has been cleared and set to ${target.user.username}`,
+          name: target.user.username,
           iconURL: target.user.displayAvatarURL({ dynamic: true }),
         })
-        .setFooter({ text: `Changed by ${executorMember.user?.tag || executor.tag}` })
-        .setTimestamp();
+        .setDescription(
+          nickname
+            ? `🏷️ | Nickname set to **${nickname}**`
+            : `🏷️ | Nickname cleared`
+        );
 
       return replySuccess({ embeds: [embed] });
     } catch (err) {

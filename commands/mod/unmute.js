@@ -129,22 +129,13 @@ module.exports = {
 
       await member.timeout(null, reason);
 
-      const targetTag = targetUser.tag || targetUser.username;
-      const moderatorTag = executor.tag || executor.username;
       const embed = new EmbedBuilder()
         .setColor('#57F287')
         .setAuthor({
-          name: `Unmute | ${targetTag}`,
+          name: targetUser.username,
           iconURL: targetUser.displayAvatarURL({ dynamic: true }),
         })
-        .addFields(
-          { name: `${e.user} User`, value: `${targetUser} (${targetTag})`, inline: true },
-          { name: `${e.id} ID`, value: targetUser.id, inline: true },
-          { name: `${e.warn} Reason`, value: reason, inline: false },
-          { name: `${e.user} Moderator`, value: `${executor}`, inline: true },
-        )
-        .setFooter({ text: `Action by ${moderatorTag}` })
-        .setTimestamp();
+        .setDescription(`🔊 | Unmuted **${targetUser.tag}**\n**Reason:** ${reason}`);
 
       await replySuccess({ embeds: [embed] });
     } catch (err) {

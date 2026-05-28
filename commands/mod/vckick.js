@@ -164,20 +164,10 @@ module.exports = {
       const embed = new EmbedBuilder()
         .setColor('#ED4245')
         .setAuthor({
-          name: `${target.displayName} has been disconnected from ${fromVC.name}`,
+          name: target.user.username,
           iconURL: target.user.displayAvatarURL({ dynamic: true }),
         })
-        .addFields(
-          { name: `${e.user} User`, value: `${target}`, inline: true },
-          {
-            name: `${e.channels} Channel`,
-            value: fromVC.name,
-            inline: true,
-          },
-          { name: `${e.user} Kicked by`, value: `${executor}`, inline: true }
-        )
-        .setFooter({ text: executor.user.tag })
-        .setTimestamp();
+        .setDescription(`👢 | Disconnected **${target.displayName}** from **${fromVC.name}**`);
 
       if (isSlash) {
         return slashSuccessTemp(interaction, { embeds: [embed] });

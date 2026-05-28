@@ -465,7 +465,7 @@ async function handleResetConfigConfirm(interaction) {
   if (system === 'all') {
     guildConfig.deleteConfig(guildId);
     configCache.invalidate(guildId);
-    await interaction.editReply(`${e.reset} All configuration has been reset.`);
+    await interaction.editReply('♻️ Configuration reset.');
   } else if (system === 'tickets') {
     guildConfig.setMany(guildId, {
       ticket_category: null,
@@ -473,7 +473,7 @@ async function handleResetConfigConfirm(interaction) {
       transcript_channel: null,
     });
     configCache.invalidate(guildId);
-    await interaction.editReply(`${e.reset} Ticket configuration reset.`);
+    await interaction.editReply('♻️ Configuration reset.');
   } else if (system === 'tempvc') {
     guildConfig.setMany(guildId, {
       temp_vc_category: null,
@@ -481,7 +481,7 @@ async function handleResetConfigConfirm(interaction) {
       create_duo_channel: null,
     });
     configCache.invalidate(guildId);
-    await interaction.editReply(`${e.reset} Temp VC configuration reset.`);
+    await interaction.editReply('♻️ Configuration reset.');
   } else {
     await interaction.editReply(`${e.error} Unknown reset target.`);
   }

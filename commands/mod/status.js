@@ -44,36 +44,30 @@ function getPresenceInfo() {
 function buildStatusEmbed(client, ping, latency, user) {
   const mem = process.memoryUsage();
   const memUsed = (mem.heapUsed / 1024 / 1024).toFixed(2);
-  const memTotal = (mem.heapTotal / 1024 / 1024).toFixed(2);
   const uptime = formatUptime(process.uptime());
-  const serverCount = client.guilds.cache.size;
-  const userCount = client.guilds.cache.reduce((acc, g) => acc + g.memberCount, 0);
-  const channelCount = client.channels.cache.size;
-  const commandCount = client.commands.size;
-  const presence = client.user.presence;
-  const statusText = presence?.status || 'online';
-  const activity = getPresenceInfo();
+  const guilds = client.guilds.cache.size;
+  const users = client.guilds.cache.reduce((acc, g) => acc + g.memberCount, 0);
+  const commands = client.commands.size;
+  const presence = getPresenceInfo();
 
   return new EmbedBuilder()
-    .setTitle(`${e.stats} Bot Status`)
-    .setColor(0x5865f2)
-    .setThumbnail(client.user.displayAvatarURL({ dynamic: true }))
-    .addFields(
-      { name: `${e.ping} API Ping`, value: `${ping}ms`, inline: true },
-      { name: `${e.info} Latency`, value: `${latency}ms`, inline: true },
-      { name: `${e.uptime} Uptime`, value: uptime, inline: true },
-      { name: `${e.memory} Memory`, value: `${memUsed}MB / ${memTotal}MB`, inline: true },
-      { name: `${e.stats} Servers`, value: `${serverCount}`, inline: true },
-      { name: `${e.members} Users`, value: `${userCount}`, inline: true },
-      { name: `${e.channels} Channels`, value: `${channelCount}`, inline: true },
-      { name: `${e.stats} Commands`, value: `${commandCount}`, inline: true },
-      { name: `${e.info} Status`, value: statusText, inline: true },
-      { name: `${e.playing} Activity`, value: activity, inline: true },
-      { name: `${e.info} Node.js`, value: process.version, inline: true },
-      { name: `${e.info} discord.js`, value: `v${djsVersion}`, inline: true },
-    )
-    .setFooter({ text: `Requested by ${user.username}` })
-    .setTimestamp();
+    .setColor('#5865F2')
+    .setAuthor({
+      name: client.user.username,
+      iconURL: client.user.displayAvatarURL({ dynamic: true }),
+    })
+    .setDescription(
+      `🏓 **Ping:** ${ping}ms\n` +
+      `↩️ **Latency:** ${latency}ms\n` +
+      `⏱️ **Uptime:** ${uptime}\n` +
+      `🧠 **Memory:** ${memUsed}MB\n` +
+      `🌐 **Servers:** ${guilds}\n` +
+      `👥 **Users:** ${users}\n` +
+      `⚙️ **Commands:** ${commands}\n` +
+      `🔧 **Node.js:** ${process.version}\n` +
+      `📦 **discord.js:** v${djsVersion}\n` +
+      `${presence && presence !== 'None' ? `🎮 **Activity:** ${presence}` : ''}`
+    );
 }
 
 module.exports = {

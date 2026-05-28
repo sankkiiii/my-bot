@@ -91,7 +91,7 @@ module.exports = {
           return replyError(`${e.warning} That user already has no-prefix access.`);
         }
         guildConfig.addNoPrefixUser(guild.id, targetUser.id, executorId);
-        return replySuccess({ content: `${e.success} ${targetUser} has been given no-prefix access.` });
+        return replySuccess({ content: `✅ **${targetUser.username}** has been given no-prefix access.` });
       }
 
       if (subcommand === 'remove') {
@@ -99,7 +99,7 @@ module.exports = {
           return replyError(`${e.warning} ${targetUser.tag} doesn't have no-prefix access.`);
         }
         guildConfig.removeNoPrefixUser(guild.id, targetUser.id);
-        return replySuccess({ content: `${e.success} No-prefix access removed from ${targetUser}.` });
+        return replySuccess({ content: `✅ No-prefix access removed from **${targetUser.username}**.` });
       }
     }
 
@@ -112,18 +112,19 @@ module.exports = {
         for (let i = 0; i < npUsers.length; i++) {
           const id = npUsers[i];
           const user = await client.users.fetch(id).catch(() => null);
-          description += `${i + 1}. ${user ? user.tag : 'Unknown'} (${id})\n`;
+          description += `${i + 1}. ${user ? user.tag : 'Unknown'} (\`${id}\`)\n`;
         }
       } else {
         description = 'No users have no-prefix access.';
       }
 
       const embed = new EmbedBuilder()
-        .setTitle('⚡ No-Prefix Users')
         .setColor('#5865F2')
-        .setDescription(description)
-        .setFooter({ text: `Total: ${npUsers.length} user(s)` })
-        .setTimestamp();
+        .setAuthor({
+          name: client.user.username,
+          iconURL: client.user.displayAvatarURL({ dynamic: true })
+        })
+        .setDescription(`⚡ **No-Prefix Users**\n\n${description}`);
 
       if (isSlash) {
         return replySuccess({ embeds: [embed], ephemeral: true });

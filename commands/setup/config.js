@@ -16,9 +16,9 @@ const {
 const e = require('../../config/emojis');
 
 function formatChannel(guild, id) {
-  if (!id) return `${e.error} Not set`;
+  if (!id) return '❌';
   const ch = guild.channels.cache.get(id);
-  return ch ? ch.toString() : `${e.warning} Channel deleted — reconfigure`;
+  return ch ? ch.toString() : '❌ (Deleted)';
 }
 
 module.exports = {
@@ -76,54 +76,24 @@ module.exports = {
       }
 
       const cfg = getConfig(guild.id) || {};
-      const ticketCount = guildConfig.getTicketCount(guild.id);
-      const noprefixCount = guildConfig.getNoPrefixUsers(guild.id).length;
 
-      const ticketsConfigured = !!(cfg.ticket_category && cfg.ticket_log_channel && cfg.transcript_channel);
-      const tempVcConfigured = !!(cfg.temp_vc_category && cfg.create_vc_channel);
+      const description = `🎫 **Tickets**
+Category: ${formatChannel(guild, cfg.ticket_category)}
+Log: ${formatChannel(guild, cfg.ticket_log_channel)}
+Transcript: ${formatChannel(guild, cfg.transcript_channel)}
+
+🔊 **Temp VC**
+Category: ${formatChannel(guild, cfg.temp_vc_category)}
+Hub: ${formatChannel(guild, cfg.create_vc_channel)}
+Duo: ${formatChannel(guild, cfg.create_duo_channel)}`;
 
       const embed = new EmbedBuilder()
-        .setTitle(`${e.config} Bot Configuration — ${guild.name}`)
         .setColor(0x5865F2)
-        .addFields(
-          {
-            name: `${e.ticket} Ticket System`,
-            value: [
-              `Category: ${formatChannel(guild, cfg.ticket_category)}`,
-              `Log Channel: ${formatChannel(guild, cfg.ticket_log_channel)}`,
-              `Transcript Channel: ${formatChannel(guild, cfg.transcript_channel)}`,
-            ].join('\n'),
-            inline: false,
-          },
-          {
-            name: '🎙️ Temp VC System',
-            value: [
-              `Category: ${formatChannel(guild, cfg.temp_vc_category)}`,
-              `Hub Trigger: ${formatChannel(guild, cfg.create_vc_channel)}`,
-              `Duo Trigger: ${formatChannel(guild, cfg.create_duo_channel)}`,
-            ].join('\n'),
-            inline: false,
-          },
-          {
-            name: `${e.stats} Stats`,
-            value: [
-              `Total Tickets Created: ${ticketCount}`,
-              `No-Prefix Users: ${noprefixCount}`,
-            ].join('\n'),
-            inline: false,
-          },
-          {
-            name: `${e.info} Setup Status`,
-            value: [
-              `Tickets: ${ticketsConfigured ? `${e.success} Configured` : `${e.error} Not configured`}`,
-              `Temp VC: ${tempVcConfigured ? `${e.success} Configured` : `${e.error} Not configured`}`,
-            ].join('\n'),
-            inline: false,
-          },
-        )
-        .setFooter({
-          text: `Use /setup to configure • Last updated: ${cfg.updated_at || 'Unknown'}`,
-        });
+        .setAuthor({
+          name: guild.name,
+          iconURL: guild.iconURL({ dynamic: true }),
+        })
+        .setDescription(description);
 
       if (isSlash) {
         return replySuccess({ embeds: [embed], ephemeral: true });
