@@ -167,7 +167,8 @@ module.exports = {
           name: target.user.username,
           iconURL: target.user.displayAvatarURL({ dynamic: true }),
         })
-        .setDescription(`👢 | Disconnected **${target.displayName}** from **${fromVC.name}**`);
+        .setDescription(`👢 | Disconnected **${target.displayName}** from **${fromVC.name}**`)
+        .setFooter({ text: `Requested by ${executor.user.tag}` });
 
       if (isSlash) {
         return slashSuccessTemp(interaction, { embeds: [embed] });

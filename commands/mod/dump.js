@@ -98,7 +98,8 @@ module.exports = {
         name: role.name,
         iconURL: role.iconURL() || guild.iconURL({ dynamic: true })
       })
-      .setDescription(`🎭 | **${role.name}** has **${members.size}** member${members.size !== 1 ? 's' : ''}${members.size <= 25 ? `\n\n${memberLines.join('\n')}` : ''}`);
+      .setDescription(`🎭 | **${role.name}** has **${members.size}** member${members.size !== 1 ? 's' : ''}${members.size <= 25 ? `\n\n${memberLines.join('\n')}` : ''}`)
+      .setFooter({ text: `Requested by ${executor.user.tag}` });
 
     if (members.size <= 25) {
       return isSlash

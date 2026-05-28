@@ -110,7 +110,8 @@ module.exports = {
           name: (isSlash ? interaction.user : message.author).username,
           iconURL: (isSlash ? interaction.user : message.author).displayAvatarURL({ dynamic: true }),
         })
-        .setDescription(`🗑️ | Deleted **${deleted.size}** messages`);
+        .setDescription(`🗑️ | Deleted **${deleted.size}** messages`)
+        .setFooter({ text: `Requested by ${(isSlash ? interaction.user : message.author).tag}` });
 
       if (isSlash) {
         return interaction.editReply({ embeds: [embed] });

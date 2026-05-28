@@ -187,7 +187,8 @@ module.exports = {
             name: member.displayName,
             iconURL: member.user.displayAvatarURL({ dynamic: true })
           })
-          .setDescription(`✅ | Removed ${role} from **${member.displayName}**`);
+          .setDescription(`✅ | Removed ${role} from **${member.displayName}**`)
+          .setFooter({ text: `Requested by ${executor.user.tag}` });
 
         return isSlash ? slashSuccess(interactionOrMessage, { embeds: [embed] }) : prefixSuccess(interactionOrMessage, { embeds: [embed] });
       } else {
@@ -200,7 +201,8 @@ module.exports = {
             name: member.displayName,
             iconURL: member.user.displayAvatarURL({ dynamic: true })
           })
-          .setDescription(`✅ | Added ${role} to **${member.displayName}**`);
+          .setDescription(`✅ | Added ${role} to **${member.displayName}**`)
+          .setFooter({ text: `Requested by ${executor.user.tag}` });
 
         return isSlash ? slashSuccess(interactionOrMessage, { embeds: [embed] }) : prefixSuccess(interactionOrMessage, { embeds: [embed] });
       }

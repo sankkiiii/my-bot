@@ -170,7 +170,8 @@ module.exports = {
           name: targetUser.username,
           iconURL: targetUser.displayAvatarURL({ dynamic: true }),
         })
-        .setDescription(`🔨 | Banned **${targetUser.tag}**\n**Reason:** ${reason}`);
+        .setDescription(`🔨 | Banned **${targetUser.tag}**\n**Reason:** ${reason}`)
+        .setFooter({ text: `Requested by ${executor.tag}` });
 
       await replySuccess({ embeds: [embed] });
     } catch (err) {

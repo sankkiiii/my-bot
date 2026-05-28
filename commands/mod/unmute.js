@@ -135,7 +135,8 @@ module.exports = {
           name: targetUser.username,
           iconURL: targetUser.displayAvatarURL({ dynamic: true }),
         })
-        .setDescription(`🔊 | Unmuted **${targetUser.tag}**\n**Reason:** ${reason}`);
+        .setDescription(`🔊 | Unmuted **${targetUser.tag}**\n**Reason:** ${reason}`)
+        .setFooter({ text: `Requested by ${executor.tag}` });
 
       await replySuccess({ embeds: [embed] });
     } catch (err) {

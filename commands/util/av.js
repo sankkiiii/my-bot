@@ -125,7 +125,8 @@ module.exports = {
           iconURL: user.displayAvatarURL({ dynamic: true }),
         })
         .setDescription(`🖼️ | Avatar for **${displayName}**`)
-        .setImage(mainAvatar);
+        .setImage(mainAvatar)
+        .setFooter({ text: `Requested by ${(isSlash ? interactionOrMessage.user : interactionOrMessage.author).tag}` });
 
       embeds.push(embed);
 
@@ -149,7 +150,8 @@ module.exports = {
             iconURL: user.displayAvatarURL({ dynamic: true }),
           })
           .setDescription(`🖼️ | Global Avatar for **${displayName}**`)
-          .setImage(globalAvatar);
+          .setImage(globalAvatar)
+          .setFooter({ text: `Requested by ${(isSlash ? interactionOrMessage.user : interactionOrMessage.author).tag}` });
         embeds.push(globalEmbed);
       }
 

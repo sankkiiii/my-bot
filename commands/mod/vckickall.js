@@ -122,7 +122,8 @@ module.exports = {
         name: executor.user.username,
         iconURL: executor.user.displayAvatarURL({ dynamic: true })
       })
-      .setDescription(`💥 | Disconnected **${kicked}** members from **${targetVC.name}**${failed > 0 ? `\n⚠️ ${failed} could not be disconnected` : ''}`);
+      .setDescription(`💥 | Disconnected **${kicked}** members from **${targetVC.name}**${failed > 0 ? `\n⚠️ ${failed} could not be disconnected` : ''}`)
+      .setFooter({ text: `Requested by ${executor.user.tag}` });
 
     const replyOptions = { embeds: [embed] };
     if (isSlash) {

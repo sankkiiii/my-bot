@@ -67,7 +67,8 @@ function buildStatusEmbed(client, ping, latency, user) {
       `🔧 **Node.js:** ${process.version}\n` +
       `📦 **discord.js:** v${djsVersion}\n` +
       `${presence && presence !== 'None' ? `🎮 **Activity:** ${presence}` : ''}`
-    );
+    )
+    .setFooter({ text: `Requested by ${user.tag}` });
 }
 
 module.exports = {

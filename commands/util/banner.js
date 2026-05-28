@@ -122,7 +122,8 @@ module.exports = {
           iconURL: user.displayAvatarURL({ dynamic: true }),
         })
         .setDescription(`🖼️ | Banner for **${displayName}**`)
-        .setImage(bannerUrl);
+        .setImage(bannerUrl)
+        .setFooter({ text: `Requested by ${(isSlash ? interactionOrMessage.user : interactionOrMessage.author).tag}` });
 
       const buttons = [];
       const baseUrl = bannerUrl.split('?')[0];

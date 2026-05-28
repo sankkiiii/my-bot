@@ -189,7 +189,8 @@ module.exports = {
           name: target.user.username,
           iconURL: target.user.displayAvatarURL({ dynamic: true }),
         })
-        .setDescription(`🎙️ | Dragged **${target.displayName}** to **${targetVC.name}**`);
+        .setDescription(`🎙️ | Dragged **${target.displayName}** to **${targetVC.name}**`)
+        .setFooter({ text: `Requested by ${executor.user.tag}` });
 
       if (isSlash) {
         return slashSuccess(interaction, { embeds: [embed] });

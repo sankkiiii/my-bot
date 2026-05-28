@@ -74,7 +74,8 @@ module.exports = {
           iconURL: guild.iconURL({ dynamic: true }),
         })
         .setDescription(`🖼️ | Server banner for **${guild.name}**`)
-        .setImage(bannerUrl);
+        .setImage(bannerUrl)
+        .setFooter({ text: `Requested by ${(isSlash ? interactionOrMessage.user : interactionOrMessage.author).tag}` });
 
       const buttons = [];
       const baseUrl = bannerUrl.split('?')[0];

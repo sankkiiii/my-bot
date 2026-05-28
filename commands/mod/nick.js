@@ -141,7 +141,8 @@ module.exports = {
           nickname
             ? `🏷️ | Nickname set to **${nickname}**`
             : `🏷️ | Nickname cleared`
-        );
+        )
+        .setFooter({ text: `Requested by ${executor.tag}` });
 
       return replySuccess({ embeds: [embed] });
     } catch (err) {

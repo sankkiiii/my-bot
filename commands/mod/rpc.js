@@ -180,7 +180,8 @@ module.exports = {
           name: client.user.username,
           iconURL: client.user.displayAvatarURL({ dynamic: true }),
         })
-        .setDescription(`✅ | Presence updated\n**Type:** ${type}\n**Text:** ${text}\n**Status:** ${status}`);
+        .setDescription(`✅ | Presence updated\n**Type:** ${type}\n**Text:** ${text}\n**Status:** ${status}`)
+        .setFooter({ text: `Requested by ${user.tag}` });
 
       return replySuccess({ embeds: [embed] });
     } catch (err) {
