@@ -36,6 +36,7 @@ All commands work as both Slash Commands (`/`) and Prefix Commands (default `!`)
 | `/vckick` | `vcremove`, `disconnectuser`, `dvc`, `forcedc` | Disconnect a user from a voice channel | `Move Members` |
 | `/vckickall` | `vcpurge`, `kickall`, `emptyvc`, `clearvc` | Disconnect everyone from a voice channel | `Move Members` |
 | `/dump` | `rolememebers`, `rmembers`, `rolelist`, `rd` | Show all members with a specific role | `Manage Roles` |
+| `/role` | `giverole`, `removerole`, `addrole`, `ar`, `rr`, `gr` | Add or remove a role from a user | `Manage Roles` |
 
 *(Note: Users with `Change Nickname` can change their own nickname without `Manage Nicknames`)*
 

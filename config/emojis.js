@@ -21,6 +21,8 @@ module.exports = {
   unmute:       '<:okk:1508545115801522357>',
   warn:         '<a:warn_:1508546781577871542>',
   purge:        '<:okk:1508545115801522357>',
+  roleAdd:      '<:roleadd:EMOJI_ID_HERE>',
+  roleRemove:   '<:roleremove:EMOJI_ID_HERE>',
   ownerCrown:   '<:ownercrown:EMOJI_ID_HERE>',
 
   // ── TICKETS ─────────────────────────────
