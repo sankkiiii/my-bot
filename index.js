@@ -33,7 +33,9 @@ async function start() {
 
   client.commands = new Collection();
   client.tempVCs = new Map();
+  client.tempVCsCreating = new Set();
   console.log('[Index] tempVCs Map initialized');
+  console.log('[Index] tempVCsCreating Set initialized');
 
   loadCommands(client);
   loadEvents(client);

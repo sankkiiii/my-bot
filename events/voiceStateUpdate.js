@@ -57,6 +57,7 @@ module.exports = {
 
   async execute(oldState, newState) {
     const tempVCs = newState.client.tempVCs;
+    const creating = newState.client.tempVCsCreating;
     const cfg = getConfig(newState.guild.id);
     const CREATE_VC_CHANNEL = cfg?.create_vc_channel;
     const CREATE_DUO_CHANNEL = cfg?.create_duo_channel;
@@ -92,35 +93,30 @@ module.exports = {
           return;
         }
 
+        // Add to creating lock set
+        creating.add(tempChannel.id);
         tempVCs.set(tempChannel.id, { creatorId: member.id, guildId: guild.id, type: 'hub' });
-        console.log('[TempVC] Created hub VC:', tempChannel.id, 'for:', member.id);
+        console.log(`[TempVC] Created: ${tempChannel.name} for ${member.user.tag}`);
 
         try {
           await member.voice.setChannel(tempChannel);
         } catch (err) {
           console.error('[TempVC] Failed to move member to hub:', err.message);
-          const humanMembers = tempChannel.members.filter(m => !m.user.bot);
-          if (humanMembers.size === 0) {
-            tempVCs.delete(tempChannel.id);
-            await tempChannel.delete().catch(() => {});
-          }
-          return;
         }
 
-        const hubHumanMembers = tempChannel.members.filter(m => !m.user.bot);
-        if (hubHumanMembers.size === 0) {
-          tempVCs.delete(tempChannel.id);
-          await tempChannel.delete().catch(() => {});
-        } else {
-          await sendControlPanel(tempChannel);
-          
-          // Place directly below trigger channel
-          if (triggerChannel) {
-            try {
-              await tempChannel.setPosition(triggerChannel.position + 1, { relative: false });
-            } catch (err) {
-              console.error('[TempVC] Failed to set position:', err.message);
-            }
+        // 3 second grace period to allow voice state to settle
+        setTimeout(() => {
+          creating.delete(tempChannel.id);
+        }, 3000);
+
+        await sendControlPanel(tempChannel);
+        
+        // Place directly below trigger channel
+        if (triggerChannel) {
+          try {
+            await tempChannel.setPosition(triggerChannel.position + 1, { relative: false });
+          } catch (err) {
+            console.error('[TempVC] Failed to set position:', err.message);
           }
         }
       }
@@ -158,35 +154,30 @@ module.exports = {
           return;
         }
 
+        // Add to creating lock set
+        creating.add(duoChannel.id);
         tempVCs.set(duoChannel.id, { creatorId: member.id, guildId: guild.id, type: 'duo' });
-        console.log('[DuoVC] Created duo VC:', duoChannel.id, 'for:', member.id);
+        console.log(`[TempVC] Created: ${duoChannel.name} for ${member.user.tag}`);
 
         try {
           await member.voice.setChannel(duoChannel);
         } catch (err) {
           console.error('[DuoVC] Failed to move member to duo:', err.message);
-          const humanMembers = duoChannel.members.filter(m => !m.user.bot);
-          if (humanMembers.size === 0) {
-            tempVCs.delete(duoChannel.id);
-            await duoChannel.delete().catch(() => {});
-          }
-          return;
         }
 
-        const duoHumanMembers = duoChannel.members.filter(m => !m.user.bot);
-        if (duoHumanMembers.size === 0) {
-          tempVCs.delete(duoChannel.id);
-          await duoChannel.delete().catch(() => {});
-        } else {
-          await sendControlPanel(duoChannel);
+        // 3 second grace period
+        setTimeout(() => {
+          creating.delete(duoChannel.id);
+        }, 3000);
 
-          // Place directly below duo trigger channel
-          if (duoTriggerChannel) {
-            try {
-              await duoChannel.setPosition(duoTriggerChannel.position + 1, { relative: false });
-            } catch (err) {
-              console.error('[DuoVC] Failed to set position:', err.message);
-            }
+        await sendControlPanel(duoChannel);
+
+        // Place directly below duo trigger channel
+        if (duoTriggerChannel) {
+          try {
+            await duoChannel.setPosition(duoTriggerChannel.position + 1, { relative: false });
+          } catch (err) {
+            console.error('[DuoVC] Failed to set position:', err.message);
           }
         }
       }
@@ -197,15 +188,37 @@ module.exports = {
         oldState.channelId !== CREATE_VC_CHANNEL &&
         oldState.channelId !== CREATE_DUO_CHANNEL
       ) {
-        if (tempVCs.has(oldState.channelId)) {
-          const channel = oldState.guild.channels.cache.get(oldState.channelId);
-          const humanMembers = channel ? channel.members.filter(m => !m.user.bot) : null;
-          if (channel && humanMembers && humanMembers.size === 0) {
-            tempVCs.delete(oldState.channelId);
-            await channel.delete().catch((err) =>
-              console.error('[TempVC] Failed to delete channel:', err.message),
-            );
-          }
+        const channelId = oldState.channelId;
+
+        // SKIP if channel is being created (race condition protection)
+        if (creating.has(channelId)) {
+          console.log('[TempVC] Skipping deletion — in creating Set:', channelId);
+          return;
+        }
+
+        // SKIP if not a tracked temp VC
+        if (!tempVCs.has(channelId)) return;
+
+        // Small delay before checking if empty to allow user move to finalize
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Re-fetch channel after delay (it might be deleted already)
+        const freshChannel = oldState.guild.channels.cache.get(channelId);
+        if (!freshChannel) {
+          tempVCs.delete(channelId);
+          return;
+        }
+
+        // Still in creating Set? skip
+        if (creating.has(channelId)) return;
+
+        const humanMembers = freshChannel.members.filter(m => !m.user.bot);
+        if (humanMembers.size === 0) {
+          tempVCs.delete(channelId);
+          await freshChannel.delete().catch((err) =>
+            console.error('[TempVC] Failed to delete channel:', err.message),
+          );
+          console.log('[TempVC] Deleted empty VC:', freshChannel.name);
         }
       }
     } catch (err) {

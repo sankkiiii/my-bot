@@ -25,6 +25,11 @@ module.exports = {
         console.warn('[Ready] WARNING: OWNER_ID not set in .env');
       }
 
+      // --- Safety init for creation Set ---
+      if (!client.tempVCsCreating) {
+        client.tempVCsCreating = new Set();
+      }
+
       // --- Load saved presence or set default ---
       let presenceRestored = false;
       try {
