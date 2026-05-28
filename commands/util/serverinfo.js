@@ -28,7 +28,7 @@ module.exports = {
       let guild;
       let replyError;
       let replySuccess;
-      let requester;
+      let executor;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
@@ -36,7 +36,7 @@ module.exports = {
         if (!guild) {
           return slashError(interaction, 'This command only works in a server.');
         }
-        requester = interaction.user;
+        executor = interaction.user;
         replyError = (content) => slashError(interaction, content);
         replySuccess = (opts) => slashSuccess(interaction, opts);
 
@@ -51,7 +51,7 @@ module.exports = {
         if (!guild) {
           return prefixError(message, 'This command only works in a server.');
         }
-        requester = message.author;
+        executor = message.author;
         replyError = (content) => prefixError(message, content);
         replySuccess = (opts) => prefixSuccess(message, opts);
 
@@ -67,31 +67,55 @@ module.exports = {
       const owner = await guild.fetchOwner();
 
       const bots = members.filter((m) => m.user.bot).size;
-      const humans = members.size - bots;
+      const humans = guild.memberCount - bots;
 
-      const textChannels = guild.channels.cache.filter((c) => c.type === ChannelType.GuildText).size;
-      const voiceChannels = guild.channels.cache.filter((c) => c.type === ChannelType.GuildVoice).size;
-      const categories = guild.channels.cache.filter((c) => c.type === ChannelType.GuildCategory).size;
+      const textCount = guild.channels.cache.filter((c) => c.type === ChannelType.GuildText).size;
+      const voiceCount = guild.channels.cache.filter((c) => c.type === ChannelType.GuildVoice).size;
+      const categoryCount = guild.channels.cache.filter((c) => c.type === ChannelType.GuildCategory).size;
+      const threadCount = guild.channels.cache.filter((c) => [ChannelType.PublicThread, ChannelType.PrivateThread, ChannelType.AnnouncementThread].includes(c.type)).size;
 
-      const createdTimestamp = Math.floor(guild.createdTimestamp / 1000);
+      const roleCount = guild.roles.cache.size;
+      const emojiCount = guild.emojis.cache.size;
+      const stickerCount = guild.stickers.cache.size;
 
-      const description = `👑 **Owner:** ${owner.user}
-📅 **Created:** <t:${createdTimestamp}:R>
-🌍 **Region:** ${guild.preferredLocale || 'Auto'}
-✅ **Verified:** ${guild.verified ? 'Yes' : 'No'} • 🔒 **2FA:** ${guild.mfaLevel === 1 ? 'Yes' : 'No'}
+      const description = `**General Information**
+Owner: ${owner.user}
+ID: ${guild.id}
+Created: <t:${Math.floor(guild.createdTimestamp / 1000)}:R>
+Region: ${guild.preferredLocale}
+Verified: ${guild.verified ? '✅' : '❌'}
+2FA Required: ${guild.mfaLevel === 1 ? '✅' : '❌'}
 
-👥 **Members:** ${guild.memberCount} (🤖 ${bots} bots • 👤 ${humans} humans)
-💬 **Channels:** ${textChannels} text • 🔊 ${voiceChannels} voice • 📁 ${categories} categories
-🎭 **Roles:** ${guild.roles.cache.size} • 😀 **Emojis:** ${guild.emojis.cache.size} • 🌟 **Stickers:** ${guild.stickers.cache.size}
-🚀 **Boost:** Level ${guild.premiumTier} (${guild.premiumSubscriptionCount || 0} boosts)`;
+**Members**
+Total: ${guild.memberCount}
+Humans: ${humans}
+Bots: ${bots}
+
+**Channels**
+Text: ${textCount}
+Voice: ${voiceCount}
+Categories: ${categoryCount}
+Threads: ${threadCount}
+
+**Other**
+Roles: ${roleCount}
+Emojis: ${emojiCount}
+Stickers: ${stickerCount}
+
+**Boost Status**
+Level: ${guild.premiumTier}
+Boosts: ${guild.premiumSubscriptionCount || 0}
+${guild.vanityURLCode ? `Vanity URL: discord.gg/${guild.vanityURLCode}` : ''}`;
 
       const embed = new EmbedBuilder()
         .setColor(0x5865F2)
         .setAuthor({
-          name: guild.name,
+          name: `${guild.name}'s Information`,
           iconURL: guild.iconURL({ dynamic: true }),
         })
-        .setDescription(description);
+        .setThumbnail(guild.iconURL({ size: 256, dynamic: true }))
+        .setDescription(description)
+        .setFooter({ text: `Requested by ${executor.tag}` });
 
       await replySuccess({ embeds: [embed] });
     } catch (err) {

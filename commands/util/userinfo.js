@@ -2,6 +2,7 @@ const {
   SlashCommandBuilder,
   EmbedBuilder,
   CommandInteraction,
+  PermissionFlagsBits,
 } = require('discord.js');
 const resolveUserGlobal = require('../../utils/resolveUserGlobal');
 const cooldown = require('../../utils/cooldown');
@@ -14,19 +15,36 @@ const {
 const e = require('../../config/emojis');
 
 const flagsMap = {
-  Staff: `${e.badge} Discord Staff`,
-  Partner: `${e.badge} Partnered Server Owner`,
-  Hypesquad: `${e.badge} HypeSquad Events`,
-  BugHunterLevel1: `${e.badge} Bug Hunter Level 1`,
-  BugHunterLevel2: `${e.badge} Bug Hunter Level 2`,
-  HypeSquadOnlineHouse1: `${e.badge} HypeSquad Bravery`,
-  HypeSquadOnlineHouse2: `${e.badge} HypeSquad Brilliance`,
-  HypeSquadOnlineHouse3: `${e.badge} HypeSquad Balance`,
-  PremiumEarlySupporter: `${e.badge} Early Supporter`,
-  VerifiedBot: `${e.verified} Verified Bot`,
-  VerifiedDeveloper: `${e.badge} Early Verified Bot Developer`,
-  CertifiedModerator: `${e.badge} Discord Certified Moderator`,
-  ActiveDeveloper: `${e.badge} Active Developer`,
+  Staff: 'Discord Staff',
+  Partner: 'Partnered Owner',
+  Hypesquad: 'HypeSquad Events',
+  BugHunterLevel1: 'Bug Hunter',
+  BugHunterLevel2: 'Bug Hunter Gold',
+  HypeSquadOnlineHouse1: 'Bravery',
+  HypeSquadOnlineHouse2: 'Brilliance',
+  HypeSquadOnlineHouse3: 'Balance',
+  PremiumEarlySupporter: 'Early Supporter',
+  VerifiedBot: 'Verified Bot',
+  VerifiedDeveloper: 'Early Bot Dev',
+  CertifiedModerator: 'Certified Mod',
+  ActiveDeveloper: 'Active Developer',
+};
+
+const permMap = {
+  Administrator: 'Administrator',
+  KickMembers: 'Kick Members',
+  BanMembers: 'Ban Members',
+  ManageChannels: 'Manage Channels',
+  ManageMessages: 'Manage Messages',
+  MentionEveryone: 'Mention Everyone',
+  ManageNicknames: 'Manage Nicknames',
+  ManageRoles: 'Manage Roles',
+  ManageWebhooks: 'Manage Webhooks',
+  ManageEmojisAndStickers: 'Manage Emojis',
+  ModerateMembers: 'Moderate Members',
+  ViewAuditLog: 'View Audit Log',
+  ManageGuild: 'Manage Server',
+  ManageThreads: 'Manage Threads',
 };
 
 module.exports = {
@@ -52,7 +70,7 @@ module.exports = {
       let guild;
       let replyError;
       let replySuccess;
-      let requester;
+      let executor;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
@@ -60,7 +78,7 @@ module.exports = {
         if (!guild) {
           return slashError(interaction, 'This command only works in a server.');
         }
-        requester = interaction.user;
+        executor = interaction.user;
         replyError = (content) => slashError(interaction, content);
         replySuccess = (opts) => slashSuccess(interaction, opts);
 
@@ -84,10 +102,6 @@ module.exports = {
           const user = await client.users.fetch(interaction.user.id, { force: true });
           resolved = { member, user, inGuild: true };
         }
-
-        if (!resolved.user) {
-          return replyError(`${e.error} Could not find that user. Try their @mention, username, or user ID.`);
-        }
       } else {
         const message = interactionOrMessage;
         const args = argsOrClient;
@@ -95,7 +109,7 @@ module.exports = {
         if (!guild) {
           return prefixError(message, 'This command only works in a server.');
         }
-        requester = message.author;
+        executor = message.author;
         replyError = (content) => prefixError(message, content);
         replySuccess = (opts) => prefixSuccess(message, opts);
 
@@ -114,64 +128,100 @@ module.exports = {
         } else {
           resolved = await resolveUserGlobal(input, message.guild, client);
         }
+      }
 
-        if (!resolved.user) {
-          return replyError(`${e.error} Could not find that user. Try their @mention, username, or user ID.`);
-        }
+      if (!resolved.user) {
+        return replyError(`${e.error} Could not find that user.`);
       }
 
       const { member, user, inGuild } = resolved;
-
       const fetchedUser = await client.users.fetch(user.id, { force: true });
-
+      const createdTimestamp = Math.floor(fetchedUser.createdTimestamp / 1000);
       const badges = fetchedUser.flags?.toArray()
         .map((f) => flagsMap[f])
-        .filter(Boolean) || [];
+        .filter(Boolean)
+        .join(', ') || 'None';
 
-      const color = inGuild ? (member.displayColor || 0x5865F2) : 0x5865F2;
-      const created = Math.floor(fetchedUser.createdTimestamp / 1000);
-      const joined = inGuild ? Math.floor(member.joinedTimestamp / 1000) : null;
-      const topRole = inGuild ? member.roles.highest : null;
-      const hexColor = inGuild ? member.displayHexColor : null;
+      const color = inGuild ? (member.displayHexColor || 0x5865F2) : 0x5865F2;
 
-      const roles = inGuild ? member.roles.cache
-        .filter((r) => r.id !== guild.id)
-        .sort((a, b) => b.position - a.position)
-        .map((r) => r.toString()) : [];
-      const rolesDisplay = roles.length > 0
-        ? roles.slice(0, 15).join(' ') + (roles.length > 15 ? ` +${roles.length - 15} more` : '')
-        : '';
-
-      const boosting = inGuild && member.premiumSince;
-      const boostTimestamp = boosting ? Math.floor(member.premiumSinceTimestamp / 1000) : null;
-      const timeout = inGuild && member.communicationDisabledUntil;
-      const timeoutTimestamp = timeout ? Math.floor(member.communicationDisabledUntilTimestamp / 1000) : null;
-
-      const descriptionLines = [
-        `🆔 **ID:** ${fetchedUser.id}`,
-        `📅 **Created:** <t:${created}:R>`,
-      ];
-
-      if (joined) descriptionLines.push(`📥 **Joined:** <t:${joined}:R>`);
-      if (topRole) descriptionLines.push(`🌈 **Top Role:** ${topRole}`);
-      if (hexColor) descriptionLines.push(`🎨 **Color:** ${hexColor}`);
-      if (rolesDisplay) descriptionLines.push(`📋 **Roles:** ${rolesDisplay}`);
-      if (boosting) descriptionLines.push(`🚀 **Boosting since:** <t:${boostTimestamp}:R>`);
-      if (timeout) descriptionLines.push(`⏰ **Timeout until:** <t:${timeoutTimestamp}:R>`);
-      if (badges.length > 0) descriptionLines.push(`🏷️ **Badges:** ${badges.join(' ')}`);
+      let description = '';
 
       if (!inGuild) {
-        descriptionLines.unshift(`${e.warning} **This user is not in this server.**\n`);
+        description = `**General Information**
+Name: ${fetchedUser.username}
+ID: ${fetchedUser.id}
+Bot?: ${fetchedUser.bot ? '✅' : '❌'}
+Badges: ${badges}
+Account Created: <t:${createdTimestamp}:R>
+
+⚠️ This user is not in this server.`;
+
+        const embed = new EmbedBuilder()
+          .setColor(color)
+          .setAuthor({
+            name: `${fetchedUser.username}'s Information`,
+            iconURL: guild.iconURL({ dynamic: true }),
+          })
+          .setThumbnail(fetchedUser.displayAvatarURL({ size: 256, dynamic: true }))
+          .setDescription(description)
+          .setFooter({ text: `Requested by ${executor.tag}` });
+
+        return await replySuccess({ embeds: [embed] });
       }
+
+      // Guild user
+      const joinedTimestamp = Math.floor(member.joinedTimestamp / 1000);
+      const roles = member.roles.cache
+        .filter((r) => r.id !== guild.id)
+        .sort((a, b) => b.position - a.position);
+      const roleCount = roles.size;
+      const rolesDisplay = roles.size > 0
+        ? roles.map((r) => r.toString()).slice(0, 10).join(', ') + (roles.size > 10 ? ` +${roles.size - 10} more` : '')
+        : 'None';
+
+      const keyPerms = Object.entries(permMap)
+        .filter(([perm]) => member.permissions.has(PermissionFlagsBits[perm]))
+        .map(([, label]) => label)
+        .join(', ');
+      const keyPermissions = keyPerms || 'None';
+
+      let acknowledgement = 'Server Member';
+      if (member.id === guild.ownerId) acknowledgement = 'Server Owner';
+      else if (member.permissions.has(PermissionFlagsBits.Administrator)) acknowledgement = 'Server Administrator';
+      else if (member.permissions.has(PermissionFlagsBits.ManageGuild)) acknowledgement = 'Server Manager';
+      else if (member.permissions.has(PermissionFlagsBits.ManageMessages)) acknowledgement = 'Server Moderator';
+
+      description = `**General Information**
+Name: ${fetchedUser.username}
+ID: ${fetchedUser.id}
+Nickname: ${member.nickname || 'None'}
+Bot?: ${fetchedUser.bot ? '✅' : '❌'}
+Badges: ${badges}
+Account Created: <t:${createdTimestamp}:R>
+Server Joined: <t:${joinedTimestamp}:R>
+
+**Role Info**
+Roles [${roleCount}]: ${rolesDisplay}
+Color: ${member.displayHexColor}
+
+**Extra**
+Boosting Since: ${member.premiumSince ? `<t:${Math.floor(member.premiumSinceTimestamp / 1000)}:R>` : 'Not boosting the server.'}
+
+**Key Permissions**
+${keyPermissions}
+
+**Acknowledgement**
+${acknowledgement}`;
 
       const embed = new EmbedBuilder()
         .setColor(color)
         .setAuthor({
-          name: fetchedUser.username,
-          iconURL: fetchedUser.displayAvatarURL({ dynamic: true }),
+          name: `${member.displayName}'s Information`,
+          iconURL: guild.iconURL({ dynamic: true }),
         })
-        .setThumbnail(fetchedUser.displayAvatarURL({ size: 256, dynamic: true }))
-        .setDescription(descriptionLines.join('\n'));
+        .setThumbnail(member.displayAvatarURL({ size: 256, dynamic: true }))
+        .setDescription(description)
+        .setFooter({ text: `Requested by ${executor.tag}` });
 
       await replySuccess({ embeds: [embed] });
     } catch (err) {
