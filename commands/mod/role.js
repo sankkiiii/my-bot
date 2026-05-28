@@ -16,7 +16,7 @@ const e = require('../../config/emojis');
 
 function resolveRole(input, guild) {
   if (!input) return null;
-  const cleaned = input.replace(/[<@&>]/g, '').trim();
+  const cleaned = input.replace(/[< @&>]/g, '').trim();
 
   // By ID
   if (/^\d{17,19}$/.test(cleaned)) {
@@ -39,52 +39,38 @@ function resolveRole(input, guild) {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('role')
-    .setDescription('Add or remove a role from a user')
+    .setDescription('Toggle a role on a user (add if missing, remove if present)')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
-    .addSubcommand((sub) =>
-      sub
-        .setName('add')
-        .setDescription('Add a role to a user')
-        .addUserOption((opt) =>
-          opt.setName('user').setDescription('Select user from list').setRequired(false)
-        )
-        .addRoleOption((opt) =>
-          opt.setName('role').setDescription('Select role from list').setRequired(false)
-        )
-        .addStringOption((opt) =>
-          opt.setName('query').setDescription('Username or user ID').setRequired(false)
-        )
-        .addStringOption((opt) =>
-          opt.setName('roleinput').setDescription('Role name or role ID').setRequired(false)
-        )
+    .addUserOption(opt =>
+      opt.setName('user')
+        .setDescription('Select user from list')
+        .setRequired(false)
     )
-    .addSubcommand((sub) =>
-      sub
-        .setName('remove')
-        .setDescription('Remove a role from a user')
-        .addUserOption((opt) =>
-          opt.setName('user').setDescription('Select user from list').setRequired(false)
-        )
-        .addRoleOption((opt) =>
-          opt.setName('role').setDescription('Select role from list').setRequired(false)
-        )
-        .addStringOption((opt) =>
-          opt.setName('query').setDescription('Username or user ID').setRequired(false)
-        )
-        .addStringOption((opt) =>
-          opt.setName('roleinput').setDescription('Role name or role ID').setRequired(false)
-        )
+    .addRoleOption(opt =>
+      opt.setName('role')
+        .setDescription('Select role from list')
+        .setRequired(false)
+    )
+    .addStringOption(opt =>
+      opt.setName('query')
+        .setDescription('Username or user ID')
+        .setRequired(false)
+    )
+    .addStringOption(opt =>
+      opt.setName('roleinput')
+        .setDescription('Role name or role ID')
+        .setRequired(false)
     ),
 
   name: 'role',
   aliases: ['giverole', 'removerole', 'addrole', 'ar', 'rr', 'gr'],
 
-  async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
+  async execute(interactionOrMessage, argsOrClient) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
     const guild = interactionOrMessage.guild;
     if (!guild) return;
 
-    const executor = isSlash ? interactionOrMessage.member : interactionOrMessage.member;
+    const executor = interactionOrMessage.member;
     const botMember = guild.members.me;
 
     // Cooldown check
@@ -108,13 +94,9 @@ module.exports = {
 
     let member;
     let role;
-    let isRemove = false;
 
     if (isSlash) {
-      const subcommand = interactionOrMessage.options.getSubcommand();
-      isRemove = subcommand === 'remove';
-
-      // Resolve user
+      // Resolve User
       const userOpt = interactionOrMessage.options.getUser('user');
       const query = interactionOrMessage.options.getString('query');
       if (userOpt) {
@@ -123,7 +105,7 @@ module.exports = {
         member = await resolveUser(query, guild);
       }
 
-      // Resolve role
+      // Resolve Role
       const roleOpt = interactionOrMessage.options.getRole('role');
       const roleInput = interactionOrMessage.options.getString('roleinput');
       if (roleOpt) {
@@ -133,35 +115,30 @@ module.exports = {
       }
     } else {
       const args = argsOrClient;
-      let workingArgs = [...args];
+      if (!args || args.length < 1) {
+        return prefixError(interactionOrMessage, `${e.error} Please provide a user and a role.`);
+      }
 
-      // Prefix Mode Detection
-      if (workingArgs[0] === 'remove' || workingArgs[0] === 'rm') {
-        isRemove = true;
-        workingArgs = workingArgs.slice(1);
-      } else if (workingArgs.includes('remove') || workingArgs.includes('rm')) {
-        // Check if keyword exists after mention or elsewhere
-        const idx = workingArgs.findIndex((a) => a === 'remove' || a === 'rm');
-        if (idx !== -1) {
-          isRemove = true;
-          workingArgs.splice(idx, 1);
+      const mentioned = interactionOrMessage.mentions.members.first();
+      let roleInputStr;
+
+      if (mentioned) {
+        member = mentioned;
+        const mentionedRole = interactionOrMessage.mentions.roles.first();
+        if (mentionedRole) {
+          role = mentionedRole;
+        } else {
+          roleInputStr = args
+            .filter(a => !a.includes(mentioned.id))
+            .join(' ')
+            .trim();
+          role = resolveRole(roleInputStr, guild);
         }
-      }
-
-      // Resolve user
-      if (interactionOrMessage.mentions.members.first()) {
-        member = interactionOrMessage.mentions.members.first();
-        workingArgs = workingArgs.filter((a) => !a.includes(member.id));
-      } else if (workingArgs[0]) {
-        member = await resolveUser(workingArgs[0], guild);
-        workingArgs = workingArgs.slice(1);
-      }
-
-      // Resolve role
-      if (interactionOrMessage.mentions.roles.first()) {
-        role = interactionOrMessage.mentions.roles.first();
-      } else if (workingArgs.length > 0) {
-        role = resolveRole(workingArgs.join(' '), guild);
+      } else {
+        member = await resolveUser(args[0], guild);
+        roleInputStr = args.slice(1).join(' ').trim();
+        const mentionedRole = interactionOrMessage.mentions.roles.first();
+        role = mentionedRole || resolveRole(roleInputStr, guild);
       }
     }
 
@@ -197,49 +174,42 @@ module.exports = {
     }
 
     const executorTag = isSlash ? interactionOrMessage.user.tag : interactionOrMessage.author.tag;
+    const hasRole = member.roles.cache.has(role.id);
 
     try {
-      if (isRemove) {
-        if (!member.roles.cache.has(role.id)) {
-          const msg = `${e.warning} **${member.displayName}** does not have the **${role.name}** role.`;
-          return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
-        }
-
-        await member.roles.remove(role, `Removed by ${executorTag}`);
-
+      if (hasRole) {
+        // REMOVE
+        await member.roles.remove(role, `Toggled by ${executorTag}`);
+        
         const embed = new EmbedBuilder()
           .setColor('#ED4245')
           .setAuthor({
             name: `Role Removed — ${member.displayName}`,
-            iconURL: member.user.displayAvatarURL({ dynamic: true }),
+            iconURL: member.user.displayAvatarURL({ dynamic: true })
           })
           .addFields(
             { name: `${e.user} User`, value: `${member}`, inline: true },
             { name: `${e.role} Role`, value: `${role}`, inline: true },
-            { name: `${e.user} By`, value: `${executor}`, inline: true }
+            { name: `${e.user} By`, value: `${isSlash ? interactionOrMessage.user : interactionOrMessage.author}`, inline: true }
           )
           .setFooter({ text: executorTag })
           .setTimestamp();
 
         return isSlash ? slashSuccess(interactionOrMessage, { embeds: [embed] }) : prefixSuccess(interactionOrMessage, { embeds: [embed] });
       } else {
-        if (member.roles.cache.has(role.id)) {
-          const msg = `${e.warning} **${member.displayName}** already has the **${role.name}** role.`;
-          return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
-        }
-
-        await member.roles.add(role, `Added by ${executorTag}`);
+        // ADD
+        await member.roles.add(role, `Toggled by ${executorTag}`);
 
         const embed = new EmbedBuilder()
           .setColor(role.color || 0x57F287)
           .setAuthor({
             name: `Role Added — ${member.displayName}`,
-            iconURL: member.user.displayAvatarURL({ dynamic: true }),
+            iconURL: member.user.displayAvatarURL({ dynamic: true })
           })
           .addFields(
             { name: `${e.user} User`, value: `${member}`, inline: true },
             { name: `${e.role} Role`, value: `${role}`, inline: true },
-            { name: `${e.user} By`, value: `${executor}`, inline: true }
+            { name: `${e.user} By`, value: `${isSlash ? interactionOrMessage.user : interactionOrMessage.author}`, inline: true }
           )
           .setFooter({ text: executorTag })
           .setTimestamp();
@@ -247,7 +217,7 @@ module.exports = {
         return isSlash ? slashSuccess(interactionOrMessage, { embeds: [embed] }) : prefixSuccess(interactionOrMessage, { embeds: [embed] });
       }
     } catch (err) {
-      console.error('[Role Command]', err);
+      console.error('[Role Toggle Error]', err);
       const msg = `${e.error} Failed to update roles. Check my permissions.`;
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
     }
