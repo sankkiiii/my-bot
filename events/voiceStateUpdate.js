@@ -67,6 +67,7 @@ module.exports = {
       if (CREATE_VC_CHANNEL && newState.channelId === CREATE_VC_CHANNEL) {
         const guild = newState.guild;
         const member = newState.member;
+        const triggerChannel = guild.channels.cache.get(CREATE_VC_CHANNEL);
 
         let tempChannel;
         try {
@@ -112,6 +113,15 @@ module.exports = {
           await tempChannel.delete().catch(() => {});
         } else {
           await sendControlPanel(tempChannel);
+          
+          // Place directly below trigger channel
+          if (triggerChannel) {
+            try {
+              await tempChannel.setPosition(triggerChannel.position + 1, { relative: false });
+            } catch (err) {
+              console.error('[TempVC] Failed to set position:', err.message);
+            }
+          }
         }
       }
 
@@ -119,6 +129,7 @@ module.exports = {
       if (CREATE_DUO_CHANNEL && newState.channelId === CREATE_DUO_CHANNEL) {
         const guild = newState.guild;
         const member = newState.member;
+        const duoTriggerChannel = guild.channels.cache.get(CREATE_DUO_CHANNEL);
 
         const duoNumber = getNextDuoNumber(guild, TEMP_VC_CATEGORY);
         const channelName = `\uD834\uDD22\u30FBduo ${toSuperscript(duoNumber)}`;
@@ -168,6 +179,15 @@ module.exports = {
           await duoChannel.delete().catch(() => {});
         } else {
           await sendControlPanel(duoChannel);
+
+          // Place directly below duo trigger channel
+          if (duoTriggerChannel) {
+            try {
+              await duoChannel.setPosition(duoTriggerChannel.position + 1, { relative: false });
+            } catch (err) {
+              console.error('[DuoVC] Failed to set position:', err.message);
+            }
+          }
         }
       }
 
