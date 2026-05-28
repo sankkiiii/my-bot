@@ -184,16 +184,10 @@ module.exports = {
         const embed = new EmbedBuilder()
           .setColor('#ED4245')
           .setAuthor({
-            name: `Role Removed — ${member.displayName}`,
+            name: member.displayName,
             iconURL: member.user.displayAvatarURL({ dynamic: true })
           })
-          .addFields(
-            { name: `${e.user} User`, value: `${member}`, inline: true },
-            { name: `${e.role} Role`, value: `${role}`, inline: true },
-            { name: `${e.user} By`, value: `${isSlash ? interactionOrMessage.user : interactionOrMessage.author}`, inline: true }
-          )
-          .setFooter({ text: executorTag })
-          .setTimestamp();
+          .setDescription(`✅ | Removed ${role} from **${member.displayName}**`);
 
         return isSlash ? slashSuccess(interactionOrMessage, { embeds: [embed] }) : prefixSuccess(interactionOrMessage, { embeds: [embed] });
       } else {
@@ -203,16 +197,10 @@ module.exports = {
         const embed = new EmbedBuilder()
           .setColor(role.color || 0x57F287)
           .setAuthor({
-            name: `Role Added — ${member.displayName}`,
+            name: member.displayName,
             iconURL: member.user.displayAvatarURL({ dynamic: true })
           })
-          .addFields(
-            { name: `${e.user} User`, value: `${member}`, inline: true },
-            { name: `${e.role} Role`, value: `${role}`, inline: true },
-            { name: `${e.user} By`, value: `${isSlash ? interactionOrMessage.user : interactionOrMessage.author}`, inline: true }
-          )
-          .setFooter({ text: executorTag })
-          .setTimestamp();
+          .setDescription(`✅ | Added ${role} to **${member.displayName}**`);
 
         return isSlash ? slashSuccess(interactionOrMessage, { embeds: [embed] }) : prefixSuccess(interactionOrMessage, { embeds: [embed] });
       }
