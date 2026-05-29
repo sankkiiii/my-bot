@@ -63,7 +63,7 @@ module.exports = {
     ),
 
   name: 'role',
-  aliases: ['giverole', 'removerole', 'addrole', 'ar', 'rr', 'gr'],
+  aliases: ['giverole', 'removerole', 'addrole'],
 
   async execute(interactionOrMessage, argsOrClient) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
