@@ -13,7 +13,7 @@ const {
   prefixSuccess,
 } = require('../../utils/replyHelper');
 const resolveUser = require('../../utils/resolveUser');
-const e = require('../../config/emojis');
+const { success, error, getEmoji, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -56,11 +56,11 @@ module.exports = {
         const remaining = cooldown.check('warn', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
 
         if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-          return replyError(`${e.error} You need the **Timeout Members** permission to use this command.`);
+          return replyError(error(`You need the **Timeout Members** permission to use this command.`));
         }
 
         const userOption = interaction.options.getUser('user');
@@ -68,7 +68,7 @@ module.exports = {
         reason = interaction.options.getString('reason') || 'No reason provided';
 
         if (!userOption && !query) {
-          return replyError(`${e.error} Please provide a user (select or type username/ID).`);
+          return replyError(error(`Please provide a user (select or type username/ID).`));
         }
 
         if (userOption) {
@@ -81,7 +81,7 @@ module.exports = {
         }
 
         if (!targetUser) {
-          return replyError(`${e.error} Could not find that user.`);
+          return replyError(error(`Could not find that user.`));
         }
       } else {
         const message = interactionOrMessage;
@@ -97,21 +97,21 @@ module.exports = {
         const remaining = cooldown.check('warn', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
 
         if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-          return replyError(`${e.error} You need the **Timeout Members** permission to use this command.`);
+          return replyError(error(`You need the **Timeout Members** permission to use this command.`));
         }
 
-        if (!args[0]) return replyError(`${e.error} Please provide a user to warn.`);
+        if (!args[0]) return replyError(error(`Please provide a user to warn.`));
 
         const input = args[0];
         const member = await resolveUser(input, guild);
         reason = args.slice(1).join(' ') || 'No reason provided';
 
         if (!member) {
-          return replyError(`${e.error} Could not find that user.`);
+          return replyError(error(`Could not find that user.`));
         }
         targetUser = member.user;
       }
@@ -128,7 +128,7 @@ module.exports = {
           name: targetUser.username,
           iconURL: targetUser.displayAvatarURL({ dynamic: true }),
         })
-        .setDescription(`⚠️ | Warned **${targetUser.tag}**\n**Reason:** ${reason}`)
+        .setDescription(success(`Warned **${targetUser.tag}**`) + `\n**Reason:** ${reason}`)
         .setFooter({ text: `Requested by ${executor.tag}` });
 
       await replySuccess({ embeds: [embed] });

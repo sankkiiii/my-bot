@@ -14,7 +14,7 @@ const {
   prefixSuccessTemp,
   deleteTrigger,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { success, error, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -69,18 +69,18 @@ module.exports = {
       );
       if (remaining > 0) {
         const secs = (remaining / 1000).toFixed(1);
-        const msg = `${e.warning} You are on cooldown. Try again in **${secs}s**.`;
+        const msg = withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`);
         return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
       }
 
       if (!executor.permissions.has(PermissionFlagsBits.MoveMembers)) {
-        const errMsg = `${e.error} You need **Move Members** permission.`;
+        const errMsg = error('You need **Move Members** permission.');
         return isSlash ? slashError(interaction, errMsg) : prefixError(message, errMsg);
       }
 
       const botMember = guild.members.me;
       if (!botMember.permissions.has(PermissionFlagsBits.MoveMembers)) {
-        const errMsg = `${e.error} I need **Move Members** permission.`;
+        const errMsg = error('I need **Move Members** permission.');
         return isSlash ? slashError(interaction, errMsg) : prefixError(message, errMsg);
       }
 
@@ -110,12 +110,12 @@ module.exports = {
       }
 
       if (!target) {
-        const errMsg = `${e.error} User not found.`;
+        const errMsg = error('User not found.');
         return isSlash ? slashError(interaction, errMsg) : prefixError(message, errMsg);
       }
 
       if (target.id === executor.id) {
-        const errMsg = `${e.error} You cannot kick yourself from VC.`;
+        const errMsg = error('You cannot kick yourself from VC.');
         return isSlash ? slashError(interaction, errMsg) : prefixError(message, errMsg);
       }
 
@@ -136,18 +136,18 @@ module.exports = {
       }
 
       if (!fromVC) {
-        const errMsg = `${e.error} **${target.displayName}** is not in a voice channel.`;
+        const errMsg = error(`**${target.displayName}** is not in a voice channel.`);
         return isSlash ? slashError(interaction, errMsg) : prefixError(message, errMsg);
       }
 
       if (fromVC.type !== ChannelType.GuildVoice) {
-        const errMsg = `${e.error} That is not a voice channel.`;
+        const errMsg = error('That is not a voice channel.');
         return isSlash ? slashError(interaction, errMsg) : prefixError(message, errMsg);
       }
 
       // Check if user is actually in that VC
       if (target.voice?.channelId !== fromVC.id) {
-        const errMsg = `${e.error} **${target.displayName}** is not in **${fromVC.name}**.`;
+        const errMsg = error(`**${target.displayName}** is not in **${fromVC.name}**.`);
         return isSlash ? slashError(interaction, errMsg) : prefixError(message, errMsg);
       }
 
@@ -167,7 +167,7 @@ module.exports = {
           name: target.user.username,
           iconURL: target.user.displayAvatarURL({ dynamic: true }),
         })
-        .setDescription(`👢 | Disconnected **${target.displayName}** from **${fromVC.name}**`)
+        .setDescription(success(`Disconnected **${target.displayName}** from **${fromVC.name}**`))
         .setFooter({ text: `Requested by ${executor.user.tag}` });
 
       if (isSlash) {

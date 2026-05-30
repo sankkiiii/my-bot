@@ -13,7 +13,7 @@ const {
   prefixSuccess,
 } = require('../../utils/replyHelper');
 const resolveUser = require('../../utils/resolveUser');
-const e = require('../../config/emojis');
+const { success, error, getEmoji, withEmoji } = require('../../utils/emoji');
 
 const MAX_TIMEOUT_MS = 28 * 24 * 60 * 60 * 1000; // 28 days
 
@@ -68,18 +68,18 @@ module.exports = {
         const remaining = cooldown.check('mute', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
 
         if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-          return replyError(`${e.error} You need the **Timeout Members** permission to use this command.`);
+          return replyError(error(`You need the **Timeout Members** permission to use this command.`));
         }
 
         const userOption = interaction.options.getUser('user');
         const query = interaction.options.getString('query');
 
         if (!userOption && !query) {
-          return replyError(`${e.error} Please provide a user (select or type username/ID).`);
+          return replyError(error(`Please provide a user (select or type username/ID).`));
         }
 
         if (userOption) {
@@ -93,7 +93,7 @@ module.exports = {
         }
 
         if (!member) {
-          return replyError(`${e.error} Could not find that user in this server.`);
+          return replyError(error(`Could not find that user in this server.`));
         }
       } else {
         const message = interactionOrMessage;
@@ -110,42 +110,42 @@ module.exports = {
         const remaining = cooldown.check('mute', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
 
         if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-          return replyError(`${e.error} You need the **Timeout Members** permission to use this command.`);
+          return replyError(error(`You need the **Timeout Members** permission to use this command.`));
         }
 
-        if (!args[0]) return replyError(`${e.error} Please provide a user to mute.`);
+        if (!args[0]) return replyError(error(`Please provide a user to mute.`));
 
         const input = args[0];
         member = await resolveUser(input, guild);
         if (!member) {
-          return replyError(`${e.error} Could not find that user in this server.`);
+          return replyError(error(`Could not find that user in this server.`));
         }
         targetUser = member.user;
 
         durationMinutes = parseInt(args[1], 10);
         if (isNaN(durationMinutes) || durationMinutes < 1) {
-          return replyError(`${e.error} Please provide a valid duration in minutes. Usage: \`!mute <user> <minutes> [reason]\``);
+          return replyError(error(`Please provide a valid duration in minutes. Usage: \`!mute <user> <minutes> [reason]\``));
         }
         reason = args.slice(2).join(' ') || 'No reason provided';
       }
 
       const botMember = guild.members.me;
       if (!botMember || !botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-        return replyError(`${e.error} I don't have the **Timeout Members** permission to do this.`);
+        return replyError(error(`I don't have the **Timeout Members** permission to do this.`));
       }
 
       const durationMs = Math.min(durationMinutes * 60 * 1000, MAX_TIMEOUT_MS);
 
       if (!isOwner && member.roles.highest.position >= executorMember.roles.highest.position) {
-        return replyError(`${e.error} You cannot moderate someone with an equal or higher role than you.`);
+        return replyError(error(`You cannot moderate someone with an equal or higher role than you.`));
       }
 
       if (member.roles.highest.position >= botMember.roles.highest.position) {
-        return replyError(`${e.error} I cannot moderate this user as their role is higher than or equal to mine.`);
+        return replyError(error(`I cannot moderate this user as their role is higher than or equal to mine.`));
       }
 
       await member.timeout(durationMs, reason);
@@ -156,7 +156,7 @@ module.exports = {
           name: targetUser.username,
           iconURL: targetUser.displayAvatarURL({ dynamic: true }),
         })
-        .setDescription(`🔇 | Muted **${targetUser.tag}** for **${durationMinutes}m**\n**Reason:** ${reason}`)
+        .setDescription(success(`Muted **${targetUser.tag}** for **${durationMinutes}m**`) + `\n**Reason:** ${reason}`)
         .setFooter({ text: `Requested by ${executor.tag}` });
 
       await replySuccess({ embeds: [embed] });

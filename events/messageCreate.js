@@ -2,7 +2,7 @@ const { Events } = require('discord.js');
 const config = require('../config');
 const guildConfig = require('../database/guildConfig');
 const formatDuration = require('../utils/formatDuration');
-const e = require('../config/emojis');
+const { success, error } = require('../utils/emoji');
 
 module.exports = {
   name: Events.MessageCreate,
@@ -47,9 +47,7 @@ module.exports = {
         }
 
         const msg = await message.channel.send({
-          content:
-            `${e.success} Welcome back **${message.member.displayName}**! I removed your AFK.\n` +
-            `${e.uptime} You were away for **${duration}**`,
+          content: `${success(`Welcome back **${message.member.displayName}**! I removed your AFK.`)}\nYou were away for **${duration}**`,
         });
         setTimeout(() => msg.delete().catch((err) => console.error('[AFK Cleanup Error]', err)), 5000);
       }
@@ -77,9 +75,7 @@ module.exports = {
           const displayName = afkMember?.displayName || user.username;
 
           const notif = await message.channel.send({
-            content:
-              `${e.afk} **${displayName}** went AFK **${duration} ago**\n` +
-              `${e.reason} **Reason:** ${afkData.reason}`,
+            content: `**${displayName}** went AFK **${duration} ago**\n**Reason:** ${afkData.reason}`,
           });
           setTimeout(() => notif.delete().catch((err) => console.error('[AFK Cleanup Error]', err)), 5000);
         }

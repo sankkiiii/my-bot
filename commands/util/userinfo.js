@@ -12,7 +12,7 @@ const {
   prefixError,
   prefixSuccess,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { error, withEmoji } = require('../../utils/emoji');
 
 const flagsMap = {
   Staff: 'Discord Staff',
@@ -85,7 +85,7 @@ module.exports = {
         const remaining = cooldown.check('userinfo', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
 
         const userOption = interaction.options.getUser('user');
@@ -116,7 +116,7 @@ module.exports = {
         const remaining = cooldown.check('userinfo', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
 
         const input = message.mentions.users.first()?.id || args.join(' ');
@@ -131,7 +131,7 @@ module.exports = {
       }
 
       if (!resolved.user) {
-        return replyError(`${e.error} Could not find that user.`);
+        return replyError(error('Could not find that user.'));
       }
 
       const { member, user, inGuild } = resolved;
@@ -154,7 +154,7 @@ Bot?: ${fetchedUser.bot ? '✅' : '❌'}
 Badges: ${badges}
 Account Created: <t:${createdTimestamp}:R>
 
-⚠️ This user is not in this server.`;
+${withEmoji('warning', 'This user is not in this server.')}`;
 
         const embed = new EmbedBuilder()
           .setColor(color)

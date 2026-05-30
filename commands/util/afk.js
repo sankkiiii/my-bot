@@ -7,7 +7,7 @@ const {
   prefixError,
   prefixSuccess,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { success, error, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -37,7 +37,7 @@ module.exports = {
         const remaining = cooldown.check('afk', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return slashError(interaction, `${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return slashError(interaction, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
 
         let existing;
@@ -45,22 +45,22 @@ module.exports = {
           existing = guildConfig.getAFK(guildId, userId);
         } catch (err) {
           console.error('[AFK Error]', err);
-          return slashError(interaction, `${e.error} Error: ${err.message}`);
+          return slashError(interaction, error(`Error: ${err.message}`));
         }
 
         if (existing) {
-          return slashError(interaction, `${e.warning} You are already AFK with reason: **${existing.reason}**`);
+          return slashError(interaction, withEmoji('warning', `You are already AFK with reason: **${existing.reason}**`));
         }
 
         try {
           guildConfig.setAFK(guildId, userId, reason);
         } catch (err) {
           console.error('[AFK Error]', err);
-          return slashError(interaction, `${e.error} Error: ${err.message}`);
+          return slashError(interaction, error(`Error: ${err.message}`));
         }
 
         await slashSuccess(interaction, {
-          content: `${e.afk} **${member.displayName}** is now AFK\n${e.reason} **Reason:** ${reason}`,
+          content: success(withEmoji('afk', `**${member.displayName}** is now AFK\n${withEmoji('reason', `**Reason:** ${reason}`)}`)),
         });
 
         try {
@@ -87,7 +87,7 @@ module.exports = {
       const remaining = cooldown.check('afk', message.author.id, message.guild.id, 3000);
       if (remaining > 0) {
         const secs = (remaining / 1000).toFixed(1);
-        return prefixError(message, `${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+        return prefixError(message, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
       }
 
       let existing;
@@ -95,22 +95,22 @@ module.exports = {
         existing = guildConfig.getAFK(guildId, userId);
       } catch (err) {
         console.error('[AFK Error]', err);
-        return prefixError(message, `${e.error} Error: ${err.message}`);
+        return prefixError(message, error(`Error: ${err.message}`));
       }
 
       if (existing) {
-        return prefixError(message, `${e.warning} You are already AFK with reason: **${existing.reason}**`);
+        return prefixError(message, withEmoji('warning', `You are already AFK with reason: **${existing.reason}**`));
       }
 
       try {
         guildConfig.setAFK(guildId, userId, reason);
       } catch (err) {
         console.error('[AFK Error]', err);
-        return prefixError(message, `${e.error} Error: ${err.message}`);
+        return prefixError(message, error(`Error: ${err.message}`));
       }
 
       await prefixSuccess(message, {
-        content: `${e.afk} **${member.displayName}** is now AFK\n${e.reason} **Reason:** ${reason}`,
+        content: success(withEmoji('afk', `**${member.displayName}** is now AFK\n${withEmoji('reason', `**Reason:** ${reason}`)}`)),
       });
 
       try {
@@ -126,11 +126,11 @@ module.exports = {
         if (isSlash) {
           const interaction = interactionOrMessage;
           if (interaction.deferred || interaction.replied) {
-            return slashError(interaction, `${e.error} Error: ${err.message}`);
+            return slashError(interaction, error(`Error: ${err.message}`));
           }
-          return slashError(interaction, `${e.error} Error: ${err.message}`);
+          return slashError(interaction, error(`Error: ${err.message}`));
         }
-        return prefixError(interactionOrMessage, `${e.error} Error: ${err.message}`);
+        return prefixError(interactionOrMessage, error(`Error: ${err.message}`));
       } catch (err) {
         console.error('[AFK Reply Error]', err);
       }

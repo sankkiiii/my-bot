@@ -13,7 +13,7 @@ const {
   prefixSuccess,
 } = require('../../utils/replyHelper');
 const resolveUser = require('../../utils/resolveUser');
-const e = require('../../config/emojis');
+const { success, error, getEmoji, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -59,11 +59,11 @@ module.exports = {
         const remaining = cooldown.check('ban', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
 
         if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.BanMembers)) {
-          return replyError(`${e.error} You need the **Ban Members** permission to use this command.`);
+          return replyError(error(`You need the **Ban Members** permission to use this command.`));
         }
 
         const userOption = interaction.options.getUser('user');
@@ -71,7 +71,7 @@ module.exports = {
         reason = interaction.options.getString('reason') || 'No reason provided';
 
         if (!userOption && !query) {
-          return replyError(`${e.error} Please provide a user (select or type username/ID).`);
+          return replyError(error(`Please provide a user (select or type username/ID).`));
         }
 
         if (userOption) {
@@ -87,10 +87,10 @@ module.exports = {
               try {
                 targetUser = await client.users.fetch(cleaned);
               } catch {
-                return replyError(`${e.error} Could not find or ban that user.`);
+                return replyError(error(`Could not find or ban that user.`));
               }
             } else {
-              return replyError(`${e.error} Could not find that user.`);
+              return replyError(error(`Could not find that user.`));
             }
           }
         }
@@ -109,14 +109,14 @@ module.exports = {
         const remaining = cooldown.check('ban', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
 
         if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
-          return replyError(`${e.error} You need the **Ban Members** permission to use this command.`);
+          return replyError(error(`You need the **Ban Members** permission to use this command.`));
         }
 
-        if (!args[0]) return replyError(`${e.error} Please provide a user to ban.`);
+        if (!args[0]) return replyError(error(`Please provide a user to ban.`));
 
         const input = args[0];
         member = await resolveUser(input, guild);
@@ -128,10 +128,10 @@ module.exports = {
             try {
               targetUser = await client.users.fetch(cleaned);
             } catch {
-              return replyError(`${e.error} Could not find or ban that user.`);
+              return replyError(error(`Could not find or ban that user.`));
             }
           } else {
-            return replyError(`${e.error} Could not find that user.`);
+            return replyError(error(`Could not find that user.`));
           }
         } else {
           targetUser = member.user;
@@ -140,15 +140,15 @@ module.exports = {
 
       const botMember = guild.members.me;
       if (!botMember || !botMember.permissions.has(PermissionFlagsBits.BanMembers)) {
-        return replyError(`${e.error} I don't have the **Ban Members** permission to do this.`);
+        return replyError(error(`I don't have the **Ban Members** permission to do this.`));
       }
 
       if (member) {
         if (!isOwner && member.roles.highest.position >= executorMember.roles.highest.position) {
-          return replyError(`${e.error} You cannot moderate someone with an equal or higher role than you.`);
+          return replyError(error(`You cannot moderate someone with an equal or higher role than you.`));
         }
         if (member.roles.highest.position >= botMember.roles.highest.position) {
-          return replyError(`${e.error} I cannot moderate this user as their role is higher than or equal to mine.`);
+          return replyError(error(`I cannot moderate this user as their role is higher than or equal to mine.`));
         }
       }
 
@@ -170,7 +170,7 @@ module.exports = {
           name: targetUser.username,
           iconURL: targetUser.displayAvatarURL({ dynamic: true }),
         })
-        .setDescription(`🔨 | Banned **${targetUser.tag}**\n**Reason:** ${reason}`)
+        .setDescription(success(`Banned **${targetUser.tag}**`) + `\n**Reason:** ${reason}`)
         .setFooter({ text: `Requested by ${executor.tag}` });
 
       await replySuccess({ embeds: [embed] });

@@ -14,7 +14,7 @@ const {
   prefixSuccess,
 } = require('../../utils/replyHelper');
 const resolveUserGlobal = require('../../utils/resolveUserGlobal');
-const e = require('../../config/emojis');
+const { error, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -50,7 +50,7 @@ module.exports = {
         const remaining = cooldown.check('banner', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
 
         const userOption = interaction.options.getUser('user');
@@ -69,7 +69,7 @@ module.exports = {
         }
 
         if (!resolved.user) {
-          return replyError(`${e.error} Could not find that user. Try their @mention, username, or user ID.`);
+          return replyError(error('Could not find that user. Try their @mention, username, or user ID.'));
         }
       } else {
         const message = interactionOrMessage;
@@ -84,7 +84,7 @@ module.exports = {
         const remaining = cooldown.check('banner', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
 
         const input = message.mentions.users.first()?.id || args.join(' ');
@@ -98,7 +98,7 @@ module.exports = {
         }
 
         if (!resolved.user) {
-          return replyError(`${e.error} Could not find that user. Try their @mention, username, or user ID.`);
+          return replyError(error('Could not find that user. Try their @mention, username, or user ID.'));
         }
       }
 
@@ -109,7 +109,7 @@ module.exports = {
       const displayName = inGuild ? member.displayName : user.username;
 
       if (!fetchedUser.banner) {
-        return replyError(`${e.error} **${displayName}** does not have a profile banner.`);
+        return replyError(error(`**${displayName}** does not have a profile banner.`));
       }
 
       const bannerUrl = fetchedUser.bannerURL({ size: 4096, dynamic: true });
@@ -121,7 +121,7 @@ module.exports = {
           name: user.username,
           iconURL: user.displayAvatarURL({ dynamic: true }),
         })
-        .setDescription(`🖼️ | Banner for **${displayName}**`)
+        .setDescription(withEmoji('banner', `Banner for **${displayName}**`))
         .setImage(bannerUrl)
         .setFooter({ text: `Requested by ${(isSlash ? interactionOrMessage.user : interactionOrMessage.author).tag}` });
 

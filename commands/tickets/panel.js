@@ -15,7 +15,7 @@ const {
   prefixError,
   prefixSuccess,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { success, error } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -35,7 +35,10 @@ module.exports = {
       if (isSlash) {
         const interaction = interactionOrMessage;
         if (!interaction.guild) {
-          return slashError(interaction, 'This command only works in a server.');
+          return interaction.reply({
+            content: error('This command only works in a server.'),
+            ephemeral: true,
+          });
         }
         channel = interaction.channel;
         guild = interaction.guild;
@@ -45,22 +48,22 @@ module.exports = {
         const remaining = cooldown.check('panel', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
 
         if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-          return replyError(`${e.error} You need the **Manage Channels** permission to use this command.`);
+          return replyError(error('You need the **Manage Channels** permission to use this command.'));
         }
       } else {
         const message = interactionOrMessage;
         if (!message.guild) {
-          return prefixError(message, 'This command only works in a server.');
+          return prefixError(message, error('This command only works in a server.'));
         }
         channel = message.channel;
         guild = message.guild;
 
         if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-          return prefixError(message, `${e.error} You need the **Manage Channels** permission to use this command.`);
+          return prefixError(message, error('You need the **Manage Channels** permission to use this command.'));
         }
         replyError = (content) => prefixError(message, content);
         replySuccess = (content) => prefixSuccess(message, { content });
@@ -68,7 +71,7 @@ module.exports = {
         const remaining = cooldown.check('panel', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
       }
 
@@ -83,28 +86,28 @@ module.exports = {
             m.components?.[0]?.components?.some((c) => c.customId === 'open_ticket'),
         );
         if (existingPanel) {
-          return replyError(`${e.warning} A ticket panel already exists in this channel.`);
+          return replyError(error('A ticket panel already exists in this channel.'));
         }
       } catch (err) {
         console.error('[Panel] Failed to check for existing panel:', err.message);
       }
 
       const embed = new EmbedBuilder()
-        .setTitle(`${e.ticket} Support Tickets`)
+        .setTitle('Support Tickets')
         .setDescription('Need help? Click the button below to open a support ticket.\nOur staff team will assist you as soon as possible.')
         .setColor(0x5865f2)
         .setThumbnail(guild.iconURL({ dynamic: true }))
-        .setFooter({ text: `${guild.name} • ${client ? client.user.username : 'Bot'}` });
+        .setFooter({ text: `Requested by ${isSlash ? interactionOrMessage.user.tag : interactionOrMessage.author.tag}` });
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId('open_ticket')
-          .setLabel(`${e.ticketOpen} Open Ticket`)
+          .setLabel('Open Ticket')
           .setStyle(ButtonStyle.Primary),
       );
 
       await channel.send({ embeds: [embed], components: [row] });
-      await replySuccess(`${e.success} Ticket panel sent!`);
+      await replySuccess(success('Ticket panel sent!'));
     } catch (err) {
       console.error('[Panel]', err);
     }

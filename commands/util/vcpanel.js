@@ -11,7 +11,7 @@ const {
   prefixSuccess,
 } = require('../../utils/replyHelper');
 const buildVcPanel = require('../../utils/buildVcPanel');
-const e = require('../../config/emojis');
+const { success, error, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -35,13 +35,13 @@ module.exports = {
     const remaining = cooldown.check('vcpanel', executor.id, guild.id, 3000);
     if (remaining > 0) {
       const secs = (remaining / 1000).toFixed(1);
-      const msg = `${e.warning} You are on cooldown. Try again in **${secs}s**.`;
+      const msg = withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`);
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
     // Permission check: Administrator only
     if (!executor.permissions.has(PermissionFlagsBits.Administrator)) {
-      const msg = `${e.error} You need **Administrator** permission to send the VC panel.`;
+      const msg = error('You need **Administrator** permission to send the VC panel.');
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
@@ -58,14 +58,14 @@ module.exports = {
       );
 
       if (existingPanel) {
-        const msg = `${e.warning} A VC control panel already exists in this channel.`;
+        const msg = withEmoji('warning', 'A VC control panel already exists in this channel.');
         return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
       }
 
       const { embed, rows } = buildVcPanel();
       await channel.send({ embeds: [embed], components: rows });
 
-      const msg = `${e.success} VC control panel sent!`;
+      const msg = success('VC control panel sent!');
       if (isSlash) {
         return slashSuccess(interaction, { content: msg, ephemeral: true });
       } else {
@@ -73,7 +73,7 @@ module.exports = {
       }
     } catch (err) {
       console.error('[VCPanel Command]', err);
-      const msg = `${e.error} Failed to send the panel.`;
+      const msg = error('Failed to send the panel.');
       if (isSlash) return slashError(interaction, msg);
       return prefixError(message, msg);
     }

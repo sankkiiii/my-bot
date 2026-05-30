@@ -12,7 +12,7 @@ const {
   prefixError,
   prefixSuccess,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { success, error, withEmoji } = require('../../utils/emoji');
 
 function resolveRole(input, guild) {
   if (!input) return null;
@@ -77,18 +77,18 @@ module.exports = {
     const remaining = cooldown.check('role', executor.id, guild.id, 3000);
     if (remaining > 0) {
       const secs = (remaining / 1000).toFixed(1);
-      const msg = `${e.warning} You are on cooldown. Try again in **${secs}s**.`;
+      const msg = withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`);
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
     }
 
     // Permission checks
     if (!executor.permissions.has(PermissionFlagsBits.ManageRoles)) {
-      const msg = `${e.error} You need **Manage Roles** permission.`;
+      const msg = error('You need **Manage Roles** permission.');
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
     }
 
     if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
-      const msg = `${e.error} I need **Manage Roles** permission.`;
+      const msg = error('I need **Manage Roles** permission.');
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
     }
 
@@ -116,7 +116,7 @@ module.exports = {
     } else {
       const args = argsOrClient;
       if (!args || args.length < 1) {
-        return prefixError(interactionOrMessage, `${e.error} Please provide a user and a role.`);
+        return prefixError(interactionOrMessage, error('Please provide a user and a role.'));
       }
 
       const mentioned = interactionOrMessage.mentions.members.first();
@@ -143,33 +143,33 @@ module.exports = {
     }
 
     if (!member) {
-      const msg = `${e.error} User not found.`;
+      const msg = error('User not found.');
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
     }
 
     if (!role) {
-      const msg = `${e.error} Role not found.`;
+      const msg = error('Role not found.');
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
     }
 
     // Hierarchy Checks
     if (role.id === guild.id) {
-      const msg = `${e.error} Cannot assign the @everyone role.`;
+      const msg = error('Cannot assign the @everyone role.');
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
     }
 
     if (role.managed) {
-      const msg = `${e.error} That role is managed by an integration and cannot be assigned.`;
+      const msg = error('That role is managed by an integration and cannot be assigned.');
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
     }
 
     if (role.position >= executor.roles.highest.position) {
-      const msg = `${e.error} You cannot assign a role equal to or higher than your highest role.`;
+      const msg = error('You cannot assign a role equal to or higher than your highest role.');
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
     }
 
     if (role.position >= botMember.roles.highest.position) {
-      const msg = `${e.error} I cannot assign a role equal to or higher than my highest role.`;
+      const msg = error('I cannot assign a role equal to or higher than my highest role.');
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
     }
 
@@ -187,7 +187,7 @@ module.exports = {
             name: member.displayName,
             iconURL: member.user.displayAvatarURL({ dynamic: true })
           })
-          .setDescription(`✅ | Removed ${role} from **${member.displayName}**`)
+          .setDescription(success(`Removed ${role} from **${member.displayName}**`))
           .setFooter({ text: `Requested by ${executor.user.tag}` });
 
         return isSlash ? slashSuccess(interactionOrMessage, { embeds: [embed] }) : prefixSuccess(interactionOrMessage, { embeds: [embed] });
@@ -201,14 +201,14 @@ module.exports = {
             name: member.displayName,
             iconURL: member.user.displayAvatarURL({ dynamic: true })
           })
-          .setDescription(`✅ | Added ${role} to **${member.displayName}**`)
+          .setDescription(success(`Added ${role} to **${member.displayName}**`))
           .setFooter({ text: `Requested by ${executor.user.tag}` });
 
         return isSlash ? slashSuccess(interactionOrMessage, { embeds: [embed] }) : prefixSuccess(interactionOrMessage, { embeds: [embed] });
       }
     } catch (err) {
       console.error('[Role Toggle Error]', err);
-      const msg = `${e.error} Failed to update roles. Check my permissions.`;
+      const msg = error('Failed to update roles. Check my permissions.');
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
     }
   },

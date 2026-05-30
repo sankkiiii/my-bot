@@ -13,7 +13,7 @@ const {
   prefixError,
   prefixSuccess,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { success, error, getEmoji, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -65,21 +65,16 @@ module.exports = {
       );
       if (remaining > 0) {
         const secs = (remaining / 1000).toFixed(1);
+        const msg = error(`You are on cooldown. Try again in **${secs}s**.`);
         if (isSlash) {
-          return slashError(
-            interaction,
-            `${e.warning} You are on cooldown. Try again in **${secs}s**.`
-          );
+          return slashError(interaction, msg);
         } else {
-          return prefixError(
-            message,
-            `${e.warning} You are on cooldown. Try again in **${secs}s**.`
-          );
+          return prefixError(message, msg);
         }
       }
 
       if (!executor.permissions.has(PermissionFlagsBits.MoveMembers)) {
-        const errMsg = `${e.error} You need **Move Members** permission.`;
+        const errMsg = error(`You need **Move Members** permission.`);
         return isSlash
           ? slashError(interaction, errMsg)
           : prefixError(message, errMsg);
@@ -87,7 +82,7 @@ module.exports = {
 
       const botMember = guild.members.me;
       if (!botMember.permissions.has(PermissionFlagsBits.MoveMembers)) {
-        const errMsg = `${e.error} I need **Move Members** permission.`;
+        const errMsg = error(`I need **Move Members** permission.`);
         return isSlash
           ? slashError(interaction, errMsg)
           : prefixError(message, errMsg);
@@ -119,21 +114,21 @@ module.exports = {
       }
 
       if (!target) {
-        const errMsg = `${e.error} User not found.`;
+        const errMsg = error(`User not found.`);
         return isSlash
           ? slashError(interaction, errMsg)
           : prefixError(message, errMsg);
       }
 
       if (target.id === executor.id) {
-        const errMsg = `${e.error} You cannot drag yourself.`;
+        const errMsg = error(`You cannot drag yourself.`);
         return isSlash
           ? slashError(interaction, errMsg)
           : prefixError(message, errMsg);
       }
 
       if (!target.voice?.channel) {
-        const errMsg = `${e.error} **${target.displayName}** is not in a voice channel.`;
+        const errMsg = error(`**${target.displayName}** is not in a voice channel.`);
         return isSlash
           ? slashError(interaction, errMsg)
           : prefixError(message, errMsg);
@@ -156,14 +151,14 @@ module.exports = {
       }
 
       if (!targetVC) {
-        const errMsg = `${e.error} Please specify a voice channel or join one first.`;
+        const errMsg = error(`Please specify a voice channel or join one first.`);
         return isSlash
           ? slashError(interaction, errMsg)
           : prefixError(message, errMsg);
       }
 
       if (targetVC.type !== ChannelType.GuildVoice) {
-        const errMsg = `${e.error} Target must be a voice channel.`;
+        const errMsg = error(`Target must be a voice channel.`);
         return isSlash
           ? slashError(interaction, errMsg)
           : prefixError(message, errMsg);
@@ -171,7 +166,7 @@ module.exports = {
 
       // Already in target VC
       if (target.voice.channelId === targetVC.id) {
-        const errMsg = `${e.error} **${target.displayName}** is already in ${targetVC.name}.`;
+        const errMsg = error(`**${target.displayName}** is already in ${targetVC.name}.`);
         return isSlash
           ? slashError(interaction, errMsg)
           : prefixError(message, errMsg);
@@ -189,7 +184,7 @@ module.exports = {
           name: target.user.username,
           iconURL: target.user.displayAvatarURL({ dynamic: true }),
         })
-        .setDescription(`🎙️ | Dragged **${target.displayName}** to **${targetVC.name}**`)
+        .setDescription(success(`Dragged **${target.displayName}** to **${targetVC.name}**`))
         .setFooter({ text: `Requested by ${executor.user.tag}` });
 
       if (isSlash) {

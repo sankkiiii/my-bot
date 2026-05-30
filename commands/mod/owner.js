@@ -12,7 +12,7 @@ const {
   prefixError,
   prefixSuccess,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { success, error, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -57,7 +57,7 @@ module.exports = {
 
     // Permission check: Only bot owners can use this command
     if (!guildConfig.isOwner(executorId)) {
-      const msg = `${e.error} Only bot owners can manage owners.`;
+      const msg = error('Only bot owners can manage owners.');
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
     }
 
@@ -65,7 +65,7 @@ module.exports = {
     const remaining = cooldown.check('owner', executorId, guild.id, 3000);
     if (remaining > 0) {
       const secs = (remaining / 1000).toFixed(1);
-      const msg = `${e.warning} You are on cooldown. Try again in **${secs}s**.`;
+      const msg = withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`);
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
     }
 
@@ -93,30 +93,30 @@ module.exports = {
       }
 
       if (!targetUser) {
-        return replyError(`${e.error} Please provide a valid user.`);
+        return replyError(error('Please provide a valid user.'));
       }
 
       if (targetUser.bot) {
-        return replyError(`${e.error} You cannot add a bot as an owner.`);
+        return replyError(error('You cannot add a bot as an owner.'));
       }
 
       if (subcommand === 'add') {
         if (guildConfig.isOwner(targetUser.id)) {
-          return replyError(`${e.warning} That user is already a bot owner.`);
+          return replyError(withEmoji('warning', 'That user is already a bot owner.'));
         }
         guildConfig.addOwner(targetUser.id, executorId);
-        return replySuccess({ content: `✅ **${targetUser.username}** has been added as a bot owner.` });
+        return replySuccess({ content: success(`**${targetUser.username}** has been added as a bot owner.`) });
       }
 
       if (subcommand === 'remove') {
         if (targetUser.id === executorId) {
-          return replyError(`${e.error} You cannot remove yourself as owner.`);
+          return replyError(error('You cannot remove yourself as owner.'));
         }
         if (!guildConfig.isOwner(targetUser.id)) {
-          return replyError(`${e.warning} That user is not a bot owner.`);
+          return replyError(withEmoji('warning', 'That user is not a bot owner.'));
         }
         guildConfig.removeOwner(targetUser.id);
-        return replySuccess({ content: `✅ **${targetUser.username}** has been removed from bot owners.` });
+        return replySuccess({ content: success(`**${targetUser.username}** has been removed from bot owners.`) });
       }
     }
 
@@ -139,13 +139,13 @@ module.exports = {
           name: client.user.username,
           iconURL: client.user.displayAvatarURL({ dynamic: true })
         })
-        .setDescription(`👑 **Bot Owners**\n\n${ownerLines.join('\n')}`);
+        .setDescription(withEmoji('crown', `**Bot Owners**\n\n${ownerLines.join('\n')}`));
 
       return replySuccess({ embeds: [embed] });
     }
 
     if (!isSlash) {
-      return replyError(`${e.error} Usage: \`!owner add/remove/list <user>\``);
+      return replyError(error(`Usage: \`!owner add/remove/list <user>\``));
     }
   },
 };

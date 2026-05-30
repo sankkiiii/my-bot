@@ -12,7 +12,7 @@ const {
   prefixError,
   prefixSuccess,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { success, error, withEmoji, getEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -42,13 +42,13 @@ module.exports = {
     const remaining = cooldown.check('dump', executor.id, guild.id, 3000);
     if (remaining > 0) {
       const secs = (remaining / 1000).toFixed(1);
-      const msg = `${e.warning} You are on cooldown. Try again in **${secs}s**.`;
+      const msg = withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`);
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
     // Permission check
     if (!executor.permissions.has(PermissionFlagsBits.ManageRoles)) {
-      const msg = `${e.error} You need **Manage Roles** permission.`;
+      const msg = error('You need **Manage Roles** permission.');
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
@@ -58,7 +58,7 @@ module.exports = {
     } else {
       const args = message.content.trim().split(/\s+/).slice(1);
       if (!args[0]) {
-        return prefixError(message, `${e.error} Please specify a role.`);
+        return prefixError(message, error('Please specify a role.'));
       }
 
       role =
@@ -73,7 +73,7 @@ module.exports = {
     }
 
     if (!role) {
-      const msg = `${e.error} Role not found.`;
+      const msg = error('Role not found.');
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
@@ -82,7 +82,7 @@ module.exports = {
 
     const members = role.members;
     if (members.size === 0) {
-      const content = `${e.role} **Role:** ${role.name}\n${e.members} **Members:** 0\n\nNo members have this role.`;
+      const content = `${withEmoji('role', `**Role:** ${role.name}`)}\n${withEmoji('members', `**Members:** 0`)}\n\nNo members have this role.`;
       return isSlash
         ? slashSuccess(interaction, { content })
         : prefixSuccess(message, { content });
@@ -98,7 +98,7 @@ module.exports = {
         name: role.name,
         iconURL: role.iconURL() || guild.iconURL({ dynamic: true })
       })
-      .setDescription(`🎭 | **${role.name}** has **${members.size}** member${members.size !== 1 ? 's' : ''}${members.size <= 25 ? `\n\n${memberLines.join('\n')}` : ''}`)
+      .setDescription(success(`**${role.name}** has **${members.size}** member${members.size !== 1 ? 's' : ''}`) + `${members.size <= 25 ? `\n\n${memberLines.join('\n')}` : ''}`)
       .setFooter({ text: `Requested by ${executor.user.tag}` });
 
     if (members.size <= 25) {

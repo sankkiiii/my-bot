@@ -13,7 +13,7 @@ const {
   prefixError,
   prefixSuccess,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { error, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -42,7 +42,7 @@ module.exports = {
         const remaining = cooldown.check('serverbanner', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
       } else {
         const message = interactionOrMessage;
@@ -57,12 +57,12 @@ module.exports = {
         const remaining = cooldown.check('serverbanner', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
       }
 
       if (!guild.banner) {
-        return replyError(`${e.error} This server does not have a banner.`);
+        return replyError(error('This server does not have a banner.'));
       }
 
       const bannerUrl = guild.bannerURL({ size: 4096, dynamic: true });
@@ -73,7 +73,7 @@ module.exports = {
           name: guild.name,
           iconURL: guild.iconURL({ dynamic: true }),
         })
-        .setDescription(`🖼️ | Server banner for **${guild.name}**`)
+        .setDescription(withEmoji('banner', `Server banner for **${guild.name}**`))
         .setImage(bannerUrl)
         .setFooter({ text: `Requested by ${(isSlash ? interactionOrMessage.user : interactionOrMessage.author).tag}` });
 

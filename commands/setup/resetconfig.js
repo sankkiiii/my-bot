@@ -8,7 +8,7 @@ const {
 } = require('discord.js');
 const cooldown = require('../../utils/cooldown');
 const { slashError, slashSuccess } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { success, error, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -32,7 +32,7 @@ module.exports = {
 
     try {
       if (!isSlash) {
-        return interactionOrMessage.reply('⚙️ Please use `/resetconfig` to reset configuration.');
+        return interactionOrMessage.reply(withEmoji('setup', 'Please use `/resetconfig` to reset configuration.'));
       }
 
       const interaction = interactionOrMessage;
@@ -44,11 +44,11 @@ module.exports = {
       const remaining = cooldown.check('resetconfig', interaction.user.id, interaction.guild.id, 5000);
       if (remaining > 0) {
         const secs = (remaining / 1000).toFixed(1);
-        return slashError(interaction, `${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+        return slashError(interaction, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
       }
 
       if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-        return slashError(interaction, `${e.error} You need **Administrator** permission.`);
+        return slashError(interaction, error('You need **Administrator** permission.'));
       }
 
       const system = interaction.options.getString('system') || 'all';
@@ -65,7 +65,7 @@ module.exports = {
       );
 
       await slashSuccess(interaction, {
-        content: `${e.warning} Are you sure? This will reset ${system === 'all' ? 'all configuration' : `${system} configuration`}.`,
+        content: withEmoji('warning', `Are you sure? This will reset ${system === 'all' ? 'all configuration' : `${system} configuration`}.`),
         components: [row],
         ephemeral: true,
       });

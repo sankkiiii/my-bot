@@ -13,7 +13,7 @@ const {
   prefixSuccessTemp,
   deleteTrigger,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { success, error, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -44,19 +44,19 @@ module.exports = {
     const remaining = cooldown.check('vckickall', executor.id, guild.id, 5000);
     if (remaining > 0) {
       const secs = (remaining / 1000).toFixed(1);
-      const msg = `${e.warning} You are on cooldown. Try again in **${secs}s**.`;
+      const msg = withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`);
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
     // Permission checks
     if (!executor.permissions.has(PermissionFlagsBits.MoveMembers)) {
-      const msg = `${e.error} You need **Move Members** permission.`;
+      const msg = error('You need **Move Members** permission.');
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
     const botMember = guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.MoveMembers)) {
-      const msg = `${e.error} I need **Move Members** permission.`;
+      const msg = error('I need **Move Members** permission.');
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
@@ -78,19 +78,19 @@ module.exports = {
 
     // Validate VC
     if (!targetVC) {
-      const msg = `${e.error} Please specify a voice channel or join one first.`;
+      const msg = error('Please specify a voice channel or join one first.');
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
     if (targetVC.type !== ChannelType.GuildVoice) {
-      const msg = `${e.error} That is not a voice channel.`;
+      const msg = error('That is not a voice channel.');
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
     // Get all members in VC
     const members = targetVC.members;
     if (members.size === 0) {
-      const msg = `${e.error} **${targetVC.name}** is already empty.`;
+      const msg = error(`**${targetVC.name}** is already empty.`);
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
@@ -122,7 +122,7 @@ module.exports = {
         name: executor.user.username,
         iconURL: executor.user.displayAvatarURL({ dynamic: true })
       })
-      .setDescription(`💥 | Disconnected **${kicked}** members from **${targetVC.name}**${failed > 0 ? `\n⚠️ ${failed} could not be disconnected` : ''}`)
+      .setDescription(success(`Disconnected **${kicked}** members from **${targetVC.name}**`) + `${failed > 0 ? `\n⚠️ ${failed} could not be disconnected` : ''}`)
       .setFooter({ text: `Requested by ${executor.user.tag}` });
 
     const replyOptions = { embeds: [embed] };

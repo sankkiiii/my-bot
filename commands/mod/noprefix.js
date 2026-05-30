@@ -12,7 +12,7 @@ const {
   prefixError,
   prefixSuccess,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { success, error, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -51,7 +51,7 @@ module.exports = {
 
     // Permission check: Only bot owners can manage no-prefix users
     if (!guildConfig.isOwner(executorId)) {
-      const msg = `${e.error} Only bot owners can manage no-prefix users.`;
+      const msg = error('Only bot owners can manage no-prefix users.');
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
     }
 
@@ -59,7 +59,7 @@ module.exports = {
     const remaining = cooldown.check('noprefix', executorId, guild.id, 5000);
     if (remaining > 0) {
       const secs = (remaining / 1000).toFixed(1);
-      const msg = `${e.warning} You are on cooldown. Try again in **${secs}s**.`;
+      const msg = withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`);
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
     }
 
@@ -74,32 +74,32 @@ module.exports = {
       } else {
         const userInput = argsOrClient.slice(1).join(' ');
         if (!userInput) {
-          return replyError(`${e.error} Please provide a user (@mention, username, or ID).`);
+          return replyError(error('Please provide a user (@mention, username, or ID).'));
         }
         const member = await resolveUser(userInput, guild);
         if (!member) {
-          return replyError(`${e.error} Could not find that user. Try @mention, username, or user ID.`);
+          return replyError(error('Could not find that user. Try @mention, username, or user ID.'));
         }
         targetUser = member.user;
       }
 
       if (subcommand === 'add') {
         if (targetUser.bot) {
-          return replyError(`${e.error} You cannot give no-prefix to a bot.`);
+          return replyError(error('You cannot give no-prefix to a bot.'));
         }
         if (guildConfig.isNoPrefixUser(guild.id, targetUser.id)) {
-          return replyError(`${e.warning} That user already has no-prefix access.`);
+          return replyError(withEmoji('warning', 'That user already has no-prefix access.'));
         }
         guildConfig.addNoPrefixUser(guild.id, targetUser.id, executorId);
-        return replySuccess({ content: `✅ **${targetUser.username}** has been given no-prefix access.` });
+        return replySuccess({ content: success(`**${targetUser.username}** has been given no-prefix access.`) });
       }
 
       if (subcommand === 'remove') {
         if (!guildConfig.isNoPrefixUser(guild.id, targetUser.id)) {
-          return replyError(`${e.warning} ${targetUser.tag} doesn't have no-prefix access.`);
+          return replyError(withEmoji('warning', `${targetUser.tag} doesn't have no-prefix access.`));
         }
         guildConfig.removeNoPrefixUser(guild.id, targetUser.id);
-        return replySuccess({ content: `✅ No-prefix access removed from **${targetUser.username}**.` });
+        return replySuccess({ content: success(`No-prefix access removed from **${targetUser.username}**.`) });
       }
     }
 
@@ -124,7 +124,7 @@ module.exports = {
           name: client.user.username,
           iconURL: client.user.displayAvatarURL({ dynamic: true })
         })
-        .setDescription(`⚡ **No-Prefix Users**\n\n${description}`);
+        .setDescription(withEmoji('noprefix', `**No-Prefix Users**\n\n${description}`));
 
       if (isSlash) {
         return replySuccess({ embeds: [embed], ephemeral: true });
@@ -133,7 +133,7 @@ module.exports = {
     }
 
     if (!isSlash) {
-      return replyError(`${e.error} Usage: \`!noprefix add/remove/list <user>\``);
+      return replyError(error(`Usage: \`!noprefix add/remove/list <user>\``));
     }
   },
 };

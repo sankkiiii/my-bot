@@ -9,7 +9,7 @@ const {
   slashError,
   prefixError,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { error, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -53,19 +53,19 @@ module.exports = {
     const remaining = cooldown.check('purgeuser', executor.id, guild.id, 3000);
     if (remaining > 0) {
       const secs = (remaining / 1000).toFixed(1);
-      const msg = `${e.warning} You are on cooldown. Try again in **${secs}s**.`;
+      const msg = withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`);
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
     // Permission check
     if (!executor.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      const msg = `${e.error} You need the **Manage Messages** permission.`;
+      const msg = error('You need the **Manage Messages** permission.');
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
     const botMember = guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      const msg = `${e.error} I need **Manage Messages** permission.`;
+      const msg = error('I need **Manage Messages** permission.');
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
@@ -105,7 +105,7 @@ module.exports = {
     }
 
     if (!targetMember) {
-      const msg = `${e.error} Could not find that user. Try their @mention, username, or user ID.`;
+      const msg = error('Could not find that user. Try their @mention, username, or user ID.');
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
@@ -117,7 +117,7 @@ module.exports = {
 
       if (isSlash) {
         await interaction.reply({
-          content: `${e.loading} Purging...`,
+          content: withEmoji('loading', 'Purging...'),
           ephemeral: true,
         });
         fetched = await channel.messages.fetch({ limit: 100 });
@@ -142,7 +142,7 @@ module.exports = {
         .first(amount);
 
       if (userMessages.length === 0) {
-        const msg = `${e.error} No recent messages found from **${targetMember.displayName}**.`;
+        const msg = error(`No recent messages found from **${targetMember.displayName}**.`);
         if (isSlash) {
           return interaction.editReply(msg);
         } else {
@@ -154,7 +154,7 @@ module.exports = {
 
       // Single bulkDelete call
       const deleted = await channel.bulkDelete(userMessages, true);
-      const successMsgContent = `${e.purge} Deleted **${deleted.size}** messages from **${targetMember.displayName}**.`;
+      const successMsgContent = withEmoji('purge', `Deleted **${deleted.size}** messages from **${targetMember.displayName}**.`);
 
       if (isSlash) {
         return interaction.editReply(successMsgContent);
@@ -164,7 +164,7 @@ module.exports = {
       }
     } catch (err) {
       console.error('[PurgeUser]', err);
-      const msg = `${e.error} An error occurred while purging messages.`;
+      const msg = error('An error occurred while purging messages.');
       if (isSlash) return interaction.editReply(msg);
       const errReply = await interactionOrMessage.channel.send(msg);
       setTimeout(() => errReply.delete().catch(() => {}), 5000);

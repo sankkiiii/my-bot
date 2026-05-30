@@ -13,12 +13,12 @@ const {
   prefixError,
   prefixSuccess,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { success, error, withEmoji, errorEmoji } = require('../../utils/emoji');
 
 function formatChannel(guild, id) {
-  if (!id) return '❌';
+  if (!id) return errorEmoji();
   const ch = guild.channels.cache.get(id);
-  return ch ? ch.toString() : '❌ (Deleted)';
+  return ch ? ch.toString() : `${errorEmoji()} (Deleted)`;
 }
 
 module.exports = {
@@ -49,11 +49,11 @@ module.exports = {
         const remaining = cooldown.check('config', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
 
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return replyError(`${e.error} You need **Administrator** permission to view config.`);
+          return replyError(error('You need **Administrator** permission to view config.'));
         }
       } else {
         const message = interactionOrMessage;
@@ -67,11 +67,11 @@ module.exports = {
         const remaining = cooldown.check('config', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
 
         if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return replyError(`${e.error} You need **Administrator** permission to view config.`);
+          return replyError(error('You need **Administrator** permission to view config.'));
         }
       }
 

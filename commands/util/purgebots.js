@@ -8,7 +8,7 @@ const {
   slashError,
   prefixError,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { error, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -40,19 +40,19 @@ module.exports = {
     const remaining = cooldown.check('purgebots', executor.id, guild.id, 3000);
     if (remaining > 0) {
       const secs = (remaining / 1000).toFixed(1);
-      const msg = `${e.warning} You are on cooldown. Try again in **${secs}s**.`;
+      const msg = withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`);
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
     // Permission check
     if (!executor.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      const msg = `${e.error} You need the **Manage Messages** permission.`;
+      const msg = error('You need the **Manage Messages** permission.');
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
     const botMember = guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      const msg = `${e.error} I need **Manage Messages** permission.`;
+      const msg = error('I need **Manage Messages** permission.');
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
@@ -64,7 +64,7 @@ module.exports = {
       if (isSlash) {
         amount = interaction.options.getInteger('amount') || 50;
         await interaction.reply({
-          content: `${e.loading} Purging...`,
+          content: withEmoji('loading', 'Purging...'),
           ephemeral: true,
         });
         fetched = await channel.messages.fetch({ limit: 100 });
@@ -74,7 +74,7 @@ module.exports = {
         if (amount < 1 || amount > 100) {
           return prefixError(
             message,
-            `${e.error} Please provide a number between 1 and 100.`
+            error('Please provide a number between 1 and 100.')
           );
         }
         
@@ -94,7 +94,7 @@ module.exports = {
         .first(Math.min(amount, 100));
 
       if (!botMsgs.length) {
-        const msg = `${e.error} No bot messages found to delete.`;
+        const msg = error('No bot messages found to delete.');
         if (isSlash) {
           return interaction.editReply(msg);
         } else {
@@ -107,7 +107,7 @@ module.exports = {
 
       // Single bulkDelete call
       const deleted = await channel.bulkDelete(botMsgs, true);
-      const successMsgContent = `${e.purge} Deleted **${deleted.size}** bot messages.`;
+      const successMsgContent = withEmoji('purge', `Deleted **${deleted.size}** bot messages.`);
 
       if (isSlash) {
         return interaction.editReply(successMsgContent);
@@ -117,7 +117,7 @@ module.exports = {
       }
     } catch (err) {
       console.error('[PurgeBots]', err);
-      const msg = `${e.error} An error occurred while purging bot messages.`;
+      const msg = error('An error occurred while purging bot messages.');
       if (isSlash) return interaction.editReply(msg);
       const errReply = await interactionOrMessage.channel.send(msg);
       setTimeout(() => errReply.delete().catch(() => {}), 5000);

@@ -9,7 +9,7 @@ const {
   slashError,
   prefixError,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { success, error, getEmoji, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -41,19 +41,19 @@ module.exports = {
     const remaining = cooldown.check('purge', executor.id, guild.id, 3000);
     if (remaining > 0) {
       const secs = (remaining / 1000).toFixed(1);
-      const msg = `${e.warning} You are on cooldown. Try again in **${secs}s**.`;
+      const msg = error(`You are on cooldown. Try again in **${secs}s**.`);
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
     // Permission check
     if (!executor.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      const msg = `${e.error} You need the **Manage Messages** permission.`;
+      const msg = error(`You need the **Manage Messages** permission.`);
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
     const botMember = guild.members.me;
     if (!botMember.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      const msg = `${e.error} I need **Manage Messages** permission.`;
+      const msg = error(`I need **Manage Messages** permission.`);
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
     }
 
@@ -65,7 +65,7 @@ module.exports = {
       if (isSlash) {
         amount = interaction.options.getInteger('amount') || 100;
         await interaction.reply({
-          content: `${e.loading} Purging...`,
+          content: withEmoji('loading', 'Purging...'),
           ephemeral: true,
         });
         messages = await channel.messages.fetch({
@@ -77,7 +77,7 @@ module.exports = {
         if (isNaN(amount) || amount < 1 || amount > 100) {
           return prefixError(
             message,
-            `${e.error} Please provide a number between 1 and 100.`
+            error(`Please provide a number between 1 and 100.`)
           );
         }
         
@@ -94,7 +94,7 @@ module.exports = {
       const deletable = messages.filter((m) => m.createdTimestamp > twoWeeksAgo);
 
       if (deletable.size === 0) {
-        const msg = `${e.error} No deletable messages found (must be under 12 days old).`;
+        const msg = error(`No deletable messages found (must be under 12 days old).`);
         if (isSlash) {
           return interaction.editReply(msg);
         } else {
@@ -110,19 +110,19 @@ module.exports = {
           name: (isSlash ? interaction.user : message.author).username,
           iconURL: (isSlash ? interaction.user : message.author).displayAvatarURL({ dynamic: true }),
         })
-        .setDescription(`🗑️ | Deleted **${deleted.size}** messages`)
+        .setDescription(success(`Deleted **${deleted.size}** messages`))
         .setFooter({ text: `Requested by ${(isSlash ? interaction.user : message.author).tag}` });
 
       if (isSlash) {
-        return interaction.editReply({ embeds: [embed] });
+        return interaction.editReply({ content: null, embeds: [embed] });
       } else {
         const msg = await channel.send({ embeds: [embed] });
         setTimeout(() => msg.delete().catch(() => {}), 5000);
       }
     } catch (err) {
       console.error('[Purge]', err);
-      const msg = `${e.error} An error occurred while purging messages.`;
-      if (isSlash) return interaction.editReply(msg);
+      const msg = error(`An error occurred while purging messages.`);
+      if (isSlash) return interaction.editReply({ content: msg, embeds: [] });
       // Since message is already deleted, send to channel
       const errReply = await interactionOrMessage.channel.send(msg);
       setTimeout(() => errReply.delete().catch(() => {}), 5000);

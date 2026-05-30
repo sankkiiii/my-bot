@@ -15,7 +15,7 @@ const {
   prefixError,
   prefixSuccess,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { success, error, withEmoji, getEmoji } = require('../../utils/emoji');
 
 const PRESENCE_PATH = path.join(__dirname, '..', '..', 'data', 'presence.json');
 
@@ -27,17 +27,17 @@ const activityTypes = {
 };
 
 const typeEmojis = {
-  PLAYING: `${e.playing} Playing`,
-  WATCHING: `${e.watching} Watching`,
-  LISTENING: `${e.listening} Listening`,
-  COMPETING: `${e.competing} Competing`,
+  PLAYING: `${getEmoji('playing')} Playing`,
+  WATCHING: `${getEmoji('watching')} Watching`,
+  LISTENING: `${getEmoji('listening')} Listening`,
+  COMPETING: `${getEmoji('competing')} Competing`,
 };
 
 const statusEmojis = {
-  online: `${e.info} Online`,
-  idle: `${e.warning} Idle`,
-  dnd: `${e.error} DND`,
-  invisible: `${e.info} Invisible`,
+  online: `${getEmoji('info')} Online`,
+  idle: `${getEmoji('warning')} Idle`,
+  dnd: `${getEmoji('error')} DND`,
+  invisible: `${getEmoji('info')} Invisible`,
 };
 
 module.exports = {
@@ -50,11 +50,11 @@ module.exports = {
         .setDescription('Activity type')
         .setRequired(true)
         .addChoices(
-          { name: `${e.playing} Playing`, value: 'PLAYING' },
-          { name: `${e.watching} Watching`, value: 'WATCHING' },
-          { name: `${e.listening} Listening`, value: 'LISTENING' },
-          { name: `${e.competing} Competing`, value: 'COMPETING' },
-          { name: `${e.error} Clear (remove activity)`, value: 'CLEAR' },
+          { name: 'Playing', value: 'PLAYING' },
+          { name: 'Watching', value: 'WATCHING' },
+          { name: 'Listening', value: 'LISTENING' },
+          { name: 'Competing', value: 'COMPETING' },
+          { name: 'Clear (remove activity)', value: 'CLEAR' },
         ),
     )
     .addStringOption((opt) =>
@@ -66,10 +66,10 @@ module.exports = {
         .setDescription('Bot online status')
         .setRequired(false)
         .addChoices(
-          { name: `${e.info} Online`, value: 'online' },
-          { name: `${e.warning} Idle`, value: 'idle' },
-          { name: `${e.error} Do Not Disturb`, value: 'dnd' },
-          { name: `${e.info} Invisible`, value: 'invisible' },
+          { name: 'Online', value: 'online' },
+          { name: 'Idle', value: 'idle' },
+          { name: 'Do Not Disturb', value: 'dnd' },
+          { name: 'Invisible', value: 'invisible' },
         ),
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
@@ -95,11 +95,11 @@ module.exports = {
         const remaining = cooldown.check('rpc', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return slashError(interaction, `${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return slashError(interaction, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
 
         if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return slashError(interaction, `${e.error} You need **Administrator** permission to change my presence.`);
+          return slashError(interaction, error('You need **Administrator** permission to change my presence.'));
         }
 
         replyError = (content) => slashError(interaction, content);
@@ -118,23 +118,23 @@ module.exports = {
         const remaining = cooldown.check('rpc', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return prefixError(message, `${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return prefixError(message, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
 
         if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return prefixError(message, `${e.error} You need **Administrator** permission to change my presence.`);
+          return prefixError(message, error('You need **Administrator** permission to change my presence.'));
         }
 
         replyError = (content) => prefixError(message, content);
         replySuccess = (opts) => prefixSuccess(message, opts);
 
         if (!args[0]) {
-          return replyError(`${e.error} Usage: \`!rpc <playing|watching|listening|competing|clear> [text]\``);
+          return replyError(error('Usage: `!rpc <playing|watching|listening|competing|clear> [text]`'));
         }
 
         type = args[0].toUpperCase();
         if (!['PLAYING', 'WATCHING', 'LISTENING', 'COMPETING', 'CLEAR'].includes(type)) {
-          return replyError(`${e.error} Invalid type. Use: \`playing\`, \`watching\`, \`listening\`, \`competing\`, or \`clear\`.`);
+          return replyError(error('Invalid type. Use: `playing`, `watching`, `listening`, `competing`, or `clear`.'));
         }
 
         text = args.slice(1).join(' ') || null;
@@ -153,11 +153,11 @@ module.exports = {
         };
         fs.writeFileSync(PRESENCE_PATH, JSON.stringify(presenceData, null, 2));
 
-        return replySuccess({ content: `${e.success} Bot presence cleared.` });
+        return replySuccess({ content: success('Bot presence cleared.') });
       }
 
       if (!text) {
-        return replyError(`${e.error} Please provide a status text.`);
+        return replyError(error('Please provide a status text.'));
       }
 
       client.user.setPresence({
@@ -180,7 +180,7 @@ module.exports = {
           name: client.user.username,
           iconURL: client.user.displayAvatarURL({ dynamic: true }),
         })
-        .setDescription(`✅ | Presence updated\n**Type:** ${type}\n**Text:** ${text}\n**Status:** ${status}`)
+        .setDescription(success('Presence updated') + `\n**Type:** ${type}\n**Text:** ${text}\n**Status:** ${status}`)
         .setFooter({ text: `Requested by ${user.tag}` });
 
       return replySuccess({ embeds: [embed] });

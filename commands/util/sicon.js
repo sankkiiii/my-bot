@@ -13,7 +13,7 @@ const {
   prefixError,
   prefixSuccess,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { error, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -42,7 +42,7 @@ module.exports = {
         const remaining = cooldown.check('servericon', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
       } else {
         const message = interactionOrMessage;
@@ -57,12 +57,12 @@ module.exports = {
         const remaining = cooldown.check('servericon', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
       }
 
       if (!guild.icon) {
-        return replyError(`${e.error} This server does not have an icon.`);
+        return replyError(error('This server does not have an icon.'));
       }
 
       const iconUrl = guild.iconURL({ size: 4096, dynamic: true });
@@ -73,7 +73,7 @@ module.exports = {
           name: guild.name,
           iconURL: guild.iconURL({ dynamic: true }),
         })
-        .setDescription(`🖼️ | Server icon for **${guild.name}**`)
+        .setDescription(withEmoji('avatar', `Server icon for **${guild.name}**`))
         .setImage(iconUrl)
         .setFooter({ text: `Requested by ${(isSlash ? interactionOrMessage.user : interactionOrMessage.author).tag}` });
 

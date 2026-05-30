@@ -15,7 +15,7 @@ const {
   prefixError,
   prefixSuccess,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { success, error, withEmoji, getEmoji } = require('../../utils/emoji');
 
 const PRESENCE_PATH = path.join(__dirname, '..', '..', 'data', 'presence.json');
 
@@ -57,16 +57,16 @@ function buildStatusEmbed(client, ping, latency, user) {
       iconURL: client.user.displayAvatarURL({ dynamic: true }),
     })
     .setDescription(
-      `🏓 **Ping:** ${ping}ms\n` +
-      `↩️ **Latency:** ${latency}ms\n` +
-      `⏱️ **Uptime:** ${uptime}\n` +
-      `🧠 **Memory:** ${memUsed}MB\n` +
-      `🌐 **Servers:** ${guilds}\n` +
-      `👥 **Users:** ${users}\n` +
-      `⚙️ **Commands:** ${commands}\n` +
-      `🔧 **Node.js:** ${process.version}\n` +
-      `📦 **discord.js:** v${djsVersion}\n` +
-      `${presence && presence !== 'None' ? `🎮 **Activity:** ${presence}` : ''}`
+      `${withEmoji('ping', `**Ping:** ${ping}ms`)}\n` +
+      `${withEmoji('latency', `**Latency:** ${latency}ms`)}\n` +
+      `${withEmoji('uptime', `**Uptime:** ${uptime}`)}\n` +
+      `${withEmoji('memory', `**Memory:** ${memUsed}MB`)}\n` +
+      `${withEmoji('servers', `**Servers:** ${guilds}`)}\n` +
+      `${withEmoji('members', `**Users:** ${users}`)}\n` +
+      `${withEmoji('commands', `**Commands:** ${commands}`)}\n` +
+      `${withEmoji('nodejs', `**Node.js:** ${process.version}`)}\n` +
+      `${withEmoji('djs', `**discord.js:** v${djsVersion}`)}\n` +
+      `${presence && presence !== 'None' ? `${withEmoji('playing', `**Activity:** ${presence}`)}` : ''}`
     )
     .setFooter({ text: `Requested by ${user.tag}` });
 }
@@ -95,11 +95,11 @@ module.exports = {
         const remaining = cooldown.check('status', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return slashError(interaction, `${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return slashError(interaction, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
 
         if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return slashError(interaction, `${e.error} You need **Administrator** permission.`);
+          return slashError(interaction, error('You need **Administrator** permission.'));
         }
 
         const sent = await slashSuccess(interaction, { content: 'Calculating...', fetchReply: true });
@@ -117,11 +117,11 @@ module.exports = {
         const remaining = cooldown.check('status', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return prefixError(message, `${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return prefixError(message, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
 
         if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return prefixError(message, `${e.error} You need **Administrator** permission.`);
+          return prefixError(message, error('You need **Administrator** permission.'));
         }
 
         const start = Date.now();

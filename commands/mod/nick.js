@@ -12,7 +12,7 @@ const {
   prefixError,
   prefixSuccess,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { success, error, getEmoji, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -59,7 +59,7 @@ module.exports = {
         const remaining = cooldown.check('nick', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
 
         const userOpt = interaction.options.getUser('user');
@@ -82,7 +82,7 @@ module.exports = {
         const remaining = cooldown.check('nick', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
 
         const mentioned = message.mentions.members.first();
@@ -95,7 +95,7 @@ module.exports = {
         }
       }
 
-      if (!target) return replyError(`${e.error} User not found.`);
+      if (!target) return replyError(error(`User not found.`));
 
       const isSelf = target.id === (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id);
 
@@ -104,26 +104,26 @@ module.exports = {
         const hasPerms = memberPerms.has(PermissionFlagsBits.ChangeNickname)
           || memberPerms.has(PermissionFlagsBits.ManageNicknames);
         if (!hasPerms) {
-          return replyError(`${e.error} You need **Change Nickname** permission.`);
+          return replyError(error(`You need **Change Nickname** permission.`));
         }
       } else {
         if (!executorMember.permissions.has(PermissionFlagsBits.ManageNicknames)) {
-          return replyError(`${e.error} You need **Manage Nicknames** permission.`);
+          return replyError(error(`You need **Manage Nicknames** permission.`));
         }
         if (!isOwner && target.roles.highest.position >= executorMember.roles.highest.position) {
-          return replyError(`${e.error} You cannot change the nickname of someone with an equal or higher role.`);
+          return replyError(error(`You cannot change the nickname of someone with an equal or higher role.`));
         }
         if (target.id === target.guild.ownerId) {
-          return replyError(`${e.error} Cannot change the server owner's nickname.`);
+          return replyError(error(`Cannot change the server owner's nickname.`));
         }
       }
 
       const botMember = guild.members.me;
       if (!botMember || !botMember.permissions.has(PermissionFlagsBits.ManageNicknames)) {
-        return replyError(`${e.error} I need **Manage Nicknames** permission.`);
+        return replyError(error(`I need **Manage Nicknames** permission.`));
       }
       if (target.roles.highest.position >= botMember.roles.highest.position) {
-        return replyError(`${e.error} I cannot change this user's nickname (role too high).`);
+        return replyError(error(`I cannot change this user's nickname (role too high).`));
       }
 
       await target.setNickname(
@@ -139,8 +139,8 @@ module.exports = {
         })
         .setDescription(
           nickname
-            ? `🏷️ | Nickname set to **${nickname}**`
-            : `🏷️ | Nickname cleared`
+            ? success(`Nickname set to **${nickname}**`)
+            : success(`Nickname cleared`)
         )
         .setFooter({ text: `Requested by ${executor.tag}` });
 

@@ -11,7 +11,7 @@ const {
   prefixError,
   prefixSuccess,
 } = require('../../utils/replyHelper');
-const e = require('../../config/emojis');
+const { error } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -43,7 +43,7 @@ module.exports = {
         const remaining = cooldown.check('serverinfo', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
       } else {
         const message = interactionOrMessage;
@@ -58,7 +58,7 @@ module.exports = {
         const remaining = cooldown.check('serverinfo', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
-          return replyError(`${e.warning} You are on cooldown. Try again in **${secs}s**.`);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
       }
 
