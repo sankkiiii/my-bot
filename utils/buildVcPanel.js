@@ -39,7 +39,7 @@ function buildVcPanel() {
       { name: '🔧 Channel', value: 'Rename  •  Limit  •  Delete', inline: true },
       { name: '🔒 Access', value: 'Lock  •  Unlock  •  Hide  •  Unhide  •  Wait', inline: true },
       { name: '\u200b', value: '\u200b', inline: false },
-      { name: '👥 Members', value: 'Trust  •  Reject  •  Kick  •  Ban', inline: true }
+      { name: '👥 Members', value: 'Trust  •  Reject  •  Kick  •  Ban  •  Transfer', inline: true }
     );
   }
 
@@ -61,7 +61,8 @@ function buildVcPanel() {
 
   const row3 = new ActionRowBuilder().addComponents(
     buildButton('vc_kick', e.vcKickBtn, 'Kick', ButtonStyle.Danger),
-    buildButton('vc_ban', e.vcBanBtn, 'Ban', ButtonStyle.Danger)
+    buildButton('vc_ban', e.vcBanBtn, 'Ban', ButtonStyle.Danger),
+    buildButton('vc_transfer', e.vcTransferBtn, 'Transfer', ButtonStyle.Primary)
   );
 
   return { embed, rows: [row1, row2, row3] };

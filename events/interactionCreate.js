@@ -32,13 +32,13 @@ async function sendLog(client, channelId, embed) {
 const VC_BUTTON_IDS = [
   'vc_rename', 'vc_limit', 'vc_lock', 'vc_unlock', 'vc_hide',
   'vc_unhide', 'vc_waiting', 'vc_trust', 'vc_reject', 'vc_delete',
-  'vc_kick', 'vc_ban',
+  'vc_kick', 'vc_ban', 'vc_transfer',
 ];
 
 const VC_MODAL_IDS = ['vc_rename_modal', 'vc_limit_modal'];
 const TICKET_MODAL_ID = 'ticket_reason_modal';
 
-const VC_SELECT_IDS = ['vc_trust_select', 'vc_reject_select', 'vc_kick_select', 'vc_ban_select'];
+const VC_SELECT_IDS = ['vc_trust_select', 'vc_reject_select', 'vc_kick_select', 'vc_ban_select', 'vc_transfer_select'];
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -645,6 +645,20 @@ async function handleVcButton(interaction) {
       });
     }
 
+    if (id === 'vc_transfer') {
+      const selectMenu = new UserSelectMenuBuilder()
+        .setCustomId('vc_transfer_select')
+        .setPlaceholder('Select a user to transfer ownership to...')
+        .setMinValues(1)
+        .setMaxValues(1);
+      const row = new ActionRowBuilder().addComponents(selectMenu);
+      return interaction.reply({
+        content: '🔄 Select a user to transfer your VC ownership to:',
+        components: [row],
+        ephemeral: true,
+      });
+    }
+
     if (id === 'vc_lock') {
       await voiceChannel.permissionOverwrites.edit(interaction.guild.id, { Connect: false });
       return interaction.editReply({ content: success('Channel locked.') });
@@ -890,6 +904,77 @@ async function handleVcSelectMenu(interaction) {
       return interaction.update({
         content: success(`${member.displayName} has been banned from the VC.`),
         components: [],
+      });
+    }
+
+    if (id === 'vc_transfer_select') {
+      // Cannot transfer to yourself
+      if (member.id === interaction.user.id) {
+        return interaction.update({
+          content: error('You cannot transfer ownership to yourself.'),
+          components: []
+        });
+      }
+
+      // Cannot transfer to a bot
+      if (member.user.bot) {
+        return interaction.update({
+          content: error('You cannot transfer ownership to a bot.'),
+          components: []
+        });
+      }
+
+      // New owner must be in the VC
+      if (member.voice?.channelId !== userVoiceChannelId) {
+        return interaction.update({
+          content: error(`**${member.displayName}** must be in your voice channel to receive ownership.`),
+          components: []
+        });
+      }
+
+      const oldCreatorId = vcData.creatorId;
+
+      // Transfer ownership in Map
+      tempVCs.set(userVoiceChannelId, {
+        ...vcData,
+        creatorId: member.id
+      });
+
+      // Give new owner ManageChannels + MoveMembers on VC
+      try {
+        await voiceChannel.permissionOverwrites.edit(member.id, {
+          ManageChannels: true,
+          MoveMembers: true,
+          ViewChannel: true,
+          Connect: true,
+          Speak: true
+        });
+      } catch (err) {
+        console.error('[VC Transfer] Failed to update perms:', err.message);
+      }
+
+      // Remove old owner's ManageChannels permission
+      try {
+        await voiceChannel.permissionOverwrites.edit(oldCreatorId, {
+          ManageChannels: null,
+          MoveMembers: null
+        });
+      } catch (err) {
+        console.error('[VC Transfer] Failed to remove old owner perms:', err.message);
+      }
+
+      // Notify in VC text chat
+      try {
+        await voiceChannel.send(
+          `🔄 **${member.displayName}** is now the owner of this voice channel.\n` +
+          `*(Transferred from <@${oldCreatorId}>)*`
+        );
+      } catch {}
+
+      // Confirm to old owner
+      return interaction.update({
+        content: success(`Ownership transferred to **${member.displayName}** successfully.`),
+        components: []
       });
     }
   } catch (err) {

@@ -41,6 +41,7 @@ module.exports = {
   vcRejectBtn:  '<:vc_reject:EMOJI_ID_HERE>',
   vcKickBtn:    '<:vc_kick:EMOJI_ID_HERE>',
   vcBanBtn:     '<:vc_ban:EMOJI_ID_HERE>',
+  vcTransferBtn: '<:vc_transfer:EMOJI_ID_HERE>',
 
   // AFK
   afk:  '',
