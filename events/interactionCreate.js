@@ -32,13 +32,13 @@ async function sendLog(client, channelId, embed) {
 const VC_BUTTON_IDS = [
   'vc_rename', 'vc_limit', 'vc_lock', 'vc_unlock', 'vc_hide',
   'vc_unhide', 'vc_waiting', 'vc_trust', 'vc_reject', 'vc_delete',
-  'vc_kick', 'vc_ban', 'vc_transfer',
+  'vc_kick', 'vc_ban', 'vc_transfer', 'vc_unban',
 ];
 
 const VC_MODAL_IDS = ['vc_rename_modal', 'vc_limit_modal'];
 const TICKET_MODAL_ID = 'ticket_reason_modal';
 
-const VC_SELECT_IDS = ['vc_trust_select', 'vc_reject_select', 'vc_kick_select', 'vc_ban_select', 'vc_transfer_select'];
+const VC_SELECT_IDS = ['vc_trust_select', 'vc_reject_select', 'vc_kick_select', 'vc_ban_select', 'vc_transfer_select', 'vc_unban_select'];
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -659,6 +659,20 @@ async function handleVcButton(interaction) {
       });
     }
 
+    if (id === 'vc_unban') {
+      const selectMenu = new UserSelectMenuBuilder()
+        .setCustomId('vc_unban_select')
+        .setPlaceholder('Select a user to unban from your VC...')
+        .setMinValues(1)
+        .setMaxValues(1);
+      const row = new ActionRowBuilder().addComponents(selectMenu);
+      return interaction.reply({
+        content: '🔓 Select a user to unban from your VC:',
+        components: [row],
+        ephemeral: true,
+      });
+    }
+
     if (id === 'vc_lock') {
       await voiceChannel.permissionOverwrites.edit(interaction.guild.id, { Connect: false });
       return interaction.editReply({ content: success('Channel locked.') });
@@ -974,6 +988,54 @@ async function handleVcSelectMenu(interaction) {
       // Confirm to old owner
       return interaction.update({
         content: success(`Ownership transferred to **${member.displayName}** successfully.`),
+        components: []
+      });
+    }
+
+    if (id === 'vc_unban_select') {
+      // Cannot unban yourself
+      if (member.id === interaction.user.id) {
+        return interaction.update({
+          content: error('You cannot unban yourself.'),
+          components: []
+        });
+      }
+
+      // Check if user actually has a permission overwrite
+      const existingOverwrite = voiceChannel.permissionOverwrites.cache.get(member.id);
+
+      if (!existingOverwrite) {
+        return interaction.update({
+          content: error(`**${member.displayName}** is not banned from your VC.`),
+          components: []
+        });
+      }
+
+      // Check if they actually have denied permissions
+      const isDenied = existingOverwrite.deny.has(PermissionFlagsBits.ViewChannel) ||
+                       existingOverwrite.deny.has(PermissionFlagsBits.Connect);
+
+      if (!isDenied) {
+        return interaction.update({
+          content: error(`**${member.displayName}** is not banned from your VC.`),
+          components: []
+        });
+      }
+
+      // Remove all permission overwrites for this user
+      try {
+        await voiceChannel.permissionOverwrites.delete(member.id);
+      } catch (err) {
+        console.error('[VC Unban] Failed to remove overwrites:', err.message);
+        return interaction.update({
+          content: error('Failed to unban user. Check bot permissions.'),
+          components: []
+        });
+      }
+
+      // Confirm
+      return interaction.update({
+        content: success(`**${member.displayName}** has been unbanned from your VC.`),
         components: []
       });
     }
