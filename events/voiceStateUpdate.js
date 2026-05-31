@@ -70,33 +70,90 @@ module.exports = {
         const member = newState.member;
         const triggerChannel = guild.channels.cache.get(CREATE_VC_CHANNEL);
 
+        // Build permission overwrites array
+        const permOverwrites = [
+          // @everyone — default deny nothing special
+          {
+            id: guild.id,
+            allow: [],
+            deny: []
+          },
+          // Creator gets full control
+          {
+            id: member.id,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.Connect,
+              PermissionFlagsBits.Speak,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ManageChannels,
+              PermissionFlagsBits.MoveMembers,
+            ]
+          },
+          // Bot gets full control
+          {
+            id: guild.members.me.id,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.Connect,
+              PermissionFlagsBits.Speak,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ManageChannels,
+              PermissionFlagsBits.MoveMembers,
+            ]
+          }
+        ];
+
+        // Copy roles from trigger channel
+        const inheritedRoleIds = [];
+        if (triggerChannel) {
+          for (const [id, overwrite] of triggerChannel.permissionOverwrites.cache) {
+            // Skip @everyone
+            if (id === guild.id) continue;
+            // Skip user overwrites (only copy role overwrites)
+            if (overwrite.type !== 0) continue; // type 0 = role
+            // Skip if already in array (bot or creator)
+            if (id === guild.members.me.id) continue;
+
+            // Add role with ViewChannel + Connect + Speak + SendMessages
+            permOverwrites.push({
+              id: id,
+              allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.Connect,
+                PermissionFlagsBits.Speak,
+                PermissionFlagsBits.SendMessages,
+              ]
+            });
+            inheritedRoleIds.push(id);
+          }
+        }
+
         let tempChannel;
         try {
           tempChannel = await guild.channels.create({
             name: `${member.displayName}'s VC`,
             type: ChannelType.GuildVoice,
             parent: TEMP_VC_CATEGORY || undefined,
-            permissionOverwrites: [
-              {
-                id: member.id,
-                allow: [
-                  PermissionFlagsBits.ManageChannels,
-                  PermissionFlagsBits.MoveMembers,
-                  PermissionFlagsBits.Connect,
-                  PermissionFlagsBits.Speak,
-                ],
-              },
-            ],
+            permissionOverwrites: permOverwrites,
           });
         } catch (err) {
           console.error('[TempVC] Failed to create hub channel:', err.message);
           return;
         }
 
-        // Add to creating lock set
+        // Add to creating lock set and main Map
         creating.add(tempChannel.id);
-        tempVCs.set(tempChannel.id, { creatorId: member.id, guildId: guild.id, type: 'hub' });
+        tempVCs.set(tempChannel.id, {
+          creatorId: member.id,
+          guildId: guild.id,
+          type: 'hub',
+          inheritedRoles: inheritedRoleIds
+        });
+
         console.log(`[TempVC] Created: ${tempChannel.name} for ${member.user.tag}`);
+        console.log(`[TempVC] Inherited ${inheritedRoleIds.length} roles from trigger channel`);
+        console.log(`[TempVC] Inherited role IDs:`, inheritedRoleIds);
 
         try {
           await member.voice.setChannel(tempChannel);
@@ -104,7 +161,7 @@ module.exports = {
           console.error('[TempVC] Failed to move member to hub:', err.message);
         }
 
-        // 3 second grace period to allow voice state to settle
+        // 3 second grace period
         setTimeout(() => {
           creating.delete(tempChannel.id);
         }, 3000);
@@ -130,6 +187,58 @@ module.exports = {
         const duoNumber = getNextDuoNumber(guild, TEMP_VC_CATEGORY);
         const channelName = `\uD834\uDD22\u30FBduo ${toSuperscript(duoNumber)}`;
 
+        // Build permission overwrites array
+        const permOverwrites = [
+          {
+            id: guild.id,
+            allow: [],
+            deny: []
+          },
+          {
+            id: member.id,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.Connect,
+              PermissionFlagsBits.Speak,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ManageChannels,
+              PermissionFlagsBits.MoveMembers,
+            ]
+          },
+          {
+            id: guild.members.me.id,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.Connect,
+              PermissionFlagsBits.Speak,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ManageChannels,
+              PermissionFlagsBits.MoveMembers,
+            ]
+          }
+        ];
+
+        // Inherit roles from trigger channel
+        const inheritedRoleIds = [];
+        if (duoTriggerChannel) {
+          for (const [id, overwrite] of duoTriggerChannel.permissionOverwrites.cache) {
+            if (id === guild.id) continue;
+            if (overwrite.type !== 0) continue;
+            if (id === guild.members.me.id) continue;
+
+            permOverwrites.push({
+              id: id,
+              allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.Connect,
+                PermissionFlagsBits.Speak,
+                PermissionFlagsBits.SendMessages,
+              ]
+            });
+            inheritedRoleIds.push(id);
+          }
+        }
+
         let duoChannel;
         try {
           duoChannel = await guild.channels.create({
@@ -137,17 +246,7 @@ module.exports = {
             type: ChannelType.GuildVoice,
             parent: TEMP_VC_CATEGORY || undefined,
             userLimit: 2,
-            permissionOverwrites: [
-              {
-                id: member.id,
-                allow: [
-                  PermissionFlagsBits.ManageChannels,
-                  PermissionFlagsBits.MoveMembers,
-                  PermissionFlagsBits.Connect,
-                  PermissionFlagsBits.Speak,
-                ],
-              },
-            ],
+            permissionOverwrites: permOverwrites,
           });
         } catch (err) {
           console.error('[DuoVC] Failed to create duo channel:', err.message);
@@ -156,8 +255,16 @@ module.exports = {
 
         // Add to creating lock set
         creating.add(duoChannel.id);
-        tempVCs.set(duoChannel.id, { creatorId: member.id, guildId: guild.id, type: 'duo' });
+        tempVCs.set(duoChannel.id, {
+          creatorId: member.id,
+          guildId: guild.id,
+          type: 'duo',
+          inheritedRoles: inheritedRoleIds
+        });
+
         console.log(`[TempVC] Created: ${duoChannel.name} for ${member.user.tag}`);
+        console.log(`[TempVC] Inherited ${inheritedRoleIds.length} roles from trigger channel`);
+        console.log(`[TempVC] Inherited role IDs:`, inheritedRoleIds);
 
         try {
           await member.voice.setChannel(duoChannel);
@@ -190,7 +297,7 @@ module.exports = {
       ) {
         const channelId = oldState.channelId;
 
-        // SKIP if channel is being created (race condition protection)
+        // SKIP if channel is being created
         if (creating.has(channelId)) {
           console.log('[TempVC] Skipping deletion — in creating Set:', channelId);
           return;
@@ -199,10 +306,10 @@ module.exports = {
         // SKIP if not a tracked temp VC
         if (!tempVCs.has(channelId)) return;
 
-        // Small delay before checking if empty to allow user move to finalize
+        // Small delay
         await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Re-fetch channel after delay (it might be deleted already)
+        // Re-fetch channel after delay
         const freshChannel = oldState.guild.channels.cache.get(channelId);
         if (!freshChannel) {
           tempVCs.delete(channelId);

@@ -509,7 +509,7 @@ async function handleVcButton(interaction) {
   const id = interaction.customId;
   const tempVCs = interaction.client.tempVCs;
   const modalButtons = ['vc_rename', 'vc_limit'];
-  const selectButtons = ['vc_trust', 'vc_reject', 'vc_kick', 'vc_ban'];
+  const selectButtons = ['vc_trust', 'vc_reject', 'vc_kick', 'vc_ban', 'vc_transfer', 'vc_unban'];
 
   // Defer immediately for non-modal/non-select buttons (must respond within 3s)
   if (!modalButtons.includes(id) && !selectButtons.includes(id)) {
@@ -674,6 +674,8 @@ async function handleVcButton(interaction) {
     }
 
     if (id === 'vc_lock') {
+      // Lock = deny @everyone Connect
+      // Inherited roles have explicit ALLOW which overrides this DENY
       await voiceChannel.permissionOverwrites.edit(interaction.guild.id, { Connect: false });
       return interaction.editReply({ content: success('Channel locked.') });
     }
@@ -684,6 +686,8 @@ async function handleVcButton(interaction) {
     }
 
     if (id === 'vc_hide') {
+      // Hide = deny @everyone ViewChannel
+      // Inherited roles have explicit ALLOW which overrides this DENY
       await voiceChannel.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: false });
       return interaction.editReply({ content: success('Channel hidden.') });
     }
@@ -694,6 +698,8 @@ async function handleVcButton(interaction) {
     }
 
     if (id === 'vc_waiting') {
+      // Waiting = @everyone can see but not connect
+      // Inherited roles already have Connect: true — they can still join
       await voiceChannel.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: true, Connect: false });
       return interaction.editReply({ content: success('Waiting room enabled.') });
     }
@@ -841,6 +847,9 @@ async function handleVcSelectMenu(interaction) {
   }
 
   try {
+    // NOTE: All these handlers edit USER-specific permission overwrites (type 1).
+    // Inherited ROLE overwrites (type 0) are untouched and remain active.
+
     if (id === 'vc_trust_select') {
       await voiceChannel.permissionOverwrites.edit(member.id, {
         ViewChannel: true,
