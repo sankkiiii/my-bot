@@ -27,10 +27,6 @@ const categories = {
       { name: 'vckick',    alias: 'dvc, forcedc',    desc: 'Disconnect a user from VC' },
       { name: 'vckickall', alias: 'vcpurge, emptyvc',desc: 'Disconnect everyone from VC' },
       { name: 'dump',      alias: 'rolemembers, rd', desc: 'List all members with a role' },
-      { name: 'noprefix',  alias: 'np, nopfx',       desc: 'Manage no-prefix users' },
-      { name: 'owner',     alias: 'addowner',        desc: 'Manage bot owners' },
-      { name: 'rpc',       alias: 'presence',        desc: 'Change bot rich presence' },
-      { name: 'status',    alias: 'stats, botinfo',  desc: 'Show bot statistics' },
     ]
   },
   util: {
@@ -63,7 +59,6 @@ const categories = {
       { name: 'setup',       alias: 'configure, botsetup', desc: 'Configure the bot for this server' },
       { name: 'config',      alias: 'cfg, settings',       desc: 'View current bot configuration' },
       { name: 'resetconfig', alias: 'resetcfg',            desc: 'Reset bot configuration' },
-      { name: 'vcpanel',     alias: 'vcp, voicepanel',     desc: 'Send VC control panel in a channel' },
     ]
   },
   voice: {
