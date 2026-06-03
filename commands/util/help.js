@@ -2,6 +2,8 @@ const {
   SlashCommandBuilder,
   EmbedBuilder,
   StringSelectMenuBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   ActionRowBuilder,
 } = require('discord.js');
 const cooldown = require('../../utils/cooldown');
@@ -125,11 +127,20 @@ function buildHelpMenu(client, prefix) {
   return { embed, rows: [row] };
 }
 
-function buildCategoryEmbed(key, client, prefix) {
+function buildCategoryEmbed(key, client, prefix, page = 0) {
   const cat = categories[key];
   if (!cat) return buildHelpMenu(client, prefix);
 
-  const cmdList = cat.commands.map(cmd =>
+  const CMDS_PER_PAGE = 6;
+  const totalPages = Math.ceil(cat.commands.length / CMDS_PER_PAGE);
+  const currentPage = Math.max(0, Math.min(page, totalPages - 1));
+
+  // Slice commands for this page
+  const start = currentPage * CMDS_PER_PAGE;
+  const pageCmds = cat.commands.slice(start, start + CMDS_PER_PAGE);
+
+  // Build command list for this page
+  const cmdList = pageCmds.map(cmd =>
     `\`${cmd.name}\` — ${cmd.desc}` +
     (cmd.alias && cmd.alias !== 'Button'
       ? `\n  *Aliases: \`${cmd.alias}\`*`
@@ -143,12 +154,19 @@ function buildCategoryEmbed(key, client, prefix) {
       iconURL: client.user.displayAvatarURL({ dynamic: true })
     })
     .setDescription(
-      (cat.description ? cat.description + '\n\n' : '') + cmdList
+      (cat.description ? cat.description + '\n\n' : '') +
+      cmdList
     )
     .setFooter({
-      text: `${cat.commands.length} commands • Prefix: ${prefix} • Select another category below`
+      text: totalPages > 1
+        ? `Page ${currentPage + 1}/${totalPages} • ${cat.commands.length} commands • Prefix: ${prefix}`
+        : `${cat.commands.length} commands • Prefix: ${prefix}`
     });
 
+  // Build components
+  const components = [];
+
+  // Row 1: Select menu (always shown)
   const selectMenu = new StringSelectMenuBuilder()
     .setCustomId('help_select')
     .setPlaceholder(`📚 Currently: ${cat.label}`)
@@ -159,9 +177,34 @@ function buildCategoryEmbed(key, client, prefix) {
       { label: 'Setup',          value: 'setup',   description: 'Configure the bot per server',     emoji: '⚙️' },
       { label: 'Voice Controls', value: 'voice',   description: 'VC control panel buttons',         emoji: '🔊' },
     ]);
+  components.push(new ActionRowBuilder().addComponents(selectMenu));
 
-  const row = new ActionRowBuilder().addComponents(selectMenu);
-  return { embed, rows: [row] };
+  // Row 2: Pagination buttons (only if more than 1 page)
+  if (totalPages > 1) {
+    const prevBtn = new ButtonBuilder()
+      .setCustomId(`help_page_${key}_${currentPage - 1}`)
+      .setLabel('← Previous')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(currentPage === 0);
+
+    const pageBtn = new ButtonBuilder()
+      .setCustomId('help_page_indicator')
+      .setLabel(`${currentPage + 1} / ${totalPages}`)
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(true); // indicator only
+
+    const nextBtn = new ButtonBuilder()
+      .setCustomId(`help_page_${key}_${currentPage + 1}`)
+      .setLabel('Next →')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(currentPage >= totalPages - 1);
+
+    components.push(
+      new ActionRowBuilder().addComponents(prevBtn, pageBtn, nextBtn)
+    );
+  }
+
+  return { embed, rows: components };
 }
 
 module.exports = {

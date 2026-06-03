@@ -76,6 +76,17 @@ module.exports = {
             await handleVcButton(interaction);
             return;
           }
+          if (interaction.customId.startsWith('help_page_')) {
+            if (interaction.customId === 'help_page_indicator') return;
+            const { buildCategoryEmbed } = require('../commands/util/help');
+            const { prefix } = require('../config');
+            const parts = interaction.customId.split('_');
+            const key = parts[2];
+            const pageNum = parseInt(parts[3]);
+            if (isNaN(pageNum)) return;
+            const { embed, rows } = buildCategoryEmbed(key, interaction.client, prefix, pageNum);
+            return interaction.update({ embeds: [embed], components: rows });
+          }
         } catch (err) {
           console.error('[Button Error]', err);
           if (!interaction.replied && !interaction.deferred) {
@@ -101,7 +112,8 @@ module.exports = {
           const { embed, rows } = buildCategoryEmbed(
             selected,
             interaction.client,
-            prefix
+            prefix,
+            0
           );
           return interaction.update({ embeds: [embed], components: rows });
         }
