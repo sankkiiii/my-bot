@@ -92,6 +92,21 @@ module.exports = {
         }
       }
 
+      // --- String select menu handling ---
+      if (interaction.isStringSelectMenu()) {
+        if (interaction.customId === 'help_select') {
+          const { buildCategoryEmbed } = require('../commands/util/help');
+          const { prefix } = require('../config');
+          const selected = interaction.values[0];
+          const { embed, rows } = buildCategoryEmbed(
+            selected,
+            interaction.client,
+            prefix
+          );
+          return interaction.update({ embeds: [embed], components: rows });
+        }
+      }
+
       // --- Modal handling ---
       if (interaction.isModalSubmit()) {
         if (interaction.customId === TICKET_MODAL_ID) {
