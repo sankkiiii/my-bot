@@ -196,7 +196,7 @@ module.exports = {
         await member.roles.add(role, `Toggled by ${executorTag}`);
 
         const embed = new EmbedBuilder()
-          .setColor(role.color || 0x57F287)
+          .setColor('#57F287')
           .setAuthor({
             name: member.displayName,
             iconURL: member.user.displayAvatarURL({ dynamic: true })

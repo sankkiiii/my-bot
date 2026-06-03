@@ -105,7 +105,7 @@ module.exports = {
       // Single bulkDelete call
       const deleted = await channel.bulkDelete(deletable, true);
       const embed = new EmbedBuilder()
-        .setColor('#5865F2')
+        .setColor('#FEE75C')
         .setAuthor({
           name: (isSlash ? interaction.user : message.author).username,
           iconURL: (isSlash ? interaction.user : message.author).displayAvatarURL({ dynamic: true }),

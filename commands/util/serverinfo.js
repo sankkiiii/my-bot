@@ -108,7 +108,7 @@ Boosts: ${guild.premiumSubscriptionCount || 0}
 ${guild.vanityURLCode ? `Vanity URL: discord.gg/${guild.vanityURLCode}` : ''}`;
 
       const embed = new EmbedBuilder()
-        .setColor(0x5865F2)
+        .setColor('#5865F2')
         .setAuthor({
           name: `${guild.name}'s Information`,
           iconURL: guild.iconURL({ dynamic: true }),

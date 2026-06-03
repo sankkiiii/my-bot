@@ -133,7 +133,7 @@ module.exports = {
         }
 
         const embed = new EmbedBuilder()
-          .setColor(0x57F287)
+          .setColor('#FF7043')
           .setAuthor({
             name: guild.name,
             iconURL: guild.iconURL({ dynamic: true }),
@@ -174,7 +174,7 @@ module.exports = {
         }
 
         const embed = new EmbedBuilder()
-          .setColor(0x57F287)
+          .setColor('#FF7043')
           .setAuthor({
             name: guild.name,
             iconURL: guild.iconURL({ dynamic: true }),
@@ -208,7 +208,7 @@ module.exports = {
         }
 
         const embed = new EmbedBuilder()
-          .setColor(0x57F287)
+          .setColor('#FF7043')
           .setAuthor({
             name: guild.name,
             iconURL: guild.iconURL({ dynamic: true }),

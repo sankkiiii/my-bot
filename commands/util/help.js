@@ -13,7 +13,7 @@ const { error } = require('../../utils/emoji');
 const categories = {
   mod: {
     label: '🛡️ Moderation',
-    color: '#ED4245',
+    color: '#FEE75C',
     commands: [
       { name: 'ban',       alias: 'b, forceban',     desc: 'Ban a user from the server' },
       { name: 'kick',      alias: 'k, boot',         desc: 'Kick a user from the server' },
@@ -35,7 +35,7 @@ const categories = {
   },
   util: {
     label: '🔧 Utility',
-    color: '#5865F2',
+    color: '#57F287',
     commands: [
       { name: 'av',         alias: 'avatar, pfp',   desc: 'Show user avatar' },
       { name: 'banner',     alias: 'userbanner, ub',desc: 'Show user banner' },
@@ -58,7 +58,7 @@ const categories = {
   },
   setup: {
     label: '⚙️ Setup',
-    color: '#FEE75C',
+    color: '#FF7043',
     commands: [
       { name: 'setup',       alias: 'configure, botsetup', desc: 'Configure the bot for this server' },
       { name: 'config',      alias: 'cfg, settings',       desc: 'View current bot configuration' },

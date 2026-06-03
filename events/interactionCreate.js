@@ -416,7 +416,7 @@ async function handleTicketClose(interaction, client) {
 
   if (cfg?.transcript_channel) {
     const transcriptEmbed = new EmbedBuilder()
-      .setColor('#FEE75C')
+      .setColor('#5865F2')
       .setTitle('Ticket Transcript')
       .addFields(
         { name: 'Ticket', value: ticketChannel.name, inline: true },

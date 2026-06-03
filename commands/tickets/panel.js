@@ -95,7 +95,7 @@ module.exports = {
       const embed = new EmbedBuilder()
         .setTitle('Support Tickets')
         .setDescription('Need help? Click the button below to open a support ticket.\nOur staff team will assist you as soon as possible.')
-        .setColor(0x5865f2)
+        .setColor('#5865F2')
         .setThumbnail(guild.iconURL({ dynamic: true }))
         .setFooter({ text: `Requested by ${isSlash ? interactionOrMessage.user.tag : interactionOrMessage.author.tag}` });
 

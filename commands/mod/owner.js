@@ -134,7 +134,7 @@ module.exports = {
       }
 
       const embed = new EmbedBuilder()
-        .setColor('#FEE75C')
+        .setColor('#EB459E')
         .setAuthor({
           name: client.user.username,
           iconURL: client.user.displayAvatarURL({ dynamic: true })

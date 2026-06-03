@@ -116,7 +116,7 @@ module.exports = {
       const color = fetchedUser.accentColor || 0x5865F2;
 
       const embed = new EmbedBuilder()
-        .setColor(color)
+        .setColor('#57F287')
         .setAuthor({
           name: user.username,
           iconURL: user.displayAvatarURL({ dynamic: true }),

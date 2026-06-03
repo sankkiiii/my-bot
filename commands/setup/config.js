@@ -88,7 +88,7 @@ Hub: ${formatChannel(guild, cfg.create_vc_channel)}
 Duo: ${formatChannel(guild, cfg.create_duo_channel)}`;
 
       const embed = new EmbedBuilder()
-        .setColor(0x5865F2)
+        .setColor('#5865F2')
         .setAuthor({
           name: guild.name,
           iconURL: guild.iconURL({ dynamic: true }),

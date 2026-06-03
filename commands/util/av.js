@@ -119,7 +119,7 @@ module.exports = {
 
       const mainAvatar = serverAvatar || globalAvatar;
       const embed = new EmbedBuilder()
-        .setColor(color)
+        .setColor('#57F287')
         .setAuthor({
           name: user.username,
           iconURL: user.displayAvatarURL({ dynamic: true }),
@@ -144,7 +144,7 @@ module.exports = {
       // If server avatar differs from global, show both
       if (serverAvatar && globalAvatar && serverAvatar !== globalAvatar) {
         const globalEmbed = new EmbedBuilder()
-          .setColor(color)
+          .setColor('#57F287')
           .setAuthor({
             name: user.username,
             iconURL: user.displayAvatarURL({ dynamic: true }),
