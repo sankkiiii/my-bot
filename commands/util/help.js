@@ -45,22 +45,6 @@ const categories = {
       { name: 'help',       alias: 'h, cmds',       desc: 'Show this help menu' },
     ]
   },
-  tickets: {
-    label: '🎫 Tickets',
-    color: '#57F287',
-    commands: [
-      { name: 'panel', alias: 'tp, ticketpanel', desc: 'Send the ticket open panel' },
-    ]
-  },
-  setup: {
-    label: '⚙️ Setup',
-    color: '#FF7043',
-    commands: [
-      { name: 'setup',       alias: 'configure, botsetup', desc: 'Configure the bot for this server' },
-      { name: 'config',      alias: 'cfg, settings',       desc: 'View current bot configuration' },
-      { name: 'resetconfig', alias: 'resetcfg',            desc: 'Reset bot configuration' },
-    ]
-  },
   voice: {
     label: '🔊 Voice Controls',
     color: '#5865F2',
@@ -99,8 +83,6 @@ function buildHelpMenu(client, prefix) {
       'to view all available commands.\n\n' +
       '🛡️ **Moderation** — Server moderation tools\n' +
       '🔧 **Utility** — Info and utility commands\n' +
-      '🎫 **Tickets** — Ticket system commands\n' +
-      '⚙️ **Setup** — Bot configuration commands\n' +
       '🔊 **Voice** — Voice channel controls'
     )
     .setFooter({
@@ -113,8 +95,6 @@ function buildHelpMenu(client, prefix) {
     .addOptions([
       { label: 'Moderation',     value: 'mod',     description: 'Ban, kick, mute, warn and more',  emoji: '🛡️' },
       { label: 'Utility',        value: 'util',    description: 'Avatar, userinfo, AFK and more',   emoji: '🔧' },
-      { label: 'Tickets',        value: 'tickets', description: 'Ticket panel and system',          emoji: '🎫' },
-      { label: 'Setup',          value: 'setup',   description: 'Configure the bot per server',     emoji: '⚙️' },
       { label: 'Voice Controls', value: 'voice',   description: 'VC control panel buttons',         emoji: '🔊' },
     ]);
 
@@ -168,8 +148,6 @@ function buildCategoryEmbed(key, client, prefix, page = 0) {
     .addOptions([
       { label: 'Moderation',     value: 'mod',     description: 'Ban, kick, mute, warn and more',  emoji: '🛡️' },
       { label: 'Utility',        value: 'util',    description: 'Avatar, userinfo, AFK and more',   emoji: '🔧' },
-      { label: 'Tickets',        value: 'tickets', description: 'Ticket panel and system',          emoji: '🎫' },
-      { label: 'Setup',          value: 'setup',   description: 'Configure the bot per server',     emoji: '⚙️' },
       { label: 'Voice Controls', value: 'voice',   description: 'VC control panel buttons',         emoji: '🔊' },
     ]);
   components.push(new ActionRowBuilder().addComponents(selectMenu));
