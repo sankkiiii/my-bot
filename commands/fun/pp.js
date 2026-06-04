@@ -86,12 +86,13 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor('#EB459E')
-      .setTitle(`${target.displayName}'s Dick size`);
+      .setTitle(`${target.displayName}'s Dick size`)
+      .setDescription(bar);
 
     if (target.id === executorId) {
-      embed.setDescription(`${bar}\n\nLook in your pants and tell us if I am right.`);
+      embed.setFooter({ text: 'Look in your pants and tell us if I am right.' });
     } else {
-      embed.setDescription(`${bar}\n\n*${comment}*`);
+      embed.setFooter({ text: comment.replace(/\*/g, '') });
     }
 
     if (isSlash) {
