@@ -71,11 +71,6 @@ module.exports = {
         console.error('[Ready] Failed to init presence file:', err.message);
       }
 
-      // --- Owner ID check ---
-      if (!config.ownerId) {
-        console.log('[Ready] WARNING: OWNER_ID not set in .env, owner no-prefix disabled');
-      }
-
       // --- Temp VC cleanup on startup ---
       try {
         let cleaned = 0;

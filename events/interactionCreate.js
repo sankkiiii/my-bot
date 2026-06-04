@@ -32,13 +32,13 @@ async function sendLog(client, channelId, embed) {
 const VC_BUTTON_IDS = [
   'vc_rename', 'vc_limit', 'vc_lock', 'vc_unlock', 'vc_hide',
   'vc_unhide', 'vc_waiting', 'vc_trust', 'vc_reject', 'vc_delete',
-  'vc_kick', 'vc_ban', 'vc_transfer', 'vc_unban',
+  'vc_kick', 'vc_ban', 'vc_claim', 'vc_unban',
 ];
 
 const VC_MODAL_IDS = ['vc_rename_modal', 'vc_limit_modal'];
 const TICKET_MODAL_ID = 'ticket_reason_modal';
 
-const VC_SELECT_IDS = ['vc_trust_select', 'vc_reject_select', 'vc_kick_select', 'vc_ban_select', 'vc_transfer_select', 'vc_unban_select'];
+const VC_SELECT_IDS = ['vc_trust_select', 'vc_reject_select', 'vc_kick_select', 'vc_ban_select', 'vc_unban_select'];
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -537,9 +537,9 @@ async function handleVcButton(interaction) {
   const id = interaction.customId;
   const tempVCs = interaction.client.tempVCs;
   const modalButtons = ['vc_rename', 'vc_limit'];
-  const selectButtons = ['vc_trust', 'vc_reject', 'vc_kick', 'vc_ban', 'vc_transfer', 'vc_unban'];
+  const selectButtons = ['vc_trust', 'vc_reject', 'vc_kick', 'vc_ban', 'vc_unban'];
 
-  // Defer immediately for non-modal/non-select buttons (must respond within 3s)
+  // Defer immediately for non-modal/non-select buttons
   if (!modalButtons.includes(id) && !selectButtons.includes(id)) {
     await interaction.deferReply({ ephemeral: true });
   }
@@ -564,8 +564,11 @@ async function handleVcButton(interaction) {
     return errorReply('You are not in a temporary voice channel.');
   }
 
-  if (interaction.user.id !== vcData.creatorId) {
-    return errorReply('Only the voice channel creator can use these controls.');
+  // STANDARD CREATOR CHECK
+  if (id !== 'vc_claim' && id !== 'vc_delete') {
+    if (interaction.user.id !== vcData.creatorId) {
+        return errorReply('Only the voice channel creator can use these controls.');
+    }
   }
 
   const voiceChannel = interaction.guild.channels.cache.get(userVoiceChannelId);
@@ -673,20 +676,6 @@ async function handleVcButton(interaction) {
       });
     }
 
-    if (id === 'vc_transfer') {
-      const selectMenu = new UserSelectMenuBuilder()
-        .setCustomId('vc_transfer_select')
-        .setPlaceholder('Select a user to transfer ownership to...')
-        .setMinValues(1)
-        .setMaxValues(1);
-      const row = new ActionRowBuilder().addComponents(selectMenu);
-      return interaction.reply({
-        content: '🔄 Select a user to transfer your VC ownership to:',
-        components: [row],
-        ephemeral: true,
-      });
-    }
-
     if (id === 'vc_unban') {
       const selectMenu = new UserSelectMenuBuilder()
         .setCustomId('vc_unban_select')
@@ -701,9 +690,46 @@ async function handleVcButton(interaction) {
       });
     }
 
+    if (id === 'vc_claim') {
+        const currentCreatorId = vcData.creatorId;
+        if (interaction.user.id === currentCreatorId) {
+            return interaction.editReply({ content: error('You are already the owner of this voice channel.') });
+        }
+
+        const isCreatorPresent = voiceChannel.members.has(currentCreatorId);
+        if (isCreatorPresent) {
+            return interaction.editReply({ content: error('The channel owner is still present in the channel.') });
+        }
+
+        // Claim ownership
+        tempVCs.set(userVoiceChannelId, {
+            ...vcData,
+            creatorId: interaction.user.id
+        });
+
+        // Give new owner permissions
+        await voiceChannel.permissionOverwrites.edit(interaction.user.id, {
+            ManageChannels: true,
+            MoveMembers: true,
+            ViewChannel: true,
+            Connect: true,
+            Speak: true
+        });
+
+        // Remove old owner permissions
+        try {
+            await voiceChannel.permissionOverwrites.edit(currentCreatorId, {
+                ManageChannels: null,
+                MoveMembers: null
+            });
+        } catch {}
+
+        return interaction.editReply({
+            content: success('You are now the owner of this voice channel!')
+        });
+    }
+
     if (id === 'vc_lock') {
-      // Lock = deny @everyone Connect
-      // Inherited roles have explicit ALLOW which overrides this DENY
       await voiceChannel.permissionOverwrites.edit(interaction.guild.id, { Connect: false });
       return interaction.editReply({ content: success('Channel locked.') });
     }
@@ -714,8 +740,6 @@ async function handleVcButton(interaction) {
     }
 
     if (id === 'vc_hide') {
-      // Hide = deny @everyone ViewChannel
-      // Inherited roles have explicit ALLOW which overrides this DENY
       await voiceChannel.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: false });
       return interaction.editReply({ content: success('Channel hidden.') });
     }
@@ -726,13 +750,14 @@ async function handleVcButton(interaction) {
     }
 
     if (id === 'vc_waiting') {
-      // Waiting = @everyone can see but not connect
-      // Inherited roles already have Connect: true — they can still join
       await voiceChannel.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: true, Connect: false });
       return interaction.editReply({ content: success('Waiting room enabled.') });
     }
 
     if (id === 'vc_delete') {
+      if (interaction.user.id !== vcData.creatorId && !interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        return interaction.editReply({ content: error('Only the creator or an administrator can delete this channel.') });
+      }
       tempVCs.delete(userVoiceChannelId);
       await interaction.editReply({ content: success('Deleting your voice channel...') });
       await voiceChannel.delete().catch(() => {});
@@ -751,39 +776,24 @@ async function handleVcButton(interaction) {
 async function handleVcModal(interaction) {
   const id = interaction.customId;
   const tempVCs = interaction.client.tempVCs;
-
   const userVoiceChannelId = interaction.member.voice?.channelId;
 
   if (!userVoiceChannelId) {
-    return interaction.reply({
-      content: error('You must be in a voice channel to use these controls.'),
-      ephemeral: true,
-    });
+    return interaction.reply({ content: error('You must be in a voice channel to use these controls.'), ephemeral: true });
   }
 
   const vcData = tempVCs.get(userVoiceChannelId);
-
   if (!vcData) {
-    return interaction.reply({
-      content: error('You are not in a temporary voice channel.'),
-      ephemeral: true,
-    });
+    return interaction.reply({ content: error('You are not in a temporary voice channel.'), ephemeral: true });
   }
 
   if (interaction.user.id !== vcData.creatorId) {
-    return interaction.reply({
-      content: error('Only the voice channel creator can use these controls.'),
-      ephemeral: true,
-    });
+    return interaction.reply({ content: error('Only the voice channel creator can use these controls.'), ephemeral: true });
   }
 
   const voiceChannel = interaction.guild.channels.cache.get(userVoiceChannelId);
-
   if (!voiceChannel) {
-    return interaction.reply({
-      content: error('Your voice channel no longer exists.'),
-      ephemeral: true,
-    });
+    return interaction.reply({ content: error('Your voice channel no longer exists.'), ephemeral: true });
   }
 
   await interaction.deferReply({ ephemeral: true });
@@ -813,53 +823,33 @@ async function handleVcModal(interaction) {
       }
       return;
     }
-
   } catch (err) {
     console.error(`[VC Modal] Error handling ${id}:`, err.message);
     await interaction.editReply(error('An error occurred while processing your request.')).catch(() => {});
   }
 }
 
-// ═══════════════════════════════════════
-// VC USER SELECT MENU HANDLER
-// ═══════════════════════════════════════
-
 async function handleVcSelectMenu(interaction) {
   const id = interaction.customId;
   const tempVCs = interaction.client.tempVCs;
-
   const userVoiceChannelId = interaction.member.voice?.channelId;
 
   if (!userVoiceChannelId) {
-    return interaction.update({
-      content: error('You must be in a voice channel to use these controls.'),
-      components: [],
-    });
+    return interaction.update({ content: error('You must be in a voice channel to use these controls.'), components: [] });
   }
 
   const vcData = tempVCs.get(userVoiceChannelId);
-
   if (!vcData) {
-    return interaction.update({
-      content: error('You are not in a temporary voice channel.'),
-      components: [],
-    });
+    return interaction.update({ content: error('You are not in a temporary voice channel.'), components: [] });
   }
 
   if (interaction.user.id !== vcData.creatorId) {
-    return interaction.update({
-      content: error('Only the voice channel creator can use these controls.'),
-      components: [],
-    });
+    return interaction.update({ content: error('Only the voice channel creator can use these controls.'), components: [] });
   }
 
   const voiceChannel = interaction.guild.channels.cache.get(userVoiceChannelId);
-
   if (!voiceChannel) {
-    return interaction.update({
-      content: error('Your voice channel no longer exists.'),
-      components: [],
-    });
+    return interaction.update({ content: error('Your voice channel no longer exists.'), components: [] });
   }
 
   const selectedUser = interaction.users.first();
@@ -875,33 +865,21 @@ async function handleVcSelectMenu(interaction) {
   }
 
   try {
-    // NOTE: All these handlers edit USER-specific permission overwrites (type 1).
-    // Inherited ROLE overwrites (type 0) are untouched and remain active.
-
     if (id === 'vc_trust_select') {
       await voiceChannel.permissionOverwrites.edit(member.id, {
         ViewChannel: true,
         Connect: true,
         Speak: true,
       });
-      return interaction.update({
-        content: success(`${member.displayName} can now join your channel.`),
-        components: [],
-      });
+      return interaction.update({ content: success(`${member.displayName} can now join your channel.`), components: [] });
     }
 
     if (id === 'vc_reject_select') {
       if (member.voice?.channelId === userVoiceChannelId) {
         await member.voice.disconnect('Rejected by VC owner').catch(() => {});
       }
-      await voiceChannel.permissionOverwrites.edit(member.id, {
-        ViewChannel: false,
-        Connect: false,
-      });
-      return interaction.update({
-        content: success(`${member.displayName} has been rejected.`),
-        components: [],
-      });
+      await voiceChannel.permissionOverwrites.edit(member.id, { ViewChannel: false, Connect: false });
+      return interaction.update({ content: success(`${member.displayName} has been rejected.`), components: [] });
     }
 
     if (id === 'vc_kick_select') {
@@ -909,20 +887,11 @@ async function handleVcSelectMenu(interaction) {
         return interaction.update({ content: error('You cannot kick yourself.'), components: [] });
       }
       if (member.voice?.channelId !== userVoiceChannelId) {
-        return interaction.update({
-          content: error('That user is not in your voice channel.'),
-          components: [],
-        });
+        return interaction.update({ content: error('That user is not in your voice channel.'), components: [] });
       }
       await member.voice.disconnect('Kicked from VC by owner');
-      await voiceChannel.permissionOverwrites.edit(member.id, {
-        Connect: false,
-        ViewChannel: false,
-      });
-      return interaction.update({
-        content: success(`${member.displayName} has been kicked from the VC.`),
-        components: [],
-      });
+      await voiceChannel.permissionOverwrites.edit(member.id, { Connect: false, ViewChannel: false });
+      return interaction.update({ content: success(`${member.displayName} has been kicked from the VC.`), components: [] });
     }
 
     if (id === 'vc_ban_select') {
@@ -932,155 +901,31 @@ async function handleVcSelectMenu(interaction) {
       if (member.voice?.channelId === userVoiceChannelId) {
         await member.voice.disconnect('Banned from VC by owner').catch(() => {});
       }
-      await voiceChannel.permissionOverwrites.edit(member.id, {
-        Connect: false,
-        ViewChannel: false,
-        Speak: false,
-      });
+      await voiceChannel.permissionOverwrites.edit(member.id, { Connect: false, ViewChannel: false, Speak: false });
       try {
         await member.send({
           embeds: [
             new EmbedBuilder()
               .setTitle('Banned from Voice Channel')
               .setDescription(`You have been banned from **${voiceChannel.name}** in **${interaction.guild.name}**`)
-              .setColor(0xED4245)
-              .addFields(
-                { name: 'Banned By', value: interaction.user.username },
-              ),
+              .setColor('#ED4245')
+              .addFields({ name: 'Banned By', value: interaction.user.username }),
           ],
         });
-      } catch (err) {
-        console.error('[VC Ban DM Error]', err);
-      }
-      return interaction.update({
-        content: success(`${member.displayName} has been banned from the VC.`),
-        components: [],
-      });
-    }
-
-    if (id === 'vc_transfer_select') {
-      // Cannot transfer to yourself
-      if (member.id === interaction.user.id) {
-        return interaction.update({
-          content: error('You cannot transfer ownership to yourself.'),
-          components: []
-        });
-      }
-
-      // Cannot transfer to a bot
-      if (member.user.bot) {
-        return interaction.update({
-          content: error('You cannot transfer ownership to a bot.'),
-          components: []
-        });
-      }
-
-      // New owner must be in the VC
-      if (member.voice?.channelId !== userVoiceChannelId) {
-        return interaction.update({
-          content: error(`**${member.displayName}** must be in your voice channel to receive ownership.`),
-          components: []
-        });
-      }
-
-      const oldCreatorId = vcData.creatorId;
-
-      // Transfer ownership in Map
-      tempVCs.set(userVoiceChannelId, {
-        ...vcData,
-        creatorId: member.id
-      });
-
-      // Give new owner ManageChannels + MoveMembers on VC
-      try {
-        await voiceChannel.permissionOverwrites.edit(member.id, {
-          ManageChannels: true,
-          MoveMembers: true,
-          ViewChannel: true,
-          Connect: true,
-          Speak: true
-        });
-      } catch (err) {
-        console.error('[VC Transfer] Failed to update perms:', err.message);
-      }
-
-      // Remove old owner's ManageChannels permission
-      try {
-        await voiceChannel.permissionOverwrites.edit(oldCreatorId, {
-          ManageChannels: null,
-          MoveMembers: null
-        });
-      } catch (err) {
-        console.error('[VC Transfer] Failed to remove old owner perms:', err.message);
-      }
-
-      // Notify in VC text chat
-      try {
-        await voiceChannel.send(
-          `🔄 **${member.displayName}** is now the owner of this voice channel.\n` +
-          `*(Transferred from <@${oldCreatorId}>)*`
-        );
       } catch {}
-
-      // Confirm to old owner
-      return interaction.update({
-        content: success(`Ownership transferred to **${member.displayName}** successfully.`),
-        components: []
-      });
+      return interaction.update({ content: success(`${member.displayName} has been banned from the VC.`), components: [] });
     }
 
     if (id === 'vc_unban_select') {
-      // Cannot unban yourself
-      if (member.id === interaction.user.id) {
-        return interaction.update({
-          content: error('You cannot unban yourself.'),
-          components: []
-        });
-      }
-
-      // Check if user actually has a permission overwrite
       const existingOverwrite = voiceChannel.permissionOverwrites.cache.get(member.id);
-
       if (!existingOverwrite) {
-        return interaction.update({
-          content: error(`**${member.displayName}** is not banned from your VC.`),
-          components: []
-        });
+        return interaction.update({ content: error(`**${member.displayName}** is not banned from your VC.`), components: [] });
       }
-
-      // Check if they actually have denied permissions
-      const isDenied = existingOverwrite.deny.has(PermissionFlagsBits.ViewChannel) ||
-                       existingOverwrite.deny.has(PermissionFlagsBits.Connect);
-
-      if (!isDenied) {
-        return interaction.update({
-          content: error(`**${member.displayName}** is not banned from your VC.`),
-          components: []
-        });
-      }
-
-      // Remove all permission overwrites for this user
-      try {
-        await voiceChannel.permissionOverwrites.delete(member.id);
-      } catch (err) {
-        console.error('[VC Unban] Failed to remove overwrites:', err.message);
-        return interaction.update({
-          content: error('Failed to unban user. Check bot permissions.'),
-          components: []
-        });
-      }
-
-      // Confirm
-      return interaction.update({
-        content: success(`**${member.displayName}** has been unbanned from your VC.`),
-        components: []
-      });
+      await voiceChannel.permissionOverwrites.delete(member.id);
+      return interaction.update({ content: success(`**${member.displayName}** has been unbanned from your VC.`), components: [] });
     }
   } catch (err) {
     console.error('[VC Select Error]', err);
-    return interaction.update({
-      content: error('Something went wrong. Please try again.'),
-      components: [],
-    }).catch(() => {});
+    return interaction.update({ content: error('Something went wrong. Please try again.'), components: [] }).catch(() => {});
   }
 }

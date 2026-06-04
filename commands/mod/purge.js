@@ -26,11 +26,7 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   name: 'purge',
-<<<<<<< HEAD
-  aliases: ['clear', 'clean'],
-=======
   aliases: ['clear', 'clean', 'delete', 'prune'],
->>>>>>> bdd3b45 (remove short aliases, add purgebots/purgeuser aliases)
 
   async execute(interactionOrMessage) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
@@ -102,7 +98,9 @@ module.exports = {
         if (isSlash) {
           return interaction.editReply(msg);
         } else {
-          return prefixError(channel, msg); // Note: using channel since message is deleted
+          const errReply = await channel.send(msg);
+          setTimeout(() => errReply.delete().catch(() => {}), 5000);
+          return;
         }
       }
 
