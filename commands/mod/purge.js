@@ -26,7 +26,7 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   name: 'purge',
-  aliases: ['clear', 'clean', 'prune'],
+  aliases: ['clear', 'clean'],
 
   async execute(interactionOrMessage) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
