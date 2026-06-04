@@ -93,7 +93,7 @@ module.exports = {
     );
 
     const embed = new EmbedBuilder()
-      .setColor('#EB459E')
+      .setColor('#5865F2')
       .setAuthor({
         name: role.name,
         iconURL: role.iconURL() || guild.iconURL({ dynamic: true })
