@@ -42,8 +42,8 @@ module.exports = {
   vcKickBtn:    '<:vckick:1509169491060199455>',
   vcBanBtn:     '<:vcban:1509168663406575676>',
   vcUnbanBtn:   '<:vcunban:1511533365206188195>',
-  vcClaimBtn:    '<:vc_claim:EMOJI_ID_HERE>',
-  vcTransferBtn: '<:vc_transfer:EMOJI_ID_HERE>',
+  vcClaimBtn:    '<:vcclaim:1511533292447469670>',
+  vcTransferBtn: '<:vctranfer:1512201668853371012>',
 
   // AFK
   afk:  '',
