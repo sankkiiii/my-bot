@@ -25,7 +25,7 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers),
 
   name: 'kick',
-  aliases: ['remove'],
+  aliases: ['boot', 'remove'],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;

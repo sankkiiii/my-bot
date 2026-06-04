@@ -28,6 +28,7 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   name: 'config',
+  aliases: ['botconfig', 'settings'],
 
   async execute(interactionOrMessage) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;

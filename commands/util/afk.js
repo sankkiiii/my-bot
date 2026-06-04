@@ -19,6 +19,7 @@ module.exports = {
         .setRequired(false)
         .setMaxLength(100),
     ),
+  name: 'afk',
   aliases: ['away', 'brb'],
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;

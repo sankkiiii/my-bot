@@ -39,8 +39,8 @@ const categories = {
       { name: 'sbanner',    alias: 'serverbanner, guildbanner', desc: 'Show server banner' },
       { name: 'serverinfo', alias: 'server, guildinfo',     desc: 'Show server information' },
       { name: 'userinfo',   alias: 'whois, lookup',         desc: 'Show user information' },
-      { name: 'purgebots',  alias: 'clearbots, delbots, purge bots', desc: 'Delete bot messages in bulk' },
-      { name: 'purgeuser',  alias: 'clearuser, deluser, purge users', desc: 'Delete messages from a user' },
+      { name: 'purgebots',  alias: 'clearbots, delbots, purgebots', desc: 'Delete bot messages in bulk' },
+      { name: 'purgeuser',  alias: 'clearuser, deluser, purgeuser', desc: 'Delete messages from a user' },
       { name: 'afk',        alias: 'away, brb',             desc: 'Set your AFK status' },
       { name: 'help',       alias: 'cmds, commands',        desc: 'Show this help menu' },
     ]
@@ -196,7 +196,7 @@ module.exports = {
     .setName('help')
     .setDescription('Shows all bot commands'),
   name: 'help',
-  aliases: ['h', 'cmds', 'commands', 'menu'],
+  aliases: ['cmds', 'commands', 'menu'],
   categories,
   buildHelpMenu,
   buildCategoryEmbed,

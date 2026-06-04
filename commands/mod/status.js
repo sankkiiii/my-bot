@@ -15,30 +15,36 @@ const {
   prefixError,
   prefixSuccess,
 } = require('../../utils/replyHelper');
-const { success, error, withEmoji, getEmoji } = require('../../utils/emoji');
-
-const PRESENCE_PATH = path.join(__dirname, '..', '..', 'data', 'presence.json');
-
-function formatUptime(seconds) {
-  const d = Math.floor(seconds / 86400);
-  const h = Math.floor((seconds % 86400) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  return `${d}d ${h}h ${m}m ${s}s`;
-}
+const { withEmoji } = require('../../utils/emoji');
+const formatDuration = require('../../utils/formatDuration');
 
 function getPresenceInfo() {
+  const PRESENCE_PATH = path.join(__dirname, '..', '..', 'data', 'presence.json');
   try {
     if (fs.existsSync(PRESENCE_PATH)) {
-      const saved = JSON.parse(fs.readFileSync(PRESENCE_PATH, 'utf-8'));
-      if (saved.type && saved.type !== 'CLEAR' && saved.text) {
-        return `${saved.type}: ${saved.text}`;
-      }
+      const data = JSON.parse(fs.readFileSync(PRESENCE_PATH, 'utf-8'));
+      if (data.type === 'CLEAR') return 'None';
+      return `${data.type.charAt(0) + data.type.slice(1).toLowerCase()} ${data.text}`;
     }
   } catch (err) {
-    console.error('[Status] Failed to read presence:', err);
+    console.error('[Status] Failed to read presence.json:', err);
   }
   return 'None';
+}
+
+function formatUptime(seconds) {
+  const d = Math.floor(seconds / (3600 * 24));
+  const h = Math.floor((seconds % (3600 * 24)) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+
+  const parts = [];
+  if (d > 0) parts.push(`${d}d`);
+  if (h > 0) parts.push(`${h}h`);
+  if (m > 0) parts.push(`${m}m`);
+  if (s > 0 || parts.length === 0) parts.push(`${s}s`);
+
+  return parts.join(' ');
 }
 
 function buildStatusEmbed(client, ping, latency, user) {
@@ -79,60 +85,43 @@ function buildStatusEmbed(client, ping, latency, user) {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('status')
-    .setDescription('Show the bot current stats and health')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+    .setDescription('Show bot statistics and status'),
 
   name: 'status',
-  aliases: ['stats', 'botinfo', 'info'],
+  aliases: ['stats', 'botstats', 'info', 'botinfo'],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
     const client = isSlash ? argsOrClient : clientOrUndefined;
-    const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
 
     try {
       if (isSlash) {
         const interaction = interactionOrMessage;
-        if (!interaction.guild) {
-          return slashError(interaction, 'This command only works in a server.');
-        }
-
-        const remaining = cooldown.check('status', interaction.user.id, interaction.guild.id, 3000);
+        const remaining = cooldown.check('status', interaction.user.id, interaction.guild?.id || 'DM', 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return slashError(interaction, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
 
-        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return slashError(interaction, error('You need **Administrator** permission.'));
-        }
-
-        const sent = await slashSuccess(interaction, { content: 'Calculating...', fetchReply: true });
-        const latency = sent.createdTimestamp - interaction.createdTimestamp;
+        const start = Date.now();
+        await interaction.deferReply();
+        const latency = Date.now() - start;
         const ping = client.ws.ping;
 
         const embed = buildStatusEmbed(client, ping, latency, interaction.user);
-        await interaction.editReply({ content: null, embeds: [embed] });
+        await interaction.editReply({ embeds: [embed] });
       } else {
         const message = interactionOrMessage;
-        if (!message.guild) {
-          return prefixError(message, 'This command only works in a server.');
-        }
-
-        const remaining = cooldown.check('status', message.author.id, message.guild.id, 3000);
+        const remaining = cooldown.check('status', message.author.id, message.guild?.id || 'DM', 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return prefixError(message, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
 
-        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return prefixError(message, error('You need **Administrator** permission.'));
-        }
-
         const start = Date.now();
-        const ping = client.ws.ping;
-        const placeholder = await prefixSuccess(message, { content: 'Calculating...' });
+        const placeholder = await message.reply(withEmoji('loading', 'Fetching status...'));
         const latency = Date.now() - start;
+        const ping = client.ws.ping;
 
         const embed = buildStatusEmbed(client, ping, latency, message.author);
         await placeholder.edit({ content: null, embeds: [embed] });

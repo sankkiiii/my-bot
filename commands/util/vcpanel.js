@@ -20,7 +20,7 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   name: 'vcpanel',
-  aliases: ['vcp', 'voicepanel', 'vccontrols'],
+  aliases: ['voicepanel', 'vccontrols'],
 
   async execute(interactionOrMessage) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;

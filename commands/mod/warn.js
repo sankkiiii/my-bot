@@ -25,7 +25,7 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
 
   name: 'warn',
-  aliases: ['warning'],
+  aliases: ['warning', 'caution'],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;

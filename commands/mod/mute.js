@@ -31,7 +31,7 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
 
   name: 'mute',
-  aliases: ['timeout'],
+  aliases: ['timeout', 'silence', 'shut'],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;

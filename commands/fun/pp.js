@@ -25,13 +25,12 @@ module.exports = {
     ),
 
   name: 'pp',
-  aliases: ['dicksize', 'dick'],
+  aliases: ['dicksize', 'ppsize', 'dong', 'peepee'],
 
   async execute(interactionOrMessage, argsOrClient) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
     const guild = interactionOrMessage.guild;
     const executorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
-    const executor = isSlash ? interactionOrMessage.member : interactionOrMessage.member;
 
     if (!guild) return;
 

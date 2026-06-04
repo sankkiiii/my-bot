@@ -59,7 +59,7 @@ module.exports = {
     ),
 
   name: 'userinfo',
-  aliases: ['ui', 'whois', 'user', 'lookup'],
+  aliases: ['whois', 'user', 'lookup'],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;

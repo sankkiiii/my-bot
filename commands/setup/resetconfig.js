@@ -26,6 +26,7 @@ module.exports = {
     ),
 
   name: 'resetconfig',
+  aliases: ['resetcfg', 'clearcfg'],
 
   async execute(interactionOrMessage) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;

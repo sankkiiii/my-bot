@@ -39,7 +39,7 @@ module.exports = {
     ),
 
   name: 'noprefix',
-  aliases: ['np'],
+  aliases: [],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;

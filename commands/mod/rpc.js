@@ -75,7 +75,7 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   name: 'rpc',
-  aliases: ['presence', 'activity'],
+  aliases: ['presence', 'activity', 'setstatus'],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;

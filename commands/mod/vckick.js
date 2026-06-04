@@ -36,7 +36,7 @@ module.exports = {
     ),
 
   name: 'vckick',
-  aliases: ['vcremove', 'disconnectuser', 'dvc', 'forcedc'],
+  aliases: ['vcremove', 'disconnectuser', 'forcedc'],
 
   async execute(interactionOrMessage) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
