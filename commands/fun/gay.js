@@ -1,6 +1,7 @@
 const {
   SlashCommandBuilder,
   CommandInteraction,
+  EmbedBuilder,
 } = require('discord.js');
 const resolveUser = require('../../utils/resolveUser');
 const cooldown = require('../../utils/cooldown');
@@ -71,20 +72,21 @@ module.exports = {
 
     // Gay Logic
     const percentage = Math.floor(Math.random() * 101);
-    const flag = '🏳️‍🌈';
     const isSelf = target.id === executorId;
 
-    let replyContent;
+    const embed = new EmbedBuilder()
+      .setColor('#EB459E');
+
     if (isSelf) {
-      replyContent = `**${target.displayName}**, you are the gayest for checking your own gay level.`;
+      embed.setDescription(`**${target.displayName}**, you are the gayest for checking your own gay level.`);
     } else {
-      replyContent = `**${target.displayName}** is **${percentage}% Gay** ${flag}`;
+      embed.setDescription(`**${target.displayName}** is **${percentage}% Gay** 🏳️‍🌈`);
     }
 
     if (isSlash) {
-      return interactionOrMessage.reply({ content: replyContent });
+      return slashSuccess(interactionOrMessage, { embeds: [embed] });
     } else {
-      return interactionOrMessage.reply({ content: replyContent });
+      return prefixSuccess(interactionOrMessage, { embeds: [embed] });
     }
   },
 };
