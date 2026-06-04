@@ -15,34 +15,42 @@ const categories = {
     label: '🛡️ Moderation',
     color: '#FEE75C',
     commands: [
-      { name: 'ban',       alias: 'b, forceban',     desc: 'Ban a user from the server' },
-      { name: 'kick',      alias: 'k, boot',         desc: 'Kick a user from the server' },
-      { name: 'mute',      alias: 'm, timeout',      desc: 'Timeout a user' },
-      { name: 'unmute',    alias: 'um, untimeout',   desc: 'Remove timeout from a user' },
-      { name: 'warn',      alias: 'w, warning',      desc: 'Warn a user' },
-      { name: 'purge',     alias: 'clear, clean',    desc: 'Delete bulk messages' },
-      { name: 'nick',      alias: 'nickname',        desc: 'Change a user nickname' },
-      { name: 'role',      alias: 'giverole, ar',    desc: 'Toggle a role on a user' },
-      { name: 'drag',      alias: 'pull, move',      desc: 'Drag user to a voice channel' },
-      { name: 'vckick',    alias: 'dvc, forcedc',    desc: 'Disconnect a user from VC' },
-      { name: 'vckickall', alias: 'vcpurge, emptyvc',desc: 'Disconnect everyone from VC' },
-      { name: 'dump',      alias: 'rolemembers, rd', desc: 'List all members with a role' },
+      { name: 'ban',       alias: 'forceban, hackban',     desc: 'Ban a user from the server' },
+      { name: 'kick',      alias: 'boot, remove',          desc: 'Kick a user from the server' },
+      { name: 'mute',      alias: 'timeout, silence, shut',desc: 'Timeout a user' },
+      { name: 'unmute',    alias: 'untimeout, unsilence',  desc: 'Remove timeout from a user' },
+      { name: 'warn',      alias: 'warning, caution',      desc: 'Warn a user' },
+      { name: 'purge',     alias: 'clear, clean',          desc: 'Delete bulk messages' },
+      { name: 'nick',      alias: 'nickname, setnick',     desc: 'Change a user nickname' },
+      { name: 'role',      alias: 'giverole, addrole',     desc: 'Toggle a role on a user' },
+      { name: 'drag',      alias: 'pull, move',            desc: 'Drag user to a voice channel' },
+      { name: 'vckick',    alias: 'vcremove, forcedc',     desc: 'Disconnect a user from VC' },
+      { name: 'vckickall', alias: 'vcpurge, emptyvc',     desc: 'Disconnect everyone from VC' },
+      { name: 'dump',      alias: 'rolemembers, rolelist', desc: 'List all members with a role' },
     ]
   },
   util: {
     label: '🔧 Utility',
     color: '#57F287',
     commands: [
-      { name: 'av',         alias: 'avatar, pfp',   desc: 'Show user avatar' },
-      { name: 'banner',     alias: 'userbanner, ub',desc: 'Show user banner' },
-      { name: 'sicon',      alias: 'servericon',    desc: 'Show server icon' },
-      { name: 'sbanner',    alias: 'serverbanner',  desc: 'Show server banner' },
-      { name: 'serverinfo', alias: 'si, server',    desc: 'Show server information' },
-      { name: 'userinfo',   alias: 'ui, whois',     desc: 'Show user information' },
-      { name: 'purgebots',  alias: 'pb, clearbots', desc: 'Delete bot messages in bulk' },
-      { name: 'purgeuser',  alias: 'pu, clearuser', desc: 'Delete messages from a user' },
-      { name: 'afk',        alias: 'away, brb',     desc: 'Set your AFK status' },
-      { name: 'help',       alias: 'h, cmds',       desc: 'Show this help menu' },
+      { name: 'av',         alias: 'avatar, pfp',           desc: 'Show user avatar' },
+      { name: 'banner',     alias: 'userbanner, profilebanner', desc: 'Show user banner' },
+      { name: 'sicon',      alias: 'servericon, srvicon',   desc: 'Show server icon' },
+      { name: 'sbanner',    alias: 'serverbanner, guildbanner', desc: 'Show server banner' },
+      { name: 'serverinfo', alias: 'server, guildinfo',     desc: 'Show server information' },
+      { name: 'userinfo',   alias: 'whois, lookup',         desc: 'Show user information' },
+      { name: 'purgebots',  alias: 'clearbots, delbots, purge bots', desc: 'Delete bot messages in bulk' },
+      { name: 'purgeuser',  alias: 'clearuser, deluser, purge users', desc: 'Delete messages from a user' },
+      { name: 'afk',        alias: 'away, brb',             desc: 'Set your AFK status' },
+      { name: 'help',       alias: 'cmds, commands',        desc: 'Show this help menu' },
+    ]
+  },
+  fun: {
+    label: '🎉 Fun',
+    color: '#EB459E',
+    commands: [
+      { name: 'pp',  alias: 'dicksize, ppsize', desc: "Check someone's PP size" },
+      { name: 'gay', alias: 'gayrate, howgay',  desc: "Check someone's gay level" },
     ]
   },
   voice: {
@@ -83,6 +91,7 @@ function buildHelpMenu(client, prefix) {
       'to view all available commands.\n\n' +
       '🛡️ **Moderation** — Server moderation tools\n' +
       '🔧 **Utility** — Info and utility commands\n' +
+      '🎉 **Fun** — Fun and games commands\n' +
       '🔊 **Voice** — Voice channel controls'
     )
     .setFooter({
@@ -95,6 +104,7 @@ function buildHelpMenu(client, prefix) {
     .addOptions([
       { label: 'Moderation',     value: 'mod',     description: 'Ban, kick, mute, warn and more',  emoji: '🛡️' },
       { label: 'Utility',        value: 'util',    description: 'Avatar, userinfo, AFK and more',   emoji: '🔧' },
+      { label: 'Fun',            value: 'fun',     description: 'Fun and games commands',          emoji: '🎉' },
       { label: 'Voice Controls', value: 'voice',   description: 'VC control panel buttons',         emoji: '🔊' },
     ]);
 
@@ -114,11 +124,11 @@ function buildCategoryEmbed(key, client, prefix, page = 0) {
   const start = currentPage * CMDS_PER_PAGE;
   const pageCmds = cat.commands.slice(start, start + CMDS_PER_PAGE);
 
-  // Build command list for this page
+  // Build command list for this page - mobile friendly
   const cmdList = pageCmds.map(cmd =>
     `\`${cmd.name}\` — ${cmd.desc}` +
     (cmd.alias && cmd.alias !== 'Button'
-      ? `\n  *Aliases: \`${cmd.alias}\`*`
+      ? `\n-# *${cmd.alias}*`
       : '')
   ).join('\n\n');
 
@@ -148,6 +158,7 @@ function buildCategoryEmbed(key, client, prefix, page = 0) {
     .addOptions([
       { label: 'Moderation',     value: 'mod',     description: 'Ban, kick, mute, warn and more',  emoji: '🛡️' },
       { label: 'Utility',        value: 'util',    description: 'Avatar, userinfo, AFK and more',   emoji: '🔧' },
+      { label: 'Fun',            value: 'fun',     description: 'Fun and games commands',          emoji: '🎉' },
       { label: 'Voice Controls', value: 'voice',   description: 'VC control panel buttons',         emoji: '🔊' },
     ]);
   components.push(new ActionRowBuilder().addComponents(selectMenu));

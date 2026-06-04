@@ -82,22 +82,17 @@ module.exports = {
 Owner: ${owner.user}
 ID: ${guild.id}
 Created: <t:${Math.floor(guild.createdTimestamp / 1000)}:R>
-Region: ${guild.preferredLocale}
-Verified: ${guild.verified ? '✅' : '❌'}
-2FA Required: ${guild.mfaLevel === 1 ? '✅' : '❌'}
 
-**Members**
+**Member Count**
 Total: ${guild.memberCount}
 Humans: ${humans}
 Bots: ${bots}
 
 **Channels**
-Text: ${textCount}
-Voice: ${voiceCount}
-Categories: ${categoryCount}
-Threads: ${threadCount}
+Text: ${textCount} • Voice: ${voiceCount}
+Categories: ${categoryCount} • Threads: ${threadCount}
 
-**Other**
+**Server Assets**
 Roles: ${roleCount}
 Emojis: ${emojiCount}
 Stickers: ${stickerCount}
@@ -105,7 +100,7 @@ Stickers: ${stickerCount}
 **Boost Status**
 Level: ${guild.premiumTier}
 Boosts: ${guild.premiumSubscriptionCount || 0}
-${guild.vanityURLCode ? `Vanity URL: discord.gg/${guild.vanityURLCode}` : ''}`;
+${guild.vanityURLCode ? `\n**Vanity:** discord.gg/${guild.vanityURLCode}` : ''}`;
 
       const embed = new EmbedBuilder()
         .setColor('#5865F2')

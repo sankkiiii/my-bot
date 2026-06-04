@@ -150,9 +150,11 @@ module.exports = {
         description = `**General Information**
 Name: ${fetchedUser.username}
 ID: ${fetchedUser.id}
-Bot?: ${fetchedUser.bot ? '✅' : '❌'}
+Bot: ${fetchedUser.bot ? '✅' : '❌'}
+
+**Account Info**
 Badges: ${badges}
-Account Created: <t:${createdTimestamp}:R>
+Created: <t:${createdTimestamp}:R>
 
 ${withEmoji('warning', 'This user is not in this server.')}`;
 
@@ -195,23 +197,23 @@ ${withEmoji('warning', 'This user is not in this server.')}`;
 Name: ${fetchedUser.username}
 ID: ${fetchedUser.id}
 Nickname: ${member.nickname || 'None'}
-Bot?: ${fetchedUser.bot ? '✅' : '❌'}
+Bot: ${fetchedUser.bot ? '✅' : '❌'}
+
+**Account Info**
 Badges: ${badges}
-Account Created: <t:${createdTimestamp}:R>
-Server Joined: <t:${joinedTimestamp}:R>
+Created: <t:${createdTimestamp}:R>
+Joined: <t:${joinedTimestamp}:R>
 
 **Role Info**
 Roles [${roleCount}]: ${rolesDisplay}
 Color: ${member.displayHexColor}
 
 **Extra**
-Boosting Since: ${member.premiumSince ? `<t:${Math.floor(member.premiumSinceTimestamp / 1000)}:R>` : 'Not boosting the server.'}
+Acknowledgement: ${acknowledgement}
+Boosting: ${member.premiumSince ? `<t:${Math.floor(member.premiumSinceTimestamp / 1000)}:R>` : 'No'}
 
 **Key Permissions**
-${keyPermissions}
-
-**Acknowledgement**
-${acknowledgement}`;
+${keyPermissions}`;
 
       const embed = new EmbedBuilder()
         .setColor(color)

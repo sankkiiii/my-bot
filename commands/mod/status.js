@@ -57,16 +57,21 @@ function buildStatusEmbed(client, ping, latency, user) {
       iconURL: client.user.displayAvatarURL({ dynamic: true }),
     })
     .setDescription(
-      `${withEmoji('ping', `**Ping:** ${ping}ms`)}\n` +
-      `${withEmoji('latency', `**Latency:** ${latency}ms`)}\n` +
-      `${withEmoji('uptime', `**Uptime:** ${uptime}`)}\n` +
-      `${withEmoji('memory', `**Memory:** ${memUsed}MB`)}\n` +
-      `${withEmoji('servers', `**Servers:** ${guilds}`)}\n` +
-      `${withEmoji('members', `**Users:** ${users}`)}\n` +
-      `${withEmoji('commands', `**Commands:** ${commands}`)}\n` +
-      `${withEmoji('nodejs', `**Node.js:** ${process.version}`)}\n` +
-      `${withEmoji('djs', `**discord.js:** v${djsVersion}`)}\n` +
-      `${presence && presence !== 'None' ? `${withEmoji('playing', `**Activity:** ${presence}`)}` : ''}`
+      `**Performance**\n` +
+      `${withEmoji('ping', `Ping: ${ping}ms`)}\n` +
+      `${withEmoji('latency', `Latency: ${latency}ms`)}\n` +
+      `${withEmoji('uptime', `Uptime: ${uptime}`)}\n` +
+      `${withEmoji('memory', `Memory: ${memUsed}MB`)}\n\n` +
+
+      `**Stats**\n` +
+      `${withEmoji('servers', `Servers: ${guilds}`)}\n` +
+      `${withEmoji('members', `Users: ${users}`)}\n` +
+      `${withEmoji('commands', `Commands: ${commands}`)}\n\n` +
+
+      `**System**\n` +
+      `${withEmoji('nodejs', `Node.js: ${process.version}`)}\n` +
+      `${withEmoji('djs', `discord.js: v${djsVersion}`)}\n` +
+      `${presence && presence !== 'None' ? `\n**Activity**\n${withEmoji('playing', presence)}` : ''}`
     )
     .setFooter({ text: `Requested by ${user.tag}` });
 }

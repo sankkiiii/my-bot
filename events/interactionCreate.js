@@ -296,10 +296,11 @@ async function handleTicketModalSubmit(interaction, client) {
       .setColor('#57F287')
       .setTitle(`Ticket #${ticketNumber}`)
       .setDescription(
-        success(`Ticket #${ticketNumber} opened`) +
-        `\n**Opened by:** ${interaction.user}` +
-        `\n**Reason:** ${reason}` +
-        `\n**Status:** 🟢 Open`
+        `Hey ${interaction.user}, thanks for opening a ticket!\n\n` +
+        `**Opened by:** ${interaction.user}\n` +
+        `**Ticket:** #${ticketNumber}\n` +
+        `**Reason:** ${reason}\n` +
+        `**Status:** 🟢 Open`
       )
       .setFooter({ text: 'Only staff can close this ticket' })
       .setTimestamp();

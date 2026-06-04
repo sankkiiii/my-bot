@@ -77,12 +77,12 @@ module.exports = {
 
       const cfg = getConfig(guild.id) || {};
 
-      const description = `🎫 **Tickets**
+      const description = `**🎫 Support Tickets**
 Category: ${formatChannel(guild, cfg.ticket_category)}
 Log: ${formatChannel(guild, cfg.ticket_log_channel)}
 Transcript: ${formatChannel(guild, cfg.transcript_channel)}
 
-🔊 **Temp VC**
+**🔊 Voice Channels**
 Category: ${formatChannel(guild, cfg.temp_vc_category)}
 Hub: ${formatChannel(guild, cfg.create_vc_channel)}
 Duo: ${formatChannel(guild, cfg.create_duo_channel)}`;
