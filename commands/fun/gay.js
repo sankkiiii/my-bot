@@ -71,16 +71,28 @@ module.exports = {
     if (!target) target = interactionOrMessage.member;
 
     // Gay Logic
-    const percentage = Math.floor(Math.random() * 101);
+    // 3% chance of legendary 101%
+    const isLegendary = Math.random() < 0.03;
+    const percentage = isLegendary
+      ? 101
+      : Math.floor(Math.random() * 101);
+    
     const isSelf = target.id === executorId;
 
-    const embed = new EmbedBuilder()
-      .setColor('#EB459E');
+    const embed = new EmbedBuilder();
 
     if (isSelf) {
-      embed.setDescription(`**${target.displayName}**, you are the gayest for checking your own gay level.`);
+      embed.setColor('#EB459E')
+        .setDescription(`**${target.displayName}**, you are the gayest for checking your own gay level.`);
+    } else if (percentage === 101) {
+      embed.setColor('#FF0000')
+        .setDescription(
+          `**${target.displayName}** is **101% Gay** 🏳️‍🌈👑\n` +
+          `*Legendary! Off the charts!* 🎉`
+        );
     } else {
-      embed.setDescription(`**${target.displayName}** is **${percentage}% Gay** 🏳️‍🌈`);
+      embed.setColor('#EB459E')
+        .setDescription(`**${target.displayName}** is **${percentage}% Gay** 🏳️‍🌈`);
     }
 
     if (isSlash) {
