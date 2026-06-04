@@ -39,7 +39,7 @@ function buildVcPanel() {
       { name: '🔧 Channel', value: 'Rename  •  Limit  •  Delete', inline: true },
       { name: '🔒 Access', value: 'Lock  •  Unlock  •  Hide  •  Unhide  •  Wait', inline: true },
       { name: '\u200b', value: '\u200b', inline: false },
-      { name: '👥 Members', value: 'Trust  •  Reject  •  Kick  •  Ban  •  Unban  •  Claim', inline: true }
+      { name: '👥 Members', value: 'Trust  •  Reject  •  Kick  •  Ban  •  Unban  •  Claim  •  Transfer', inline: true }
     );
   }
 
@@ -62,8 +62,9 @@ function buildVcPanel() {
   const row3 = new ActionRowBuilder().addComponents(
     buildButton('vc_kick', e.vcKickBtn, 'Kick', ButtonStyle.Danger),
     buildButton('vc_ban', e.vcBanBtn, 'Ban', ButtonStyle.Danger),
-    buildButton('vc_claim', e.vcTransferBtn, 'Claim', ButtonStyle.Primary),
-    buildButton('vc_unban', e.vcUnbanBtn, 'Unban', ButtonStyle.Success)
+    buildButton('vc_unban', e.vcUnbanBtn, 'Unban', ButtonStyle.Success),
+    buildButton('vc_claim', e.vcClaimBtn, 'Claim', ButtonStyle.Primary),
+    buildButton('vc_transfer', e.vcTransferBtn, 'Transfer', ButtonStyle.Primary)
   );
 
   return { embed, rows: [row1, row2, row3] };
