@@ -44,30 +44,33 @@ function buildVcPanel() {
   }
 
   const row1 = new ActionRowBuilder().addComponents(
-    buildButton('vc_rename', e.vcRenameBtn, 'Rename', ButtonStyle.Secondary),
+    buildButton('vc_rename', e.vcRenameBtn, 'Name', ButtonStyle.Secondary),
     buildButton('vc_limit', e.vcLimitBtn, 'Limit', ButtonStyle.Secondary),
     buildButton('vc_lock', e.vcLockBtn, 'Lock', ButtonStyle.Secondary),
-    buildButton('vc_unlock', e.vcUnlockBtn, 'Unlock', ButtonStyle.Secondary),
-    buildButton('vc_hide', e.vcHideBtn, 'Hide', ButtonStyle.Secondary)
+    buildButton('vc_unlock', e.vcUnlockBtn, 'Unlock', ButtonStyle.Secondary)
   );
 
   const row2 = new ActionRowBuilder().addComponents(
+    buildButton('vc_hide', e.vcHideBtn, 'Hide', ButtonStyle.Secondary),
     buildButton('vc_unhide', e.vcUnhideBtn, 'Unhide', ButtonStyle.Secondary),
-    buildButton('vc_waiting', e.vcWaitBtn, 'Wait', ButtonStyle.Secondary),
-    buildButton('vc_trust', e.vcTrustBtn, 'Trust', ButtonStyle.Secondary),
-    buildButton('vc_reject', e.vcRejectBtn, 'Reject', ButtonStyle.Secondary),
-    buildButton('vc_delete', e.vcDeleteBtn, 'Delete', ButtonStyle.Danger)
+    buildButton('vc_waiting', e.vcWaitBtn, 'Waiting', ButtonStyle.Secondary),
+    buildButton('vc_trust', e.vcTrustBtn, 'Trust', ButtonStyle.Secondary)
   );
 
   const row3 = new ActionRowBuilder().addComponents(
-    buildButton('vc_kick', e.vcKickBtn, 'Kick', ButtonStyle.Danger),
-    buildButton('vc_ban', e.vcBanBtn, 'Ban', ButtonStyle.Danger),
-    buildButton('vc_unban', e.vcUnbanBtn, 'Unban', ButtonStyle.Success),
-    buildButton('vc_claim', e.vcClaimBtn, 'Claim', ButtonStyle.Primary),
-    buildButton('vc_transfer', e.vcTransferBtn, 'Transfer', ButtonStyle.Primary)
+    buildButton('vc_reject', e.vcRejectBtn, 'Reject', ButtonStyle.Secondary),
+    buildButton('vc_kick', e.vcKickBtn, 'Kick', ButtonStyle.Secondary),
+    buildButton('vc_ban', e.vcBanBtn, 'Ban', ButtonStyle.Secondary),
+    buildButton('vc_transfer', e.vcTransferBtn, 'Transfer', ButtonStyle.Secondary)
   );
 
-  return { embed, rows: [row1, row2, row3] };
+  const row4 = new ActionRowBuilder().addComponents(
+    buildButton('vc_delete', e.vcDeleteBtn, 'Delete', ButtonStyle.Secondary),
+    buildButton('vc_unban', e.vcUnbanBtn, 'Unban', ButtonStyle.Secondary),
+    buildButton('vc_claim', e.vcClaimBtn, 'Claim', ButtonStyle.Secondary)
+  );
+
+  return { embed, rows: [row1, row2, row3, row4] };
 }
 
 module.exports = buildVcPanel;
