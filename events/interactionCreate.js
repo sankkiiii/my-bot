@@ -312,7 +312,7 @@ async function handleTicketModalSubmit(interaction, client) {
       new ButtonBuilder()
         .setCustomId('close_ticket')
         .setLabel('Close Ticket')
-        .setStyle(ButtonStyle.Danger),
+        .setStyle(ButtonStyle.Secondary),
     );
 
     await ticketChannel.send({ embeds: [welcomeEmbed], components: [closeRow] });

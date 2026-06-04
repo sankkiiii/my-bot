@@ -58,7 +58,7 @@ module.exports = {
         new ButtonBuilder()
           .setCustomId(`resetconfig_confirm_${system}_${interaction.guild.id}`)
           .setLabel('Confirm')
-          .setStyle(ButtonStyle.Danger),
+          .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
           .setCustomId('resetconfig_cancel')
           .setLabel('Cancel')

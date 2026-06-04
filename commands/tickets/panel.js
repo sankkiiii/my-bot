@@ -104,7 +104,7 @@ module.exports = {
         new ButtonBuilder()
           .setCustomId('open_ticket')
           .setLabel('Open Ticket')
-          .setStyle(ButtonStyle.Primary),
+          .setStyle(ButtonStyle.Secondary),
       );
 
       await channel.send({ embeds: [embed], components: [row] });
