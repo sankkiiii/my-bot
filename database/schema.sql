@@ -33,12 +33,6 @@ CREATE TABLE IF NOT EXISTS noprefix_users (
   PRIMARY KEY (guild_id, user_id)
 );
 
-CREATE TABLE IF NOT EXISTS bot_owners (
-  user_id TEXT PRIMARY KEY,
-  added_by TEXT,
-  added_at TEXT
-);
-
 CREATE TABLE IF NOT EXISTS afk_users (
   guild_id TEXT NOT NULL,
   user_id TEXT NOT NULL,

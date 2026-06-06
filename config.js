@@ -15,6 +15,8 @@ module.exports = {
   clientId: process.env.CLIENT_ID,
   guildId: process.env.GUILD_ID,
   prefix: process.env.PREFIX || '!',
-  ownerId: process.env.OWNER_ID,
+  ownerIds: process.env.OWNER_IDS
+    ? process.env.OWNER_IDS.split(',').map(id => id.trim()).filter(Boolean)
+    : [],
   vcPanelImage: process.env.VC_PANEL_IMAGE || null,
 };

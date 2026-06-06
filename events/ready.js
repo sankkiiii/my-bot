@@ -13,18 +13,6 @@ module.exports = {
     try {
       console.log(`[Ready] Logged in as ${client.user.username}`);
 
-      // --- Seed initial owner from OWNER_ID env ---
-      const guildConfig = require('../database/guildConfig');
-      const envOwnerId = config.ownerId;
-      if (envOwnerId) {
-        if (!guildConfig.isOwner(envOwnerId)) {
-          guildConfig.addOwner(envOwnerId, 'system');
-          console.log(`[Ready] Seeded initial owner from .env: ${envOwnerId}`);
-        }
-      } else {
-        console.warn('[Ready] WARNING: OWNER_ID not set in .env');
-      }
-
       // --- Safety init for creation Set ---
       if (!client.tempVCsCreating) {
         client.tempVCsCreating = new Set();

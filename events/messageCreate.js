@@ -1,5 +1,6 @@
 const { Events } = require('discord.js');
 const config = require('../config');
+const isOwner = require('../utils/isOwner');
 const guildConfig = require('../database/guildConfig');
 const formatDuration = require('../utils/formatDuration');
 const { success, error } = require('../utils/emoji');
@@ -12,6 +13,8 @@ module.exports = {
       if (message.author.bot) return;
       if (message.editedTimestamp !== null) return;
       if (!message.guild) return;
+
+      const isOwnerUser = isOwner(message.author.id);
 
       let authorAFK;
       try {

@@ -53,7 +53,7 @@ module.exports = {
     if (!guild) return;
 
     // Permission check: Only bot owners can manage no-prefix users
-    if (!guildConfig.isOwner(executorId)) {
+    if (!ownerBypass) {
       const msg = error('Only bot owners can manage no-prefix users.');
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
     }

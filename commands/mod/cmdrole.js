@@ -132,8 +132,8 @@ module.exports = {
     }
 
     // Permission Check
-    const isOwnerCheckLocal = guildConfig.isOwner(executorId);
-    const isAdmin = executor.permissions.has(PermissionFlagsBits.Administrator);
+    const isOwnerCheckLocal = ownerBypass;
+    const isAdmin = executor.permissions.has(PermissionFlagsBits.Administrator) || isOwnerCheckLocal;
     if (!isAdmin) {
       const msg = error('You need **Administrator** permission or be a bot owner.');
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);

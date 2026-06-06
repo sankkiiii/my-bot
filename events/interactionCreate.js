@@ -349,10 +349,10 @@ async function handleTicketClose(interaction, client) {
   const closer = interaction.member;
   const cfg = getConfig(guild.id);
 
-  const isOwner = guildConfig.isOwner(closer.user.id);
+  const isOwnerUser = isOwner(closer.user.id);
 
   if (
-    !isOwner &&
+    !isOwnerUser &&
     !closer.permissions.has(PermissionFlagsBits.ManageMessages) &&
     !closer.permissions.has(PermissionFlagsBits.KickMembers) &&
     !closer.permissions.has(PermissionFlagsBits.BanMembers)

@@ -1,8 +1,10 @@
-const guildConfig = require('../database/guildConfig');
+const config = require('../config');
 
 module.exports = function isOwner(userId) {
+  if (!userId) return false;
   try {
-    return guildConfig.isOwner(userId);
+    return Array.isArray(config.ownerIds) &&
+           config.ownerIds.includes(String(userId));
   } catch {
     return false;
   }

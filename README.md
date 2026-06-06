@@ -30,7 +30,7 @@ All commands work as both Slash Commands (`/`) and Prefix Commands (default `!`)
 | `/mute` | `timeout` | Timeout (mute) a member | `Moderate Members` |
 | `/unmute` | `untimeout`, `unsilence` | Remove timeout (unmute) from a member | `Moderate Members` |
 | `/warn` | `warning` | Warn a member | `Moderate Members` |
-| `/purge` | `clear`, `clean`, `prune` | Bulk delete messages in this channel | `Manage Messages` |
+| `/purge` | `clear`, `clean`, `prune` | Bulk delete messages (img, gif, video, link, attach) | `Manage Messages` |
 | `/nick` | `nickname`, `setnick`, `changenick` | Change a nickname | `Manage Nicknames`* |
 | `/drag` | `pull`, `move`, `summon` | Drag a user to a voice channel | `Move Members` |
 | `/vckick` | `vcremove`, `disconnectuser`, `dvc`, `forcedc` | Disconnect a user from a voice channel | `Move Members` |
@@ -48,7 +48,6 @@ All commands work as both Slash Commands (`/`) and Prefix Commands (default `!`)
 | `/config` | *(None)* | View current bot configuration | `Administrator` |
 | `/resetconfig` | *(None)* | Reset configuration for this server | `Administrator` |
 | `/noprefix` | `np` | Manage no-prefix users | `Bot Owner` |
-| `/owner` | `addowner`, `botowner`, `owners` | Manage bot owners | `Bot Owner` |
 | `/rpc` | `presence`, `activity` | Change the bot rich presence | `Administrator` |
 | `/status` | `stats`, `botinfo`, `info` | Show the bot current stats and health | `Administrator` |
 
@@ -104,7 +103,7 @@ All commands work as both Slash Commands (`/`) and Prefix Commands (default `!`)
    CLIENT_ID=your_client_id
    GUILD_ID=your_guild_id
    PREFIX=!
-   OWNER_ID=your_discord_id
+   OWNER_IDS=your_discord_id,another_id
    VC_PANEL_IMAGE=optional_panel_image_url
    ```
 
@@ -222,7 +221,7 @@ This bot uses SQLite via the `sql.js` library (pure JavaScript, no native binari
   - `ticket_count`: Tracks the incremental ticket numbers per server.
   - `noprefix_users`: Stores users with no-prefix access per server.
   - `afk_users`: Stores current AFK status and reasons per server.
-  - `bot_owners`: Stores users with global bot owner status.
+  - `command_roles`: Stores role restrictions for specific commands.
 
 ---
 
@@ -252,8 +251,8 @@ my-bot/
 ## 🔧 Advanced
 
 ### Bot Ownership
-Ownership is managed globally via the database. The initial owner is seeded from the `.env` file on first startup.
-- Owners can add other owners.
+Ownership is managed globally via the `.env` file (`OWNER_IDS`).
+- To add owners, add their Discord user IDs separated by commas in your `.env`.
 - Owners can grant/revoke no-prefix access.
 
 ### No-Prefix System

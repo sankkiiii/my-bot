@@ -208,49 +208,6 @@ module.exports = {
     }
   },
 
-  // Bot owner operations
-  getOwners() {
-    try {
-      return db.prepare(
-        'SELECT user_id FROM bot_owners'
-      ).all().map(r => r.user_id);
-    } catch (err) {
-      console.error(`[DB] getOwners failed:`, err.message);
-      return [];
-    }
-  },
-
-  isOwner(userId) {
-    try {
-      return !!db.prepare(
-        'SELECT 1 FROM bot_owners WHERE user_id = ?'
-      ).get(userId);
-    } catch (err) {
-      return false;
-    }
-  },
-
-  addOwner(userId, addedBy) {
-    try {
-      db.prepare(`
-        INSERT OR IGNORE INTO bot_owners (user_id, added_by, added_at)
-        VALUES (?, ?, ?)
-      `).run(userId, addedBy, new Date().toISOString());
-    } catch (err) {
-      console.error(`[DB] addOwner failed for ${userId}:`, err.message);
-    }
-  },
-
-  removeOwner(userId) {
-    try {
-      db.prepare(
-        'DELETE FROM bot_owners WHERE user_id = ?'
-      ).run(userId);
-    } catch (err) {
-      console.error(`[DB] removeOwner failed for ${userId}:`, err.message);
-    }
-  },
-
   // Command role restriction operations
   getCommandRoles(guildId, command) {
     try {

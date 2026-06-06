@@ -83,7 +83,7 @@ module.exports = {
     const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
     const ownerBypass = checkOwnerBypass(bypassExecutorId);
     const client = isSlash ? argsOrClient : clientOrUndefined;
-    const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
+    const isExecutorOwner = ownerBypass;
 
     try {
       let type, text, status, replyError, replySuccess, user;
