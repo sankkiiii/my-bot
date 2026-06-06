@@ -5,6 +5,7 @@ const {
   CommandInteraction,
 } = require('discord.js');
 const cooldown = require('../../utils/cooldown');
+const checkOwnerBypass = require('../../utils/isOwner');
 const {
   slashError,
   slashSuccess,
@@ -23,6 +24,8 @@ module.exports = {
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
 
     try {
       let guild;
@@ -40,11 +43,13 @@ module.exports = {
         replyError = (content) => slashError(interaction, content);
         replySuccess = (opts) => slashSuccess(interaction, opts);
 
-        const remaining = cooldown.check('serverinfo', interaction.user.id, interaction.guild.id, 3000);
+        if (!ownerBypass) {
+    const remaining = cooldown.check('serverinfo', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
       } else {
         const message = interactionOrMessage;
         guild = message.guild;
@@ -55,11 +60,13 @@ module.exports = {
         replyError = (content) => prefixError(message, content);
         replySuccess = (opts) => prefixSuccess(message, opts);
 
-        const remaining = cooldown.check('serverinfo', message.author.id, message.guild.id, 3000);
+        if (!ownerBypass) {
+    const remaining = cooldown.check('serverinfo', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
       }
 
       await guild.fetch();

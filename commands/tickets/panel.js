@@ -8,6 +8,7 @@ const {
   CommandInteraction,
 } = require('discord.js');
 const config = require('../../config');
+const checkOwnerBypass = require('../../utils/isOwner');
 const cooldown = require('../../utils/cooldown');
 const {
   slashError,
@@ -28,6 +29,8 @@ module.exports = {
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
     const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
 
     try {
@@ -46,15 +49,19 @@ module.exports = {
         replyError = (content) => slashError(interaction, content);
         replySuccess = (content) => slashSuccess(interaction, { content, ephemeral: true });
 
-        const remaining = cooldown.check('panel', interaction.user.id, interaction.guild.id, 3000);
+        if (!ownerBypass) {
+    const remaining = cooldown.check('panel', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
-        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        if (!ownerBypass) {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
           return replyError(error('You need the **Manage Channels** permission to use this command.'));
         }
+    }
       } else {
         const message = interactionOrMessage;
         if (!message.guild) {
@@ -63,17 +70,21 @@ module.exports = {
         channel = message.channel;
         guild = message.guild;
 
-        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        if (!ownerBypass) {
+    if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
           return prefixError(message, error('You need the **Manage Channels** permission to use this command.'));
         }
+    }
         replyError = (content) => prefixError(message, content);
         replySuccess = (content) => prefixSuccess(message, { content });
 
-        const remaining = cooldown.check('panel', message.author.id, message.guild.id, 3000);
+        if (!ownerBypass) {
+    const remaining = cooldown.check('panel', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
       }
 
       const client = isSlash ? argsOrClient : clientOrUndefined;

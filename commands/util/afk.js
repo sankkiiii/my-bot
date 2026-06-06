@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, CommandInteraction } = require('discord.js');
+const checkOwnerBypass = require('../../utils/isOwner');
 const guildConfig = require('../../database/guildConfig');
 const cooldown = require('../../utils/cooldown');
 const {
@@ -23,6 +24,8 @@ module.exports = {
   aliases: ['away', 'brb'],
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
     try {
       if (isSlash) {
         const interaction = interactionOrMessage;
@@ -35,11 +38,13 @@ module.exports = {
         const member = interaction.member;
         const reason = interaction.options?.getString('reason') || 'AFK';
 
-        const remaining = cooldown.check('afk', interaction.user.id, interaction.guild.id, 3000);
+        if (!ownerBypass) {
+    const remaining = cooldown.check('afk', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return slashError(interaction, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
         let existing;
         try {
@@ -85,11 +90,13 @@ module.exports = {
       const member = message.member;
       const reason = args.join(' ') || 'AFK';
 
-      const remaining = cooldown.check('afk', message.author.id, message.guild.id, 3000);
+      if (!ownerBypass) {
+    const remaining = cooldown.check('afk', message.author.id, message.guild.id, 3000);
       if (remaining > 0) {
         const secs = (remaining / 1000).toFixed(1);
         return prefixError(message, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
       }
+    }
 
       let existing;
       try {

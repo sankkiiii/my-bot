@@ -6,6 +6,7 @@ const {
   CommandInteraction,
 } = require('discord.js');
 const cooldown = require('../../utils/cooldown');
+const checkOwnerBypass = require('../../utils/isOwner');
 const {
   slashError,
   slashSuccess,
@@ -31,6 +32,8 @@ module.exports = {
 
   async execute(interactionOrMessage) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
     const interaction = isSlash ? interactionOrMessage : null;
     const message = isSlash ? null : interactionOrMessage;
     const guild = interactionOrMessage.guild;
@@ -39,11 +42,13 @@ module.exports = {
     if (!guild) return;
 
     // Cooldown check
+    if (!ownerBypass) {
     const remaining = cooldown.check('dump', executor.id, guild.id, 3000);
     if (remaining > 0) {
       const secs = (remaining / 1000).toFixed(1);
       const msg = withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`);
       return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
+    }
     }
 
     // Permission check

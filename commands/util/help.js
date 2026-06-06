@@ -7,6 +7,7 @@ const {
   ActionRowBuilder,
 } = require('discord.js');
 const cooldown = require('../../utils/cooldown');
+const checkOwnerBypass = require('../../utils/isOwner');
 const { slashError, prefixError } = require('../../utils/replyHelper');
 const { error } = require('../../utils/emoji');
 
@@ -202,10 +203,13 @@ module.exports = {
   buildCategoryEmbed,
   async execute(interaction, args, client) {
     const isSlash = !!interaction.isChatInputCommand?.();
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
     const message = isSlash ? null : interaction;
     const actualClient = isSlash ? args : client;
     const { prefix } = require('../../config');
 
+    if (!ownerBypass) {
     const remaining = cooldown.check('help',
       isSlash ? interaction.user.id : message.author.id,
       isSlash ? interaction.guild?.id : message.guild?.id,
@@ -217,6 +221,7 @@ module.exports = {
       return isSlash
         ? slashError(interaction, msg)
         : prefixError(message, msg);
+    }
     }
 
     const { embed, rows } = buildHelpMenu(actualClient, prefix);

@@ -6,6 +6,7 @@ const {
   CommandInteraction,
 } = require('discord.js');
 const guildConfig = require('../../database/guildConfig');
+const checkOwnerBypass = require('../../utils/isOwner');
 const configCache = require('../../utils/configCache');
 const getConfig = require('../../utils/getConfig');
 const cooldown = require('../../utils/cooldown');
@@ -69,6 +70,8 @@ module.exports = {
 
   async execute(interactionOrMessage) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
 
     try {
       if (!isSlash) {
@@ -81,11 +84,13 @@ module.exports = {
         return slashError(interaction, 'This command only works in a server.');
       }
 
-      const remaining = cooldown.check('setup', interaction.user.id, interaction.guild.id, 5000);
+      if (!ownerBypass) {
+    const remaining = cooldown.check('setup', interaction.user.id, interaction.guild.id, 5000);
       if (remaining > 0) {
         const secs = (remaining / 1000).toFixed(1);
         return slashError(interaction, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
       }
+    }
 
       const me = guild.members.me;
       const subcommand = interaction.options.getSubcommand();

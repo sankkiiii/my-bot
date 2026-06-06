@@ -6,6 +6,7 @@ const {
   CommandInteraction,
 } = require('discord.js');
 const resolveUser = require('../../utils/resolveUser');
+const checkOwnerBypass = require('../../utils/isOwner');
 const cooldown = require('../../utils/cooldown');
 const {
   slashError,
@@ -36,6 +37,8 @@ module.exports = {
 
   async execute(interactionOrMessage) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
 
     try {
       let guild, executor, args, message, interaction;
@@ -57,7 +60,8 @@ module.exports = {
         }
       }
 
-      const remaining = cooldown.check(
+      if (!ownerBypass) {
+    const remaining = cooldown.check(
         'drag',
         executor.id,
         guild.id,
@@ -68,7 +72,8 @@ module.exports = {
         const msg = error(`You are on cooldown. Try again in **${secs}s**.`);
         if (isSlash) {
           return slashError(interaction, msg);
-        } else {
+        }
+    } else {
           return prefixError(message, msg);
         }
       }

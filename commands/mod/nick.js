@@ -5,6 +5,7 @@ const {
   CommandInteraction,
 } = require('discord.js');
 const config = require('../../config');
+const checkOwnerBypass = require('../../utils/isOwner');
 const cooldown = require('../../utils/cooldown');
 const {
   slashError,
@@ -34,6 +35,8 @@ module.exports = {
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
     const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
 
     try {
@@ -56,11 +59,13 @@ module.exports = {
         replyError = (content) => slashError(interaction, content);
         replySuccess = (payload) => slashSuccess(interaction, payload);
 
-        const remaining = cooldown.check('nick', interaction.user.id, interaction.guild.id, 3000);
+        if (!ownerBypass) {
+    const remaining = cooldown.check('nick', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
         const userOpt = interaction.options.getUser('user');
         nickname = interaction.options.getString('name') || null;
@@ -79,11 +84,13 @@ module.exports = {
         replyError = (content) => prefixError(message, content);
         replySuccess = (payload) => prefixSuccess(message, payload);
 
-        const remaining = cooldown.check('nick', message.author.id, message.guild.id, 3000);
+        if (!ownerBypass) {
+    const remaining = cooldown.check('nick', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
         const mentioned = message.mentions.members.first();
         if (mentioned) {
@@ -110,7 +117,7 @@ module.exports = {
         if (!executorMember.permissions.has(PermissionFlagsBits.ManageNicknames)) {
           return replyError(error(`You need **Manage Nicknames** permission.`));
         }
-        if (!isOwner && target.roles.highest.position >= executorMember.roles.highest.position) {
+        if (target.roles.highest.position >= executorMember.roles.highest.position) {
           return replyError(error(`You cannot change the nickname of someone with an equal or higher role.`));
         }
         if (target.id === target.guild.ownerId) {
@@ -119,9 +126,11 @@ module.exports = {
       }
 
       const botMember = guild.members.me;
-      if (!botMember || !botMember.permissions.has(PermissionFlagsBits.ManageNicknames)) {
+      if (!ownerBypass) {
+    if (!botMember || !botMember.permissions.has(PermissionFlagsBits.ManageNicknames)) {
         return replyError(error(`I need **Manage Nicknames** permission.`));
       }
+    }
       if (target.roles.highest.position >= botMember.roles.highest.position) {
         return replyError(error(`I cannot change this user's nickname (role too high).`));
       }

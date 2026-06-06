@@ -5,6 +5,7 @@ const {
   EmbedBuilder,
 } = require('discord.js');
 const config = require('../../config');
+const checkOwnerBypass = require('../../utils/isOwner');
 const cooldown = require('../../utils/cooldown');
 const {
   slashError,
@@ -29,6 +30,8 @@ module.exports = {
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
     const client = isSlash ? argsOrClient : clientOrUndefined;
     const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
 
@@ -54,15 +57,19 @@ module.exports = {
         replyError = (content) => slashError(interaction, content);
         replySuccess = (payload) => slashSuccess(interaction, payload);
 
-        const remaining = cooldown.check('unmute', interaction.user.id, interaction.guild.id, 3000);
+        if (!ownerBypass) {
+    const remaining = cooldown.check('unmute', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
-        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        if (!ownerBypass) {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
           return replyError(error(`You need the **Timeout Members** permission to use this command.`));
         }
+    }
 
         const userOption = interaction.options.getUser('user');
         const query = interaction.options.getString('query');
@@ -96,15 +103,19 @@ module.exports = {
         replyError = (content) => prefixError(message, content);
         replySuccess = (payload) => prefixSuccess(message, payload);
 
-        const remaining = cooldown.check('unmute', message.author.id, message.guild.id, 3000);
+        if (!ownerBypass) {
+    const remaining = cooldown.check('unmute', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
-        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        if (!ownerBypass) {
+    if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
           return replyError(error(`You need the **Timeout Members** permission to use this command.`));
         }
+    }
 
         if (!args[0]) return replyError(error(`Please provide a user to unmute.`));
 
@@ -119,9 +130,11 @@ module.exports = {
       }
 
       const botMember = guild.members.me;
-      if (!botMember || !botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+      if (!ownerBypass) {
+    if (!botMember || !botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
         return replyError(error(`I don't have the **Timeout Members** permission to do this.`));
       }
+    }
 
       if (!member.isCommunicationDisabled()) {
         return replyError(error(`That user is not currently muted.`));

@@ -7,6 +7,7 @@ const {
   CommandInteraction,
 } = require('discord.js');
 const guildConfig = require('../../database/guildConfig');
+const checkOwnerBypass = require('../../utils/isOwner');
 const cooldown = require('../../utils/cooldown');
 const {
   slashError,
@@ -33,6 +34,8 @@ module.exports = {
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
     const client = isSlash ? argsOrClient : clientOrUndefined;
     const guild = interactionOrMessage.guild;
 
@@ -40,7 +43,8 @@ module.exports = {
       const executorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
       const memberRoleIds = [...interactionOrMessage.member.roles.cache.keys()];
 
-      const canUse = guildConfig.hasCommandRole(
+      if (!ownerBypass) {
+    const canUse = guildConfig.hasCommandRole(
         guild.id,
         'av',
         executorId,
@@ -51,6 +55,7 @@ module.exports = {
         // Silently ignore — no reply, just return
         return;
       }
+    }
     }
 
     try {
@@ -69,11 +74,13 @@ module.exports = {
         replyError = (content) => slashError(interaction, content);
         replySuccess = (opts) => slashSuccess(interaction, opts);
 
-        const remaining = cooldown.check('avatar', interaction.user.id, interaction.guild.id, 3000);
+        if (!ownerBypass) {
+    const remaining = cooldown.check('avatar', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
         const userOption = interaction.options.getUser('user');
         const queryOption = interaction.options.getString('query');
@@ -99,11 +106,13 @@ module.exports = {
         replyError = (content) => prefixError(message, content);
         replySuccess = (opts) => prefixSuccess(message, opts);
 
-        const remaining = cooldown.check('avatar', message.author.id, message.guild.id, 3000);
+        if (!ownerBypass) {
+    const remaining = cooldown.check('avatar', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
         const input = message.mentions.users.first()?.id || args.join(' ');
 

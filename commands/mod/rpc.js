@@ -1,4 +1,5 @@
 const fs = require('fs');
+const checkOwnerBypass = require('../../utils/isOwner');
 const path = require('path');
 const {
   SlashCommandBuilder,
@@ -79,6 +80,8 @@ module.exports = {
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
     const client = isSlash ? argsOrClient : clientOrUndefined;
     const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
 
@@ -92,15 +95,19 @@ module.exports = {
         }
         user = interaction.user;
 
-        const remaining = cooldown.check('rpc', interaction.user.id, interaction.guild.id, 3000);
+        if (!ownerBypass) {
+    const remaining = cooldown.check('rpc', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return slashError(interaction, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
-        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        if (!ownerBypass) {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
           return slashError(interaction, error('You need **Administrator** permission to change my presence.'));
         }
+    }
 
         replyError = (content) => slashError(interaction, content);
         replySuccess = (opts) => slashSuccess(interaction, { ...opts, ephemeral: true });
@@ -115,15 +122,19 @@ module.exports = {
         }
         user = message.author;
 
-        const remaining = cooldown.check('rpc', message.author.id, message.guild.id, 3000);
+        if (!ownerBypass) {
+    const remaining = cooldown.check('rpc', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return prefixError(message, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
-        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        if (!ownerBypass) {
+    if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
           return prefixError(message, error('You need **Administrator** permission to change my presence.'));
         }
+    }
 
         replyError = (content) => prefixError(message, content);
         replySuccess = (opts) => prefixSuccess(message, opts);

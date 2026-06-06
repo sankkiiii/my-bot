@@ -5,6 +5,7 @@ const {
   CommandInteraction,
 } = require('discord.js');
 const guildConfig = require('../../database/guildConfig');
+const checkOwnerBypass = require('../../utils/isOwner');
 const cooldown = require('../../utils/cooldown');
 const {
   slashError,
@@ -112,6 +113,8 @@ module.exports = {
 
   async execute(interactionOrMessage, argsOrClient) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
     const guild = interactionOrMessage.guild;
     if (!guild) return;
 
@@ -119,17 +122,19 @@ module.exports = {
     const executorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
 
     // Cooldown check
+    if (!ownerBypass) {
     const remaining = cooldown.check('cmdrole', executorId, guild.id, 3000);
     if (remaining > 0) {
       const secs = (remaining / 1000).toFixed(1);
       const msg = withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`);
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
     }
+    }
 
     // Permission Check
-    const isOwner = guildConfig.isOwner(executorId);
+    const isOwnerCheckLocal = guildConfig.isOwner(executorId);
     const isAdmin = executor.permissions.has(PermissionFlagsBits.Administrator);
-    if (!isOwner && !isAdmin) {
+    if (!isAdmin) {
       const msg = error('You need **Administrator** permission or be a bot owner.');
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
     }

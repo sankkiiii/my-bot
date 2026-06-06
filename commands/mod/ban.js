@@ -5,6 +5,7 @@ const {
   EmbedBuilder,
 } = require('discord.js');
 const config = require('../../config');
+const checkOwnerBypass = require('../../utils/isOwner');
 const cooldown = require('../../utils/cooldown');
 const {
   slashError,
@@ -30,7 +31,9 @@ module.exports = {
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
     const client = isSlash ? argsOrClient : clientOrUndefined;
-    const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
+    const executorId = isSlash ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage.author ? interactionOrMessage.author.id : interactionOrMessage.user.id);
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
 
     try {
       let member;
@@ -56,15 +59,19 @@ module.exports = {
         replyError = (content) => slashError(interaction, content);
         replySuccess = (payload) => slashSuccess(interaction, payload);
 
-        const remaining = cooldown.check('ban', interaction.user.id, interaction.guild.id, 3000);
+        if (!ownerBypass) {
+    const remaining = cooldown.check('ban', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
-        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.BanMembers)) {
+        if (!ownerBypass) {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.BanMembers)) {
           return replyError(error(`You need the **Ban Members** permission to use this command.`));
         }
+    }
 
         const userOption = interaction.options.getUser('user');
         const query = interaction.options.getString('query');
@@ -106,15 +113,19 @@ module.exports = {
         replyError = (content) => prefixError(message, content);
         replySuccess = (payload) => prefixSuccess(message, payload);
 
-        const remaining = cooldown.check('ban', message.author.id, message.guild.id, 3000);
+        if (!ownerBypass) {
+    const remaining = cooldown.check('ban', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
-        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
+        if (!ownerBypass) {
+    if (!message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
           return replyError(error(`You need the **Ban Members** permission to use this command.`));
         }
+    }
 
         if (!args[0]) return replyError(error(`Please provide a user to ban.`));
 
@@ -139,17 +150,23 @@ module.exports = {
       }
 
       const botMember = guild.members.me;
-      if (!botMember || !botMember.permissions.has(PermissionFlagsBits.BanMembers)) {
+      if (!ownerBypass) {
+    if (!botMember || !botMember.permissions.has(PermissionFlagsBits.BanMembers)) {
         return replyError(error(`I don't have the **Ban Members** permission to do this.`));
       }
+    }
 
       if (member) {
-        if (!isOwner && member.roles.highest.position >= executorMember.roles.highest.position) {
+        if (!ownerBypass) {
+    if (member.roles.highest.position >= executorMember.roles.highest.position) {
           return replyError(error(`You cannot moderate someone with an equal or higher role than you.`));
         }
-        if (member.roles.highest.position >= botMember.roles.highest.position) {
+    }
+        if (!ownerBypass) {
+    if (member.roles.highest.position >= botMember.roles.highest.position) {
           return replyError(error(`I cannot moderate this user as their role is higher than or equal to mine.`));
         }
+    }
       }
 
       try {

@@ -13,6 +13,7 @@ const {
   UserSelectMenuBuilder,
 } = require('discord.js');
 const config = require('../config');
+const isOwner = require('../utils/isOwner');
 const getConfig = require('../utils/getConfig');
 const guildConfig = require('../database/guildConfig');
 const configCache = require('../utils/configCache');
@@ -562,16 +563,23 @@ async function handleVcButton(interaction) {
   }
 
   const vcData = tempVCs.get(userVoiceChannelId);
+  const isOwnerCheck = isOwner(interaction.user.id);
+
+  if (!isOwnerCheck) {
+    if (!vcData) {
+      return errorReply('You are not in a temporary voice channel.');
+    }
+
+    // STANDARD CREATOR CHECK
+    if (id !== 'vc_claim' && id !== 'vc_delete') {
+      if (interaction.user.id !== vcData.creatorId) {
+        return errorReply('Only the voice channel creator can use these controls.');
+      }
+    }
+  }
 
   if (!vcData) {
     return errorReply('You are not in a temporary voice channel.');
-  }
-
-  // STANDARD CREATOR CHECK
-  if (id !== 'vc_claim' && id !== 'vc_delete') {
-    if (interaction.user.id !== vcData.creatorId) {
-        return errorReply('Only the voice channel creator can use these controls.');
-    }
   }
 
   const voiceChannel = interaction.guild.channels.cache.get(userVoiceChannelId);
@@ -716,7 +724,7 @@ async function handleVcButton(interaction) {
         }
 
         const isCreatorPresent = voiceChannel.members.has(currentCreatorId);
-        if (isCreatorPresent) {
+        if (!isOwnerCheck && isCreatorPresent) {
             return interaction.editReply({ content: error('The channel owner is still present in the channel.') });
         }
 
@@ -802,12 +810,20 @@ async function handleVcModal(interaction) {
   }
 
   const vcData = tempVCs.get(userVoiceChannelId);
-  if (!vcData) {
-    return interaction.reply({ content: error('You are not in a temporary voice channel.'), ephemeral: true });
+  const isOwnerCheck = isOwner(interaction.user.id);
+
+  if (!isOwnerCheck) {
+    if (!vcData) {
+      return interaction.reply({ content: error('You are not in a temporary voice channel.'), ephemeral: true });
+    }
+
+    if (interaction.user.id !== vcData.creatorId) {
+      return interaction.reply({ content: error('Only the voice channel creator can use these controls.'), ephemeral: true });
+    }
   }
 
-  if (interaction.user.id !== vcData.creatorId) {
-    return interaction.reply({ content: error('Only the voice channel creator can use these controls.'), ephemeral: true });
+  if (!vcData) {
+    return interaction.reply({ content: error('You are not in a temporary voice channel.'), ephemeral: true });
   }
 
   const voiceChannel = interaction.guild.channels.cache.get(userVoiceChannelId);
@@ -858,12 +874,20 @@ async function handleVcSelectMenu(interaction) {
   }
 
   const vcData = tempVCs.get(userVoiceChannelId);
-  if (!vcData) {
-    return interaction.update({ content: error('You are not in a temporary voice channel.'), components: [] });
+  const isOwnerCheck = isOwner(interaction.user.id);
+
+  if (!isOwnerCheck) {
+    if (!vcData) {
+      return interaction.update({ content: error('You are not in a temporary voice channel.'), components: [] });
+    }
+
+    if (interaction.user.id !== vcData.creatorId) {
+      return interaction.update({ content: error('Only the voice channel creator can use these controls.'), components: [] });
+    }
   }
 
-  if (interaction.user.id !== vcData.creatorId) {
-    return interaction.update({ content: error('Only the voice channel creator can use these controls.'), components: [] });
+  if (!vcData) {
+    return interaction.update({ content: error('You are not in a temporary voice channel.'), components: [] });
   }
 
   const voiceChannel = interaction.guild.channels.cache.get(userVoiceChannelId);

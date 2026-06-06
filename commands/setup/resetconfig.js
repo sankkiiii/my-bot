@@ -7,6 +7,7 @@ const {
   CommandInteraction,
 } = require('discord.js');
 const cooldown = require('../../utils/cooldown');
+const checkOwnerBypass = require('../../utils/isOwner');
 const { slashError, slashSuccess } = require('../../utils/replyHelper');
 const { success, error, withEmoji } = require('../../utils/emoji');
 
@@ -30,6 +31,8 @@ module.exports = {
 
   async execute(interactionOrMessage) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
 
     try {
       if (!isSlash) {
@@ -42,15 +45,19 @@ module.exports = {
         return slashError(interaction, 'This command only works in a server.');
       }
 
-      const remaining = cooldown.check('resetconfig', interaction.user.id, interaction.guild.id, 5000);
+      if (!ownerBypass) {
+    const remaining = cooldown.check('resetconfig', interaction.user.id, interaction.guild.id, 5000);
       if (remaining > 0) {
         const secs = (remaining / 1000).toFixed(1);
         return slashError(interaction, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
       }
+    }
 
-      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      if (!ownerBypass) {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
         return slashError(interaction, error('You need **Administrator** permission.'));
       }
+    }
 
       const system = interaction.options.getString('system') || 'all';
 

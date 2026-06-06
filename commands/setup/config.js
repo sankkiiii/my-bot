@@ -5,6 +5,7 @@ const {
   CommandInteraction,
 } = require('discord.js');
 const getConfig = require('../../utils/getConfig');
+const checkOwnerBypass = require('../../utils/isOwner');
 const guildConfig = require('../../database/guildConfig');
 const cooldown = require('../../utils/cooldown');
 const {
@@ -32,6 +33,8 @@ module.exports = {
 
   async execute(interactionOrMessage) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
 
     try {
       let guild;
@@ -47,15 +50,19 @@ module.exports = {
         replyError = (content) => slashError(interaction, content);
         replySuccess = (opts) => slashSuccess(interaction, opts);
 
-        const remaining = cooldown.check('config', interaction.user.id, interaction.guild.id, 3000);
+        if (!ownerBypass) {
+    const remaining = cooldown.check('config', interaction.user.id, interaction.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return replyError(withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
-        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        if (!ownerBypass) {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
           return replyError(error('You need **Administrator** permission to view config.'));
         }
+    }
       } else {
         const message = interactionOrMessage;
         guild = message.guild;
@@ -65,15 +72,19 @@ module.exports = {
         replyError = (content) => prefixError(message, content);
         replySuccess = (opts) => prefixSuccess(message, opts);
 
-        const remaining = cooldown.check('config', message.author.id, message.guild.id, 3000);
+        if (!ownerBypass) {
+    const remaining = cooldown.check('config', message.author.id, message.guild.id, 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return replyError(withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
-        if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        if (!ownerBypass) {
+    if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
           return replyError(error('You need **Administrator** permission to view config.'));
         }
+    }
       }
 
       const cfg = getConfig(guild.id) || {};

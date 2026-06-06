@@ -1,4 +1,5 @@
 const fs = require('fs');
+const checkOwnerBypass = require('../../utils/isOwner');
 const path = require('path');
 const {
   SlashCommandBuilder,
@@ -92,16 +93,20 @@ module.exports = {
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
     const client = isSlash ? argsOrClient : clientOrUndefined;
 
     try {
       if (isSlash) {
         const interaction = interactionOrMessage;
-        const remaining = cooldown.check('status', interaction.user.id, interaction.guild?.id || 'DM', 3000);
+        if (!ownerBypass) {
+    const remaining = cooldown.check('status', interaction.user.id, interaction.guild?.id || 'DM', 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return slashError(interaction, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
         const start = Date.now();
         await interaction.deferReply();
@@ -112,11 +117,13 @@ module.exports = {
         await interaction.editReply({ embeds: [embed] });
       } else {
         const message = interactionOrMessage;
-        const remaining = cooldown.check('status', message.author.id, message.guild?.id || 'DM', 3000);
+        if (!ownerBypass) {
+    const remaining = cooldown.check('status', message.author.id, message.guild?.id || 'DM', 3000);
         if (remaining > 0) {
           const secs = (remaining / 1000).toFixed(1);
           return prefixError(message, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
         const start = Date.now();
         const placeholder = await message.reply(withEmoji('loading', 'Fetching status...'));
