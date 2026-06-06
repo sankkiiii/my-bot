@@ -6,6 +6,7 @@ const {
   ActionRowBuilder,
   CommandInteraction,
 } = require('discord.js');
+const guildConfig = require('../../database/guildConfig');
 const cooldown = require('../../utils/cooldown');
 const {
   slashError,
@@ -33,6 +34,24 @@ module.exports = {
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
     const client = isSlash ? argsOrClient : clientOrUndefined;
+    const guild = interactionOrMessage.guild;
+
+    if (guild) {
+      const executorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+      const memberRoleIds = [...interactionOrMessage.member.roles.cache.keys()];
+
+      const canUse = guildConfig.hasCommandRole(
+        guild.id,
+        'av',
+        executorId,
+        memberRoleIds
+      );
+
+      if (!canUse) {
+        // Silently ignore — no reply, just return
+        return;
+      }
+    }
 
     try {
       let resolved;

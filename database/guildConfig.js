@@ -250,4 +250,47 @@ module.exports = {
       console.error(`[DB] removeOwner failed for ${userId}:`, err.message);
     }
   },
+
+  // Command role restriction operations
+  getCommandRoles(guildId, command) {
+    try {
+      return db.prepare(
+        'SELECT role_id FROM command_roles WHERE guild_id = ? AND command = ?'
+      ).all(guildId, command).map(r => r.role_id);
+    } catch (err) {
+      console.error(`[DB] getCommandRoles failed for ${guildId}:${command}:`, err.message);
+      return [];
+    }
+  },
+
+  addCommandRole(guildId, command, roleId, addedBy) {
+    try {
+      db.prepare(`
+        INSERT OR IGNORE INTO command_roles
+        (guild_id, command, role_id, added_by, added_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(guildId, command, roleId, addedBy, new Date().toISOString());
+    } catch (err) {
+      console.error(`[DB] addCommandRole failed for ${guildId}:${command}:${roleId}:`, err.message);
+    }
+  },
+
+  removeCommandRole(guildId, command, roleId) {
+    try {
+      db.prepare(
+        'DELETE FROM command_roles WHERE guild_id = ? AND command = ? AND role_id = ?'
+      ).run(guildId, command, roleId);
+    } catch (err) {
+      console.error(`[DB] removeCommandRole failed for ${guildId}:${command}:${roleId}:`, err.message);
+    }
+  },
+
+  hasCommandRole(guildId, command, memberId, memberRoles) {
+    // memberRoles = array of role IDs the member has
+    const allowedRoles = this.getCommandRoles(guildId, command);
+    // If no roles configured → everyone can use it
+    if (allowedRoles.length === 0) return true;
+    // Check if member has any of the allowed roles
+    return memberRoles.some(roleId => allowedRoles.includes(roleId));
+  },
 };
