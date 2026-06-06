@@ -22,6 +22,7 @@ const categories = {
       { name: 'unmute',    alias: 'untimeout, unsilence',  desc: 'Remove timeout from a user' },
       { name: 'warn',      alias: 'warning, caution',      desc: 'Warn a user' },
       { name: 'purge',     alias: 'clear, clean',          desc: 'Delete bulk messages' },
+      { name: 'purgemedia',alias: 'purgeimg, purgeimages', desc: 'Delete messages containing media/images/videos' },
       { name: 'nick',      alias: 'nickname, setnick',     desc: 'Change a user nickname' },
       { name: 'role',      alias: 'giverole, addrole',     desc: 'Toggle a role on a user' },
       { name: 'drag',      alias: 'pull, move',            desc: 'Drag user to a voice channel' },
