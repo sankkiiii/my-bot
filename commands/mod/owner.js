@@ -1,156 +1,90 @@
 const {
-  SlashCommandBuilder,
   EmbedBuilder,
-  CommandInteraction,
 } = require('discord.js');
 const guildConfig = require('../../database/guildConfig');
 const checkOwnerBypass = require('../../utils/isOwner');
 const resolveUser = require('../../utils/resolveUser');
 const cooldown = require('../../utils/cooldown');
 const {
-  slashError,
-  slashSuccess,
-  prefixError,
   prefixSuccess,
 } = require('../../utils/replyHelper');
-const { success, error, withEmoji } = require('../../utils/emoji');
+const { success, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName('owner')
-    .setDescription('Manage bot owners')
-    .addSubcommand((sub) =>
-      sub
-        .setName('add')
-        .setDescription('Add a bot owner')
-        .addUserOption((opt) =>
-          opt.setName('user').setDescription('User to add as owner').setRequired(false)
-        )
-        .addStringOption((opt) =>
-          opt.setName('query').setDescription('Username or user ID').setRequired(false)
-        )
-    )
-    .addSubcommand((sub) =>
-      sub
-        .setName('remove')
-        .setDescription('Remove a bot owner')
-        .addUserOption((opt) =>
-          opt.setName('user').setDescription('User to remove from owners').setRequired(false)
-        )
-        .addStringOption((opt) =>
-          opt.setName('query').setDescription('Username or user ID').setRequired(false)
-        )
-    )
-    .addSubcommand((sub) =>
-      sub.setName('list').setDescription('List all bot owners')
-    ),
-
   name: 'owner',
   aliases: ['addowner', 'botowner', 'owners'],
 
-  async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
-    const isSlash = interactionOrMessage instanceof CommandInteraction;
-    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
-    const ownerBypass = checkOwnerBypass(bypassExecutorId);
-    const client = isSlash ? argsOrClient : clientOrUndefined;
-    const executorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
-    const guild = interactionOrMessage.guild;
+  async execute(message, args, client) {
+    try {
+      const guild = message.guild;
+      if (!guild) return;
 
-    if (!guild) return;
+      const executorId = message.author.id;
 
-    // Permission check: Only bot owners can use this command
-    if (!guildConfig.isOwner(executorId)) {
-      const msg = error('Only bot owners can manage owners.');
-      return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
-    }
+      // Permission check: Only bot owners can use this command
+      if (!guildConfig.isOwner(executorId)) {
+        return; // Silent
+      }
 
-    // Cooldown check (3s)
-    if (!ownerBypass) {
-    const remaining = cooldown.check('owner', executorId, guild.id, 3000);
-    if (remaining > 0) {
-      const secs = (remaining / 1000).toFixed(1);
-      const msg = withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`);
-      return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);
-    }
-    }
+      const bypassExecutorId = executorId;
+      const checkOwnerBypassFunc = require('../../utils/isOwner');
+      const ownerBypass = checkOwnerBypassFunc(bypassExecutorId);
 
-    const subcommand = isSlash ? interactionOrMessage.options.getSubcommand() : (argsOrClient[0] || '').toLowerCase();
-    const replyError = (content) => isSlash ? slashError(interactionOrMessage, content) : prefixError(interactionOrMessage, content);
-    const replySuccess = (opts) => isSlash ? slashSuccess(interactionOrMessage, opts) : prefixSuccess(interactionOrMessage, opts);
-
-    if (subcommand === 'add' || subcommand === 'remove') {
-      let targetUser;
-      if (isSlash) {
-        const userOpt = interactionOrMessage.options.getUser('user');
-        const query = interactionOrMessage.options.getString('query');
-        if (userOpt) {
-          targetUser = userOpt;
-        } else if (query) {
-          const member = await resolveUser(query, guild);
-          targetUser = member?.user || await client.users.fetch(query.replace(/[<@!>]/g, '')).catch(() => null);
-        }
-      } else {
-        const input = argsOrClient.slice(1).join(' ');
-        if (input) {
-          const member = await resolveUser(input, guild);
-          targetUser = member?.user || await client.users.fetch(input.replace(/[<@!>]/g, '')).catch(() => null);
+      // Cooldown check (3s)
+      if (!ownerBypass) {
+        const remaining = cooldown.check('owner', executorId, guild.id, 3000);
+        if (remaining > 0) {
+          return; // Silent
         }
       }
 
-      if (!targetUser) {
-        return replyError(error('Please provide a valid user.'));
-      }
+      const subcommand = (args[0] || '').toLowerCase();
 
-      if (targetUser.bot) {
-        return replyError(error('You cannot add a bot as an owner.'));
-      }
+      if (subcommand === 'add' || subcommand === 'remove') {
+        const input = args.slice(1).join(' ');
+        if (!input) return; // Silent
 
-      if (subcommand === 'add') {
-        if (guildConfig.isOwner(targetUser.id)) {
-          return replyError(withEmoji('warning', 'That user is already a bot owner.'));
+        const member = await resolveUser(input, guild);
+        const targetUser = member?.user || await client.users.fetch(input.replace(/[<@!>]/g, '')).catch(() => null);
+
+        if (!targetUser) return; // Silent
+        if (targetUser.bot) return; // Silent
+
+        if (subcommand === 'add') {
+          if (guildConfig.isOwner(targetUser.id)) return; // Silent
+          guildConfig.addOwner(targetUser.id, executorId);
+          return prefixSuccess(message, { content: `✅ **${targetUser.username}** has been added as a bot owner.` });
         }
-        guildConfig.addOwner(targetUser.id, executorId);
-        return replySuccess({ content: success(`**${targetUser.username}** has been added as a bot owner.`) });
-      }
 
-      if (subcommand === 'remove') {
-        if (targetUser.id === executorId) {
-          return replyError(error('You cannot remove yourself as owner.'));
+        if (subcommand === 'remove') {
+          if (targetUser.id === executorId) return; // Silent
+          if (!guildConfig.isOwner(targetUser.id)) return; // Silent
+          guildConfig.removeOwner(targetUser.id);
+          return prefixSuccess(message, { content: `✅ **${targetUser.username}** has been removed from bot owners.` });
         }
-        if (!guildConfig.isOwner(targetUser.id)) {
-          return replyError(withEmoji('warning', 'That user is not a bot owner.'));
+      }
+
+      if (subcommand === 'list') {
+        const owners = guildConfig.getOwners();
+        const ownerLines = [];
+        for (let i = 0; i < owners.length; i++) {
+          const id = owners[i];
+          const user = await client.users.fetch(id).catch(() => null);
+          ownerLines.push(`${i + 1}. ${user ? user.tag : 'Unknown User'} (\`${id}\`)`);
         }
-        guildConfig.removeOwner(targetUser.id);
-        return replySuccess({ content: success(`**${targetUser.username}** has been removed from bot owners.`) });
+
+        const embed = new EmbedBuilder()
+          .setColor('#FF7043')
+          .setAuthor({
+            name: client.user.username,
+            iconURL: client.user.displayAvatarURL({ dynamic: true })
+          })
+          .setDescription(withEmoji('crown', `**Bot Owners**\n\n${ownerLines.length > 0 ? ownerLines.join('\n') : 'No bot owners found.'}`));
+
+        return prefixSuccess(message, { embeds: [embed] });
       }
-    }
-
-    if (subcommand === 'list') {
-      const owners = guildConfig.getOwners();
-      if (owners.length === 0) {
-        return replySuccess({ content: 'No bot owners found.' });
-      }
-
-      const ownerLines = [];
-      for (let i = 0; i < owners.length; i++) {
-        const id = owners[i];
-        const user = await client.users.fetch(id).catch(() => null);
-        ownerLines.push(`${i + 1}. ${user ? user.tag : 'Unknown User'} (\`${id}\`)`);
-      }
-
-      const embed = new EmbedBuilder()
-        .setColor('#FF7043')
-        .setAuthor({
-          name: client.user.username,
-          iconURL: client.user.displayAvatarURL({ dynamic: true })
-        })
-        .setDescription(withEmoji('crown', `**Bot Owners**\n\n${ownerLines.join('\n')}`));
-
-      return replySuccess({ embeds: [embed] });
-    }
-
-    if (!isSlash) {
-      return replyError(error(`Usage: \`!owner add/remove/list <user>\``));
+    } catch (err) {
+      return; // Silent
     }
   },
 };

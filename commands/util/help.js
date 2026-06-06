@@ -28,6 +28,10 @@ const categories = {
       { name: 'vckick',    alias: 'vcremove, forcedc',     desc: 'Disconnect a user from VC' },
       { name: 'vckickall', alias: 'vcpurge, emptyvc',     desc: 'Disconnect everyone from VC' },
       { name: 'dump',      alias: 'rolemembers, rolelist', desc: 'List all members with a role' },
+      { name: 'cmdrole',   alias: 'crole, restrictrole',   desc: 'Restrict commands to roles' },
+      { name: 'rpc',       alias: 'presence',              desc: 'Set bot status/activity' },
+      { name: 'status',    alias: 'botstatus',             desc: 'Change bot online status' },
+      { name: 'noprefix',  alias: 'np',                    desc: 'Manage no-prefix users' },
     ]
   },
   util: {
@@ -40,10 +44,20 @@ const categories = {
       { name: 'sbanner',    alias: 'serverbanner, guildbanner', desc: 'Show server banner' },
       { name: 'serverinfo', alias: 'server, guildinfo',     desc: 'Show server information' },
       { name: 'userinfo',   alias: 'whois, lookup',         desc: 'Show user information' },
-      { name: 'purgebots',  alias: 'clearbots, delbots, purgebots', desc: 'Delete bot messages in bulk' },
-      { name: 'purgeuser',  alias: 'clearuser, deluser, purgeuser', desc: 'Delete messages from a user' },
+      { name: 'purgebots',  alias: 'clearbots, delbots',    desc: 'Delete bot messages' },
+      { name: 'purgeuser',  alias: 'clearuser, deluser',    desc: 'Delete user messages' },
       { name: 'afk',        alias: 'away, brb',             desc: 'Set your AFK status' },
       { name: 'help',       alias: 'cmds, commands',        desc: 'Show this help menu' },
+      { name: 'vcpanel',    alias: 'vcp',                   desc: 'Show VC control panel' },
+    ]
+  },
+  setup: {
+    label: '⚙️ Setup',
+    color: '#95A5A6',
+    commands: [
+      { name: 'setup',       alias: 'start',      desc: 'Run initial bot setup' },
+      { name: 'config',      alias: 'settings',   desc: 'View/edit server config' },
+      { name: 'resetconfig', alias: 'reset',      desc: 'Reset server configuration' },
     ]
   },
   fun: {
@@ -92,6 +106,7 @@ function buildHelpMenu(client, prefix) {
       'to view all available commands.\n\n' +
       '🛡️ **Moderation** — Server moderation tools\n' +
       '🔧 **Utility** — Info and utility commands\n' +
+      '⚙️ **Setup** — Bot and server setup\n' +
       '🎉 **Fun** — Fun and games commands\n' +
       '🔊 **Voice** — Voice channel controls'
     )
@@ -105,6 +120,7 @@ function buildHelpMenu(client, prefix) {
     .addOptions([
       { label: 'Moderation',     value: 'mod',     description: 'Ban, kick, mute, warn and more',  emoji: '🛡️' },
       { label: 'Utility',        value: 'util',    description: 'Avatar, userinfo, AFK and more',   emoji: '🔧' },
+      { label: 'Setup',          value: 'setup',   description: 'Bot setup and configuration',     emoji: '⚙️' },
       { label: 'Fun',            value: 'fun',     description: 'Fun and games commands',          emoji: '🎉' },
       { label: 'Voice Controls', value: 'voice',   description: 'VC control panel buttons',         emoji: '🔊' },
     ]);
@@ -121,11 +137,9 @@ function buildCategoryEmbed(key, client, prefix, page = 0) {
   const totalPages = Math.ceil(cat.commands.length / CMDS_PER_PAGE);
   const currentPage = Math.max(0, Math.min(page, totalPages - 1));
 
-  // Slice commands for this page
   const start = currentPage * CMDS_PER_PAGE;
   const pageCmds = cat.commands.slice(start, start + CMDS_PER_PAGE);
 
-  // Build command list for this page - mobile friendly
   const cmdList = pageCmds.map(cmd =>
     `\`${cmd.name}\` — ${cmd.desc}` +
     (cmd.alias && cmd.alias !== 'Button'
@@ -149,22 +163,20 @@ function buildCategoryEmbed(key, client, prefix, page = 0) {
         : `${cat.commands.length} commands • Prefix: ${prefix}`
     });
 
-  // Build components
   const components = [];
 
-  // Row 1: Select menu (always shown)
   const selectMenu = new StringSelectMenuBuilder()
     .setCustomId('help_select')
     .setPlaceholder(`📚 Currently: ${cat.label}`)
     .addOptions([
       { label: 'Moderation',     value: 'mod',     description: 'Ban, kick, mute, warn and more',  emoji: '🛡️' },
       { label: 'Utility',        value: 'util',    description: 'Avatar, userinfo, AFK and more',   emoji: '🔧' },
+      { label: 'Setup',          value: 'setup',   description: 'Bot setup and configuration',     emoji: '⚙️' },
       { label: 'Fun',            value: 'fun',     description: 'Fun and games commands',          emoji: '🎉' },
       { label: 'Voice Controls', value: 'voice',   description: 'VC control panel buttons',         emoji: '🔊' },
     ]);
   components.push(new ActionRowBuilder().addComponents(selectMenu));
 
-  // Row 2: Pagination buttons (only if more than 1 page)
   if (totalPages > 1) {
     const prevBtn = new ButtonBuilder()
       .setCustomId(`help_page_${key}_${currentPage - 1}`)
@@ -176,7 +188,7 @@ function buildCategoryEmbed(key, client, prefix, page = 0) {
       .setCustomId('help_page_indicator')
       .setLabel(`${currentPage + 1} / ${totalPages}`)
       .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true); // indicator only
+      .setDisabled(true);
 
     const nextBtn = new ButtonBuilder()
       .setCustomId(`help_page_${key}_${currentPage + 1}`)
@@ -203,25 +215,28 @@ module.exports = {
   buildCategoryEmbed,
   async execute(interaction, args, client) {
     const isSlash = !!interaction.isChatInputCommand?.();
-    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
-    const ownerBypass = checkOwnerBypass(bypassExecutorId);
+    const executorId = isSlash ? interaction.user.id : interaction.author.id;
+    
+    const checkOwnerBypassFunc = require('../../utils/isOwner');
+    const ownerBypass = checkOwnerBypassFunc(executorId);
+    
     const message = isSlash ? null : interaction;
     const actualClient = isSlash ? args : client;
     const { prefix } = require('../../config');
 
     if (!ownerBypass) {
-    const remaining = cooldown.check('help',
-      isSlash ? interaction.user.id : message.author.id,
-      isSlash ? interaction.guild?.id : message.guild?.id,
-      3000
-    );
-    if (remaining > 0) {
-      const secs = (remaining / 1000).toFixed(1);
-      const msg = error(`You are on cooldown. Try again in **${secs}s**.`);
-      return isSlash
-        ? slashError(interaction, msg)
-        : prefixError(message, msg);
-    }
+      const remaining = cooldown.check('help',
+        executorId,
+        interaction.guild?.id,
+        3000
+      );
+      if (remaining > 0) {
+        const secs = (remaining / 1000).toFixed(1);
+        const msg = error(`You are on cooldown. Try again in **${secs}s**.`);
+        return isSlash
+          ? slashError(interaction, msg)
+          : prefixError(message, msg);
+      }
     }
 
     const { embed, rows } = buildHelpMenu(actualClient, prefix);
