@@ -89,9 +89,22 @@ module.exports = {
         } else {
           console.log('[Ready] No leftover temp VCs to clean up');
         }
-      } catch (err) {
+
+        console.log('═══════════════════════════════');
+        console.log('  PERMANENT SETTINGS');
+        console.log('═══════════════════════════════');
+        console.log(`  Owners (${config.ownerIds.length}): ${
+          config.ownerIds.length > 0
+            ? config.ownerIds.join(', ')
+            : 'None configured'
+        }`);
+        console.log(`  VC Panel Image: ${
+          config.vcPanelImage && !config.vcPanelImage.includes('IMAGE_URL_HERE') ? '✅ Set' : '❌ Not set (using text)'
+        }`);
+        console.log('═══════════════════════════════');
+        } catch (err) {
         console.error('[Ready] Temp VC cleanup error:', err.message);
-      }
+        }
     } catch (err) {
       console.error('[Ready]', err);
     }

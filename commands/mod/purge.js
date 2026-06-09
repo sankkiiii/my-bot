@@ -44,8 +44,8 @@ module.exports = {
 
   async execute(interactionOrMessage) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
-    const bypassExecutorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
-    const ownerBypass = checkOwnerBypass(bypassExecutorId);
+    const executorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+    const ownerBypass = checkOwnerBypass(executorId);
     const interaction = isSlash ? interactionOrMessage : null;
     const message = isSlash ? null : interactionOrMessage;
     const guild = interactionOrMessage.guild;

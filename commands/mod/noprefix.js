@@ -44,10 +44,9 @@ module.exports = {
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
-    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
-    const ownerBypass = checkOwnerBypass(bypassExecutorId);
-    const client = isSlash ? interactionOrMessage.client : clientOrUndefined;
     const executorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+    const ownerBypass = checkOwnerBypass(executorId);
+    const client = isSlash ? interactionOrMessage.client : clientOrUndefined;
     const guild = interactionOrMessage.guild;
 
     if (!guild) return;

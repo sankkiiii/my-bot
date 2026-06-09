@@ -113,13 +113,12 @@ module.exports = {
 
   async execute(interactionOrMessage, argsOrClient) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
-    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
-    const ownerBypass = checkOwnerBypass(bypassExecutorId);
+    const executorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+    const ownerBypass = checkOwnerBypass(executorId);
     const guild = interactionOrMessage.guild;
     if (!guild) return;
 
     const executor = interactionOrMessage.member;
-    const executorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
 
     // Cooldown check
     if (!ownerBypass) {
@@ -132,8 +131,7 @@ module.exports = {
     }
 
     // Permission Check
-    const isOwnerCheckLocal = ownerBypass;
-    const isAdmin = executor.permissions.has(PermissionFlagsBits.Administrator) || isOwnerCheckLocal;
+    const isAdmin = executor.permissions.has(PermissionFlagsBits.Administrator) || ownerBypass;
     if (!isAdmin) {
       const msg = error('You need **Administrator** permission or be a bot owner.');
       return isSlash ? slashError(interactionOrMessage, msg) : prefixError(interactionOrMessage, msg);

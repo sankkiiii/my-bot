@@ -32,7 +32,7 @@ function buildVcPanel() {
       text: '🔐 Only the channel creator can use these'
     });
 
-  if (config.vcPanelImage) {
+  if (config.vcPanelImage && !config.vcPanelImage.includes('IMAGE_URL_HERE')) {
     embed.setImage(config.vcPanelImage);
   } else {
     embed.addFields(
