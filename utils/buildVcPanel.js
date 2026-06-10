@@ -24,50 +24,40 @@ function buildVcPanel() {
     .setColor('#5865F2')
     .setTitle('🎙️ Voice Controls')
     .setDescription(
-      '> Use the buttons below to manage\n' +
-      '> your voice channel.\n' +
-      '\u200b'
+      '**🔧 Channel:** Rename • Limit • Delete\n' +
+      '**🔒 Access:** Lock • Unlock • Hide • Unhide\n' +
+      '**👥 Members:** Trust • Kick • Ban • Unban • Claim • Transfer'
     )
     .setFooter({
       text: '🔐 Only the channel creator can use these'
     });
 
-  if (config.vcPanelImage && !config.vcPanelImage.includes('IMAGE_URL_HERE')) {
+  if (config.vcPanelImage) {
     embed.setImage(config.vcPanelImage);
-  } else {
-    embed.addFields(
-      { name: '🔧 Channel', value: 'Rename  •  Limit  •  Delete', inline: true },
-      { name: '🔒 Access', value: 'Lock  •  Unlock  •  Hide  •  Unhide  •  Wait', inline: true },
-      { name: '\u200b', value: '\u200b', inline: false },
-      { name: '👥 Members', value: 'Trust  •  Reject  •  Kick  •  Ban  •  Unban  •  Claim  •  Transfer', inline: true }
-    );
   }
 
-  // Row 1 — 5 buttons
+  // Row 1 — 4 buttons
   const row1 = new ActionRowBuilder().addComponents(
-    buildButton('vc_rename',  e.vcRenameBtn,  'Name',     ButtonStyle.Secondary),
-    buildButton('vc_limit',   e.vcLimitBtn,   'Limit',    ButtonStyle.Secondary),
-    buildButton('vc_lock',    e.vcLockBtn,    'Lock',     ButtonStyle.Secondary),
-    buildButton('vc_unlock',  e.vcUnlockBtn,  'Unlock',   ButtonStyle.Secondary),
-    buildButton('vc_hide',    e.vcHideBtn,    'Hide',     ButtonStyle.Secondary),
+    buildButton('vc_rename',  e.vcRenameBtn,  'Rename',     ButtonStyle.Secondary),
+    buildButton('vc_limit',   e.vcLimitBtn,   'Limit',      ButtonStyle.Secondary),
+    buildButton('vc_lock',    e.vcLockBtn,    'Lock',       ButtonStyle.Secondary),
+    buildButton('vc_unlock',  e.vcUnlockBtn,  'Unlock',     ButtonStyle.Secondary),
   );
 
-  // Row 2 — 5 buttons
+  // Row 2 — 4 buttons
   const row2 = new ActionRowBuilder().addComponents(
-    buildButton('vc_unhide',  e.vcUnhideBtn,  'Unhide',   ButtonStyle.Secondary),
-    buildButton('vc_waiting', e.vcWaitBtn,    'Waiting',  ButtonStyle.Secondary),
-    buildButton('vc_trust',   e.vcTrustBtn,   'Trust',    ButtonStyle.Secondary),
-    buildButton('vc_reject',  e.vcRejectBtn,  'Reject',   ButtonStyle.Secondary),
-    buildButton('vc_kick',    e.vcKickBtn,    'Kick',     ButtonStyle.Secondary),
+    buildButton('vc_hide',    e.vcHideBtn,    'Hide',       ButtonStyle.Secondary),
+    buildButton('vc_unhide',  e.vcUnhideBtn,  'Unhide',     ButtonStyle.Secondary),
+    buildButton('vc_trust',   e.vcTrustBtn,   'Trust',      ButtonStyle.Secondary),
+    buildButton('vc_kick',    e.vcKickBtn,    'Kick',       ButtonStyle.Secondary),
   );
 
-  // Row 3 — 5 buttons
+  // Row 3 — 4 buttons
   const row3 = new ActionRowBuilder().addComponents(
-    buildButton('vc_ban',      e.vcBanBtn,      'Ban',      ButtonStyle.Secondary),
-    buildButton('vc_unban',    e.vcUnbanBtn,    'Unban',    ButtonStyle.Secondary),
-    buildButton('vc_claim',    e.vcClaimBtn,    'Claim',    ButtonStyle.Secondary),
-    buildButton('vc_transfer', e.vcTransferBtn, 'Transfer', ButtonStyle.Secondary),
-    buildButton('vc_delete',   e.vcDeleteBtn,   'Delete',   ButtonStyle.Secondary),
+    buildButton('vc_ban',      e.vcBanBtn,      'Ban',        ButtonStyle.Secondary),
+    buildButton('vc_unban',    e.vcUnbanBtn,    'Unban',      ButtonStyle.Secondary),
+    buildButton('vc_claim',    e.vcClaimBtn,    'Claim',      ButtonStyle.Secondary),
+    buildButton('vc_transfer', e.vcTransferBtn, 'Transfer',   ButtonStyle.Secondary),
   );
 
   return { embed, rows: [row1, row2, row3] };

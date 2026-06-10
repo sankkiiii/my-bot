@@ -32,7 +32,7 @@ async function sendLog(client, channelId, embed) {
 
 const VC_BUTTON_IDS = [
   'vc_rename', 'vc_limit', 'vc_lock', 'vc_unlock', 'vc_hide',
-  'vc_unhide', 'vc_waiting', 'vc_trust', 'vc_reject', 'vc_delete',
+  'vc_unhide', 'vc_trust', 'vc_delete',
   'vc_kick', 'vc_ban', 'vc_claim', 'vc_unban', 'vc_transfer',
 ];
 
@@ -40,7 +40,7 @@ const VC_MODAL_IDS = ['vc_rename_modal', 'vc_limit_modal'];
 const TICKET_MODAL_ID = 'ticket_reason_modal';
 
 const VC_SELECT_IDS = [
-  'vc_trust_select', 'vc_reject_select', 'vc_kick_select',
+  'vc_trust_select', 'vc_kick_select',
   'vc_ban_select', 'vc_unban_select', 'vc_transfer_select',
 ];
 
@@ -541,7 +541,7 @@ async function handleVcButton(interaction) {
   const id = interaction.customId;
   const tempVCs = interaction.client.tempVCs;
   const modalButtons = ['vc_rename', 'vc_limit'];
-  const selectButtons = ['vc_trust', 'vc_reject', 'vc_kick', 'vc_ban', 'vc_unban', 'vc_transfer'];
+  const selectButtons = ['vc_trust', 'vc_kick', 'vc_ban', 'vc_unban', 'vc_transfer'];
 
   // Defer immediately for non-modal/non-select buttons
   if (!modalButtons.includes(id) && !selectButtons.includes(id)) {
@@ -640,20 +640,6 @@ async function handleVcButton(interaction) {
       const row = new ActionRowBuilder().addComponents(selectMenu);
       return interaction.reply({
         content: withEmoji('vcTrustBtn', 'Select a user to give access to your VC:'),
-        components: [row],
-        ephemeral: true,
-      });
-    }
-
-    if (id === 'vc_reject') {
-      const selectMenu = new UserSelectMenuBuilder()
-        .setCustomId('vc_reject_select')
-        .setPlaceholder('Select a user to reject...')
-        .setMinValues(1)
-        .setMaxValues(1);
-      const row = new ActionRowBuilder().addComponents(selectMenu);
-      return interaction.reply({
-        content: withEmoji('vcRejectBtn', 'Select a user to reject from your VC:'),
         components: [row],
         ephemeral: true,
       });
@@ -774,11 +760,6 @@ async function handleVcButton(interaction) {
     if (id === 'vc_unhide') {
       await voiceChannel.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: null });
       return interaction.editReply({ content: success('Channel visible.') });
-    }
-
-    if (id === 'vc_waiting') {
-      await voiceChannel.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: true, Connect: false });
-      return interaction.editReply({ content: success('Waiting room enabled.') });
     }
 
     if (id === 'vc_delete') {
@@ -915,14 +896,6 @@ async function handleVcSelectMenu(interaction) {
         Speak: true,
       });
       return interaction.update({ content: success(`${member.displayName} can now join your channel.`), components: [] });
-    }
-
-    if (id === 'vc_reject_select') {
-      if (member.voice?.channelId === userVoiceChannelId) {
-        await member.voice.disconnect('Rejected by VC owner').catch(() => {});
-      }
-      await voiceChannel.permissionOverwrites.edit(member.id, { ViewChannel: false, Connect: false });
-      return interaction.update({ content: success(`${member.displayName} has been rejected.`), components: [] });
     }
 
     if (id === 'vc_kick_select') {
