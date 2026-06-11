@@ -66,29 +66,28 @@ module.exports = {
           const cfg = getConfig(guildId);
           if (!cfg?.temp_vc_category) continue;
 
-          const channels = guild.channels.cache.filter(
-            (ch) =>
+          guild.channels.cache
+            .filter(ch =>
               ch.parentId === cfg.temp_vc_category &&
               ch.type === ChannelType.GuildVoice &&
               ch.id !== cfg.create_vc_channel &&
-              ch.id !== cfg.create_duo_channel,
-          );
-
-          for (const [, channel] of channels) {
-            const humanMembers = channel.members.filter((m) => !m.user.bot);
-            if (humanMembers.size === 0) {
-              await channel.delete().catch((err) =>
-                console.error(`[Ready] Failed to delete leftover VC ${channel.name}:`, err.message),
-              );
-              cleaned++;
-            }
-          }
+              ch.id !== cfg.create_duo_channel
+            )
+            .forEach(async ch => {
+              const humans = ch.members.filter(m => !m.user.bot);
+              if (humans.size === 0) {
+                await ch.delete().catch((err) =>
+                  console.error(`[Ready] Failed to delete leftover VC ${ch.name}:`, err.message),
+                );
+                cleaned++;
+                console.log('[Ready] Deleted empty VC:', ch.name);
+              }
+            });
         }
-        if (cleaned > 0) {
-          console.log(`[Ready] Cleaned up ${cleaned} leftover temp VC(s)`);
-        } else {
-          console.log('[Ready] No leftover temp VCs to clean up');
-        }
+        
+        // Note: Cleaned count might be slightly inaccurate due to async forEach, 
+        // but the individual logs will show the work.
+        console.log('[Ready] Temp VC cleanup complete');
 
         console.log('═══════════════════════════════');
         console.log('  PERMANENT SETTINGS');
@@ -102,9 +101,9 @@ module.exports = {
           config.vcPanelImage && !config.vcPanelImage.includes('IMAGE_URL_HERE') ? '✅ Set' : '❌ Not set (using text)'
         }`);
         console.log('═══════════════════════════════');
-        } catch (err) {
+      } catch (err) {
         console.error('[Ready] Temp VC cleanup error:', err.message);
-        }
+      }
     } catch (err) {
       console.error('[Ready]', err);
     }

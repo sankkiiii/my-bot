@@ -6,40 +6,61 @@ const {
 const getConfig = require('../utils/getConfig');
 const buildVcPanel = require('../utils/buildVcPanel');
 
-const superscriptMap = {
-  '0': '\u2070', '1': '\u00B9', '2': '\u00B2', '3': '\u00B3', '4': '\u2074',
-  '5': '\u2075', '6': '\u2076', '7': '\u2077', '8': '\u2078', '9': '\u2079',
-};
+const DUO_PREFIX = '𝄢・duo ';
 
-const reverseSuperscript = {
-  '\u2070': '0', '\u00B9': '1', '\u00B2': '2', '\u00B3': '3', '\u2074': '4',
-  '\u2075': '5', '\u2076': '6', '\u2077': '7', '\u2078': '8', '\u2079': '9',
+const superscriptMap = {
+  '⁰': 0, '¹': 1, '²': 2, '³': 3, '⁴': 4,
+  '⁵': 5, '⁶': 6, '⁷': 7, '⁸': 8, '⁹': 9
 };
 
 function toSuperscript(num) {
-  return String(num).split('').map((d) => superscriptMap[d] || d).join('');
+  const superDigits = ['⁰','¹','²','³','⁴','⁵','⁶','⁷','⁸','⁹'];
+  return String(num).split('').map(d => superDigits[parseInt(d)]).join('');
 }
 
 function superscriptToNumber(str) {
-  const digits = str.split('').map((c) => reverseSuperscript[c] || '').join('');
-  const n = parseInt(digits, 10);
-  return isNaN(n) ? null : n;
+  if (!str || str.trim() === '') return null;
+  let result = 0;
+  let valid = false;
+  for (const char of str.trim()) {
+    if (superscriptMap[char] !== undefined) {
+      result = result * 10 + superscriptMap[char];
+      valid = true;
+    } else {
+      return null; // invalid character
+    }
+  }
+  return valid ? result : null;
 }
 
-function getNextDuoNumber(guild, categoryId) {
+function isDuoVC(channel, cfg) {
+  if (!cfg?.temp_vc_category) return false;
+  return (
+    channel.parentId === cfg.temp_vc_category &&
+    channel.type === ChannelType.GuildVoice &&
+    channel.name.startsWith(DUO_PREFIX) &&
+    channel.id !== cfg.create_vc_channel &&
+    channel.id !== cfg.create_duo_channel
+  );
+}
+
+function getNextDuoNumber(guild, cfg) {
   const usedNumbers = new Set();
+
   guild.channels.cache
-    .filter((ch) => ch.parentId === categoryId && ch.name.startsWith('\uD834\uDD22\u30FBduo'))
-    .forEach((ch) => {
-      const match = ch.name.match(/duo\s(.+)$/);
-      if (match) {
-        const num = superscriptToNumber(match[1]);
-        if (num) usedNumbers.add(num);
+    .filter(ch => isDuoVC(ch, cfg))
+    .forEach(ch => {
+      const suffix = ch.name.slice(DUO_PREFIX.length);
+      const num = superscriptToNumber(suffix);
+      if (num !== null) {
+        usedNumbers.add(num);
+        console.log(`[DuoVC] Found existing: "${ch.name}" → number ${num}`);
       }
     });
 
   let next = 1;
   while (usedNumbers.has(next)) next++;
+  console.log(`[DuoVC] Next number: ${next}, used: [${[...usedNumbers].join(',')}]`);
   return next;
 }
 
@@ -183,7 +204,7 @@ module.exports = {
             .filter(ch =>
               ch.parentId === TEMP_VC_CATEGORY &&
               ch.type === ChannelType.GuildVoice &&
-              !ch.name.startsWith('𝄢・duo') &&
+              !ch.name.startsWith(DUO_PREFIX) &&
               ch.id !== CREATE_VC_CHANNEL &&
               ch.id !== CREATE_DUO_CHANNEL &&
               ch.id !== tempChannel.id
@@ -207,8 +228,17 @@ module.exports = {
         const member = newState.member;
         const duoTriggerChannel = guild.channels.cache.get(CREATE_DUO_CHANNEL);
 
-        const duoNumber = getNextDuoNumber(guild, TEMP_VC_CATEGORY);
-        const channelName = `\uD834\uDD22\u30FBduo ${toSuperscript(duoNumber)}`;
+        console.log('[DuoVC] User joined trigger:', member.displayName);
+        console.log('[DuoVC] Category:', TEMP_VC_CATEGORY);
+        console.log('[DuoVC] Channels in category:',
+          guild.channels.cache
+            .filter(ch => ch.parentId === TEMP_VC_CATEGORY)
+            .map(ch => `"${ch.name}"`)
+            .join(', ')
+        );
+
+        const duoNumber = getNextDuoNumber(guild, cfg);
+        const duoName = `${DUO_PREFIX}${toSuperscript(duoNumber)}`;
 
         // Build permission overwrites array
         const permOverwrites = [
@@ -264,8 +294,9 @@ module.exports = {
 
         let duoChannel;
         try {
+          console.log('[DuoVC] Creating:', duoName);
           duoChannel = await guild.channels.create({
-            name: channelName,
+            name: duoName,
             type: ChannelType.GuildVoice,
             parent: TEMP_VC_CATEGORY || undefined,
             userLimit: 2,
@@ -319,18 +350,26 @@ module.exports = {
 
         // Position logic for Duo VC
         try {
-          const existingDuoVCs = guild.channels.cache
-            .filter(ch =>
-              ch.parentId === TEMP_VC_CATEGORY &&
-              ch.type === ChannelType.GuildVoice &&
-              ch.name.startsWith('𝄢・duo') &&
-              ch.id !== duoChannel.id
-            )
-            .sort((a, b) => a.position - b.position);
+          console.log('[DuoVC] Existing duo VCs:',
+            guild.channels.cache
+              .filter(ch => isDuoVC(ch, cfg))
+              .map(ch => `"${ch.name}"`)
+              .join(', ')
+          );
 
-          if (existingDuoVCs.size > 0) {
-            const lastDuo = existingDuoVCs.last();
-            await duoChannel.setPosition(lastDuo.position + 1, { relative: false });
+          const existingDuoVCs = guild.channels.cache
+            .filter(ch => isDuoVC(ch, cfg) && ch.id !== duoChannel.id)
+            .map(ch => {
+              const suffix = ch.name.slice(DUO_PREFIX.length);
+              const num = superscriptToNumber(suffix);
+              return { channel: ch, num: num ?? 999 };
+            })
+            .sort((a, b) => a.num - b.num);
+
+          if (existingDuoVCs.length > 0) {
+            const lastDuo = existingDuoVCs[existingDuoVCs.length - 1];
+            await duoChannel.setPosition(lastDuo.channel.position + 1, { relative: false });
+            console.log(`[DuoVC] Placed "${duoChannel.name}" after "${lastDuo.channel.name}"`);
           } else if (duoTriggerChannel) {
             await duoChannel.setPosition(duoTriggerChannel.position + 1, { relative: false });
           }
