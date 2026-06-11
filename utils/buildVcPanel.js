@@ -23,7 +23,7 @@ function buildVcPanel() {
   const embed = new EmbedBuilder()
     .setColor('#5865F2')
     .setTitle('🎙️ Voice Controls')
-    .setDescription('Use the buttons below or \`/vc\` to manage\nyour voice channel.')
+    .setDescription('> Use the buttons below or \`/vc\` to manage\nyour voice channel.')
     .setFooter({
       text: '🔐 Only the channel creator can use these'
     });
