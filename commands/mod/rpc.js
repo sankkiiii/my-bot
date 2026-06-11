@@ -1,4 +1,5 @@
 const fs = require('fs');
+const checkOwnerBypass = require('../../utils/isOwner');
 const path = require('path');
 const {
   SlashCommandBuilder,
@@ -8,6 +9,14 @@ const {
   ActivityType,
 } = require('discord.js');
 const config = require('../../config');
+const cooldown = require('../../utils/cooldown');
+const {
+  slashError,
+  slashSuccess,
+  prefixError,
+  prefixSuccess,
+} = require('../../utils/replyHelper');
+const { success, error, withEmoji, getEmoji } = require('../../utils/emoji');
 
 const PRESENCE_PATH = path.join(__dirname, '..', '..', 'data', 'presence.json');
 
@@ -19,17 +28,17 @@ const activityTypes = {
 };
 
 const typeEmojis = {
-  PLAYING: '\uD83C\uDFAE Playing',
-  WATCHING: '\uD83D\uDCFA Watching',
-  LISTENING: '\uD83C\uDFB5 Listening',
-  COMPETING: '\uD83C\uDFC6 Competing',
+  PLAYING: `${getEmoji('playing')} Playing`,
+  WATCHING: `${getEmoji('watching')} Watching`,
+  LISTENING: `${getEmoji('listening')} Listening`,
+  COMPETING: `${getEmoji('competing')} Competing`,
 };
 
 const statusEmojis = {
-  online: '\uD83D\uDFE2 Online',
-  idle: '\uD83C\uDF19 Idle',
-  dnd: '\u26D4 DND',
-  invisible: '\uD83D\uDC7B Invisible',
+  online: `${getEmoji('info')} Online`,
+  idle: `${getEmoji('warning')} Idle`,
+  dnd: `${getEmoji('error')} DND`,
+  invisible: `${getEmoji('info')} Invisible`,
 };
 
 module.exports = {
@@ -42,11 +51,11 @@ module.exports = {
         .setDescription('Activity type')
         .setRequired(true)
         .addChoices(
-          { name: '\uD83C\uDFAE Playing', value: 'PLAYING' },
-          { name: '\uD83D\uDCFA Watching', value: 'WATCHING' },
-          { name: '\uD83C\uDFB5 Listening', value: 'LISTENING' },
-          { name: '\uD83C\uDFC6 Competing', value: 'COMPETING' },
-          { name: '\u274C Clear (remove activity)', value: 'CLEAR' },
+          { name: 'Playing', value: 'PLAYING' },
+          { name: 'Watching', value: 'WATCHING' },
+          { name: 'Listening', value: 'LISTENING' },
+          { name: 'Competing', value: 'COMPETING' },
+          { name: 'Clear (remove activity)', value: 'CLEAR' },
         ),
     )
     .addStringOption((opt) =>
@@ -58,58 +67,85 @@ module.exports = {
         .setDescription('Bot online status')
         .setRequired(false)
         .addChoices(
-          { name: '\uD83D\uDFE2 Online', value: 'online' },
-          { name: '\uD83C\uDF19 Idle', value: 'idle' },
-          { name: '\u26D4 Do Not Disturb', value: 'dnd' },
-          { name: '\uD83D\uDC7B Invisible', value: 'invisible' },
+          { name: 'Online', value: 'online' },
+          { name: 'Idle', value: 'idle' },
+          { name: 'Do Not Disturb', value: 'dnd' },
+          { name: 'Invisible', value: 'invisible' },
         ),
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   name: 'rpc',
-  aliases: ['presence', 'activity'],
+  aliases: ['presence', 'activity', 'setstatus'],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const executorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+    const ownerBypass = checkOwnerBypass(executorId);
     const client = isSlash ? argsOrClient : clientOrUndefined;
-    const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
+    const isExecutorOwner = ownerBypass;
 
     try {
-      let type, text, status, replyFn, user;
+      let type, text, status, replyError, replySuccess, user;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
+        if (!interaction.guild) {
+          return slashError(interaction, 'This command only works in a server.');
+        }
         user = interaction.user;
 
-        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return interaction.reply({
-            content: '\u274C You need **Administrator** permission to change my presence.',
-            ephemeral: true,
-          });
+        if (!ownerBypass) {
+    const remaining = cooldown.check('rpc', interaction.user.id, interaction.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return slashError(interaction, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
-        replyFn = (opts) => interaction.reply({ ...opts, ephemeral: true });
+        if (!ownerBypass) {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+          return slashError(interaction, error('You need **Administrator** permission to change my presence.'));
+        }
+    }
+
+        replyError = (content) => slashError(interaction, content);
+        replySuccess = (opts) => slashSuccess(interaction, { ...opts, ephemeral: true });
         type = interaction.options.getString('type');
         text = interaction.options.getString('text');
         status = interaction.options.getString('status') || 'online';
       } else {
         const message = interactionOrMessage;
         const args = argsOrClient;
+        if (!message.guild) {
+          return prefixError(message, 'This command only works in a server.');
+        }
         user = message.author;
 
-        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return message.reply('\u274C You need **Administrator** permission to change my presence.');
+        if (!ownerBypass) {
+    const remaining = cooldown.check('rpc', message.author.id, message.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return prefixError(message, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
-        replyFn = (opts) => message.reply(opts);
+        if (!ownerBypass) {
+    if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+          return prefixError(message, error('You need **Administrator** permission to change my presence.'));
+        }
+    }
+
+        replyError = (content) => prefixError(message, content);
+        replySuccess = (opts) => prefixSuccess(message, opts);
 
         if (!args[0]) {
-          return message.reply('\u274C Usage: `!rpc <playing|watching|listening|competing|clear> [text]`');
+          return replyError(error('Usage: `!rpc <playing|watching|listening|competing|clear> [text]`'));
         }
 
         type = args[0].toUpperCase();
         if (!['PLAYING', 'WATCHING', 'LISTENING', 'COMPETING', 'CLEAR'].includes(type)) {
-          return message.reply('\u274C Invalid type. Use: `playing`, `watching`, `listening`, `competing`, or `clear`.');
+          return replyError(error('Invalid type. Use: `playing`, `watching`, `listening`, `competing`, or `clear`.'));
         }
 
         text = args.slice(1).join(' ') || null;
@@ -128,11 +164,11 @@ module.exports = {
         };
         fs.writeFileSync(PRESENCE_PATH, JSON.stringify(presenceData, null, 2));
 
-        return replyFn({ content: '\u2705 Bot presence cleared.' });
+        return replySuccess({ content: success('Bot presence cleared.') });
       }
 
       if (!text) {
-        return replyFn({ content: '\u274C Please provide a status text.' });
+        return replyError(error('Please provide a status text.'));
       }
 
       client.user.setPresence({
@@ -150,17 +186,15 @@ module.exports = {
       fs.writeFileSync(PRESENCE_PATH, JSON.stringify(presenceData, null, 2));
 
       const embed = new EmbedBuilder()
-        .setTitle('\u2705 Rich Presence Updated')
-        .setColor(0x57f287)
-        .addFields(
-          { name: 'Type', value: typeEmojis[type] || type, inline: true },
-          { name: 'Text', value: text, inline: true },
-          { name: 'Status', value: statusEmojis[status] || status, inline: true },
-          { name: 'Set by', value: `${user}`, inline: true },
-        )
-        .setTimestamp();
+        .setColor('#57F287')
+        .setAuthor({
+          name: client.user.username,
+          iconURL: client.user.displayAvatarURL({ dynamic: true }),
+        })
+        .setDescription(success('Presence updated') + `\n**Type:** ${type}\n**Text:** ${text}\n**Status:** ${status}`)
+        .setFooter({ text: `Requested by ${user.tag}` });
 
-      return replyFn({ embeds: [embed] });
+      return replySuccess({ embeds: [embed] });
     } catch (err) {
       console.error('[RPC]', err);
     }

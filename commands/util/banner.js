@@ -6,7 +6,16 @@ const {
   ActionRowBuilder,
   CommandInteraction,
 } = require('discord.js');
+const cooldown = require('../../utils/cooldown');
+const checkOwnerBypass = require('../../utils/isOwner');
+const {
+  slashError,
+  slashSuccess,
+  prefixError,
+  prefixSuccess,
+} = require('../../utils/replyHelper');
 const resolveUserGlobal = require('../../utils/resolveUserGlobal');
+const { error, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -24,16 +33,30 @@ module.exports = {
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
     const client = isSlash ? argsOrClient : clientOrUndefined;
 
     try {
-      let resolved, replyFn, requester;
+      let resolved, replyError, replySuccess, requester;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
         const guild = interaction.guild;
+        if (!guild) {
+          return slashError(interaction, 'This command only works in a server.');
+        }
         requester = interaction.user.username;
-        replyFn = (opts) => interaction.reply(opts);
+        replyError = (content) => slashError(interaction, content);
+        replySuccess = (opts) => slashSuccess(interaction, opts);
+
+        if (!ownerBypass) {
+    const remaining = cooldown.check('banner', interaction.user.id, interaction.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
+        }
+    }
 
         const userOption = interaction.options.getUser('user');
         const queryOption = interaction.options.getString('query');
@@ -51,13 +74,25 @@ module.exports = {
         }
 
         if (!resolved.user) {
-          return interaction.reply({ content: '\u274C Could not find that user. Try their @mention, username, or user ID.', ephemeral: true });
+          return replyError(error('Could not find that user. Try their @mention, username, or user ID.'));
         }
       } else {
         const message = interactionOrMessage;
         const args = argsOrClient;
+        if (!message.guild) {
+          return prefixError(message, 'This command only works in a server.');
+        }
         requester = message.author.username;
-        replyFn = (opts) => message.reply(opts);
+        replyError = (content) => prefixError(message, content);
+        replySuccess = (opts) => prefixSuccess(message, opts);
+
+        if (!ownerBypass) {
+    const remaining = cooldown.check('banner', message.author.id, message.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
+        }
+    }
 
         const input = message.mentions.users.first()?.id || args.join(' ');
 
@@ -70,7 +105,7 @@ module.exports = {
         }
 
         if (!resolved.user) {
-          return message.reply('\u274C Could not find that user. Try their @mention, username, or user ID.');
+          return replyError(error('Could not find that user. Try their @mention, username, or user ID.'));
         }
       }
 
@@ -81,21 +116,21 @@ module.exports = {
       const displayName = inGuild ? member.displayName : user.username;
 
       if (!fetchedUser.banner) {
-        return replyFn({ content: `\u274C **${displayName}** does not have a profile banner.`, ephemeral: true });
+        return replyError(error(`**${displayName}** does not have a profile banner.`));
       }
 
       const bannerUrl = fetchedUser.bannerURL({ size: 4096, dynamic: true });
       const color = fetchedUser.accentColor || 0x5865F2;
 
       const embed = new EmbedBuilder()
-        .setTitle(`${displayName}'s Banner`)
-        .setColor(color)
+        .setColor('#57F287')
+        .setAuthor({
+          name: user.username,
+          iconURL: user.displayAvatarURL({ dynamic: true }),
+        })
+        .setDescription(withEmoji('banner', `Banner for **${displayName}**`))
         .setImage(bannerUrl)
-        .setFooter({ text: `Requested by ${requester}` });
-
-      if (!inGuild) {
-        embed.setDescription('\u26A0\uFE0F This user is not in the server \u2014 showing global profile only.');
-      }
+        .setFooter({ text: `Requested by ${(isSlash ? interactionOrMessage.user : interactionOrMessage.author).tag}` });
 
       const buttons = [];
       const baseUrl = bannerUrl.split('?')[0];
@@ -107,7 +142,7 @@ module.exports = {
       }
       const row = new ActionRowBuilder().addComponents(buttons);
 
-      await replyFn({ embeds: [embed], components: [row] });
+      await replySuccess({ embeds: [embed], components: [row] });
     } catch (err) {
       console.error('[Banner]', err);
     }

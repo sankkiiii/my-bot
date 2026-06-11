@@ -3,122 +3,176 @@ const {
   PermissionFlagsBits,
   CommandInteraction,
 } = require('discord.js');
-const config = require('../../config');
 const resolveUser = require('../../utils/resolveUser');
+const checkOwnerBypass = require('../../utils/isOwner');
+const cooldown = require('../../utils/cooldown');
+const {
+  slashError,
+  prefixError,
+} = require('../../utils/replyHelper');
+const { error, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('purgeuser')
     .setDescription('Purge last X messages from a specific user')
     .addUserOption((opt) =>
-      opt.setName('user')
+      opt
+        .setName('user')
         .setDescription('Select a user from the list')
-        .setRequired(false),
+        .setRequired(false)
     )
     .addStringOption((opt) =>
-      opt.setName('query')
+      opt
+        .setName('query')
         .setDescription('Or type a username / user ID')
-        .setRequired(false),
+        .setRequired(false)
     )
     .addIntegerOption((opt) =>
-      opt.setName('amount')
+      opt
+        .setName('amount')
         .setDescription('Number of messages to delete (default: 50)')
         .setMinValue(1)
         .setMaxValue(100)
-        .setRequired(false),
+        .setRequired(false)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   name: 'purgeuser',
-  aliases: ['cleanuser', 'deleteuser'],
+  aliases: ['clearuser', 'deluser', 'purgeuser'],
 
-  async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
+  async execute(interactionOrMessage) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
-    const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
+    const interaction = isSlash ? interactionOrMessage : null;
+    const message = isSlash ? null : interactionOrMessage;
+    const guild = interactionOrMessage.guild;
+    const executor = isSlash ? interaction.member : message.member;
+
+    if (!guild) return;
+
+    // Cooldown check
+    if (!ownerBypass) {
+    const remaining = cooldown.check('purgeuser', executor.id, guild.id, 3000);
+    if (remaining > 0) {
+      const secs = (remaining / 1000).toFixed(1);
+      const msg = withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`);
+      return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
+    }
+    }
+
+    // Permission check
+    if (!executor.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      const msg = error('You need the **Manage Messages** permission.');
+      return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
+    }
+
+    const botMember = guild.members.me;
+    if (!botMember.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      const msg = error('I need **Manage Messages** permission.');
+      return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
+    }
+
+    let targetMember;
+    let amount = 50;
+
+    if (isSlash) {
+      amount = interaction.options.getInteger('amount') || 50;
+      const userOption = interaction.options.getUser('user');
+      const queryOption = interaction.options.getString('query');
+
+      if (userOption) {
+        targetMember = await guild.members.fetch(userOption.id).catch(() => null);
+      } else if (queryOption) {
+        targetMember = await resolveUser(queryOption, guild);
+      }
+    } else {
+      const args = message.content.trim().split(/\s+/).slice(1);
+      let userInput;
+
+      if (message.mentions.members.first()) {
+        targetMember = message.mentions.members.first();
+        amount = parseInt(args[1], 10) || 50;
+      } else if (args.length > 0) {
+        const lastArg = args[args.length - 1];
+        if (!isNaN(lastArg) && !/^\d{17,19}$/.test(lastArg)) {
+          amount = parseInt(lastArg, 10);
+          userInput = args.slice(0, -1).join(' ');
+        } else {
+          userInput = args.join(' ');
+        }
+      }
+
+      if (userInput && !targetMember) {
+        targetMember = await resolveUser(userInput, guild);
+      }
+    }
+
+    if (!targetMember) {
+      const msg = error('Could not find that user. Try their @mention, username, or user ID.');
+      return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
+    }
+
+    amount = Math.min(Math.max(amount, 1), 100);
 
     try {
-      let member, amount, channel, replyFn;
+      const channel = interactionOrMessage.channel;
+      let fetched;
 
       if (isSlash) {
-        const interaction = interactionOrMessage;
-        channel = interaction.channel;
-        amount = interaction.options.getInteger('amount') || 50;
-
-        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-          return interaction.reply({ content: '\u274C You need the **Manage Messages** permission.', ephemeral: true });
-        }
-
-        const userOption = interaction.options.getUser('user');
-        const queryOption = interaction.options.getString('query');
-
-        if (userOption) {
-          member = await interaction.guild.members.fetch(userOption.id).catch(() => null);
-        } else if (queryOption) {
-          member = await resolveUser(queryOption, interaction.guild);
-        }
-
-        if (!member) {
-          return interaction.reply({ content: '\u274C Could not find that user. Try their @mention, username, or user ID.', ephemeral: true });
-        }
-
-        replyFn = (content) => interaction.reply({ content, ephemeral: true });
+        await interaction.reply({
+          content: withEmoji('loading', 'Purging...'),
+          ephemeral: true,
+        });
+        fetched = await channel.messages.fetch({ limit: 100 });
       } else {
-        const message = interactionOrMessage;
-        const args = argsOrClient;
-        channel = message.channel;
-
-        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-          return message.reply('\u274C You need the **Manage Messages** permission.');
-        }
-
-        let userInput;
-        amount = 50;
-
-        if (message.mentions.members.first()) {
-          userInput = message.mentions.members.first().id;
-          amount = parseInt(args[1], 10) || 50;
-        } else if (args.length > 0) {
-          const lastArg = args[args.length - 1];
-          if (!isNaN(lastArg) && !/^\d{17,19}$/.test(lastArg)) {
-            amount = parseInt(lastArg, 10);
-            userInput = args.slice(0, -1).join(' ');
-          } else {
-            userInput = args.join(' ');
-          }
-        }
-
-        if (!userInput) {
-          return message.reply('\u274C Please provide a user. Usage: `!purgeuser @user [amount]` or `!purgeuser username [amount]`');
-        }
-
-        amount = Math.min(Math.max(amount, 1), 100);
-        member = await resolveUser(userInput, message.guild);
-
-        if (!member) {
-          return message.reply('\u274C Could not find that user. Try their @mention, username, or user ID.');
-        }
-
-        replyFn = (content) => message.reply(content);
+        // Fetch and delete trigger in parallel
+        const [_, fetchedMsgs] = await Promise.all([
+          message.delete().catch(() => {}),
+          channel.messages.fetch({ limit: 100 })
+        ]);
+        fetched = fetchedMsgs;
       }
 
-      const fetched = await channel.messages.fetch({ limit: 100 });
-      const userMessages = fetched.filter((m) => m.author.id === member.id);
-      const toDelete = [...userMessages.values()].slice(0, amount);
+      // Use 12 days to avoid edge case errors
+      const twoWeeksAgo = Date.now() - 12 * 24 * 60 * 60 * 1000;
 
-      if (toDelete.length === 0) {
-        return replyFn('\u274C No messages found from that user.');
+      const userMessages = fetched
+        .filter(
+          (m) =>
+            m.author.id === targetMember.id &&
+            m.createdTimestamp > twoWeeksAgo
+        )
+        .first(amount);
+
+      if (userMessages.length === 0) {
+        const msg = error(`No recent messages found from **${targetMember.displayName}**.`);
+        if (isSlash) {
+          return interaction.editReply(msg);
+        } else {
+          const errReply = await channel.send(msg);
+          setTimeout(() => errReply.delete().catch(() => {}), 5000);
+          return;
+        }
       }
 
-      const deleted = await channel.bulkDelete(toDelete, true);
-      const displayName = member.displayName;
+      // Single bulkDelete call
+      const deleted = await channel.bulkDelete(userMessages, true);
+      const successMsgContent = withEmoji('purge', `Deleted **${deleted.size}** messages from **${targetMember.displayName}**.`);
 
-      const reply = await (isSlash
-        ? interactionOrMessage.reply({ content: `\uD83D\uDDD1\uFE0F Deleted **${deleted.size}** messages from **${displayName}**.`, ephemeral: true, fetchReply: true })
-        : channel.send(`\uD83D\uDDD1\uFE0F Deleted **${deleted.size}** messages from **${displayName}**.`));
-
-      setTimeout(() => reply.delete().catch(() => {}), 5000);
+      if (isSlash) {
+        return interaction.editReply(successMsgContent);
+      } else {
+        const successMsg = await channel.send(successMsgContent);
+        setTimeout(() => successMsg.delete().catch(() => {}), 5000);
+      }
     } catch (err) {
       console.error('[PurgeUser]', err);
+      const msg = error('An error occurred while purging messages.');
+      if (isSlash) return interaction.editReply(msg);
+      const errReply = await interactionOrMessage.channel.send(msg);
+      setTimeout(() => errReply.delete().catch(() => {}), 5000);
     }
   },
 };

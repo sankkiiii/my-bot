@@ -1,6 +1,20 @@
-const { SlashCommandBuilder, PermissionFlagsBits, CommandInteraction } = require('discord.js');
+const {
+  SlashCommandBuilder,
+  PermissionFlagsBits,
+  CommandInteraction,
+  EmbedBuilder,
+} = require('discord.js');
 const config = require('../../config');
+const checkOwnerBypass = require('../../utils/isOwner');
+const cooldown = require('../../utils/cooldown');
+const {
+  slashError,
+  slashSuccess,
+  prefixError,
+  prefixSuccess,
+} = require('../../utils/replyHelper');
 const resolveUser = require('../../utils/resolveUser');
+const { success, error, getEmoji, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -17,28 +31,54 @@ module.exports = {
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
     const client = isSlash ? argsOrClient : clientOrUndefined;
-    const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
+    const executorId = isSlash ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage.author ? interactionOrMessage.author.id : interactionOrMessage.user.id);
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
 
     try {
-      let member, targetUser, reason, guild, executor, executorMember, replyFn;
+      let member;
+      let targetUser;
+      let reason;
+      let guild;
+      let executor;
+      let executorMember;
+      let replyError;
+      let replySuccess;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
+        if (!interaction.guild) {
+          return interaction.reply({
+            content: 'This command only works in a server.',
+            ephemeral: true,
+          });
+        }
         guild = interaction.guild;
         executor = interaction.user;
         executorMember = interaction.member;
-        replyFn = (content) => interaction.reply({ content, ephemeral: true });
+        replyError = (content) => slashError(interaction, content);
+        replySuccess = (payload) => slashSuccess(interaction, payload);
 
-        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.BanMembers)) {
-          return interaction.reply({ content: '\u274C You need the **Ban Members** permission to use this command.', ephemeral: true });
+        if (!ownerBypass) {
+    const remaining = cooldown.check('ban', interaction.user.id, interaction.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
+
+        if (!ownerBypass) {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.BanMembers)) {
+          return replyError(error(`You need the **Ban Members** permission to use this command.`));
+        }
+    }
 
         const userOption = interaction.options.getUser('user');
         const query = interaction.options.getString('query');
         reason = interaction.options.getString('reason') || 'No reason provided';
 
         if (!userOption && !query) {
-          return interaction.reply({ content: '\u274C Please provide a user (select or type username/ID).', ephemeral: true });
+          return replyError(error(`Please provide a user (select or type username/ID).`));
         }
 
         if (userOption) {
@@ -49,74 +89,108 @@ module.exports = {
           if (member) {
             targetUser = member.user;
           } else {
-            // Try ID-only ban for users not in server
             const cleaned = query.replace(/[<@!>]/g, '').trim();
             if (/^\d{17,19}$/.test(cleaned)) {
               try {
-                const user = await client.users.fetch(cleaned);
-                await guild.members.ban(user, { reason });
-                return replyFn(`**${user.username}** has been banned (not in server). Reason: ${reason}`);
+                targetUser = await client.users.fetch(cleaned);
               } catch {
-                return replyFn('\u274C Could not find or ban that user.');
+                return replyError(error(`Could not find or ban that user.`));
               }
+            } else {
+              return replyError(error(`Could not find that user.`));
             }
-            return replyFn('\u274C Could not find that user.');
           }
         }
       } else {
         const message = interactionOrMessage;
         const args = argsOrClient;
+        if (!message.guild) {
+          return message.reply('This command only works in a server.');
+        }
         guild = message.guild;
         executor = message.author;
         executorMember = message.member;
+        replyError = (content) => prefixError(message, content);
+        replySuccess = (payload) => prefixSuccess(message, payload);
 
-        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
-          return message.reply('\u274C You need the **Ban Members** permission to use this command.');
+        if (!ownerBypass) {
+    const remaining = cooldown.check('ban', message.author.id, message.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
-        if (!args[0]) return message.reply('Please provide a user to ban.');
+        if (!ownerBypass) {
+    if (!message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
+          return replyError(error(`You need the **Ban Members** permission to use this command.`));
+        }
+    }
+
+        if (!args[0]) return replyError(error(`Please provide a user to ban.`));
 
         const input = args[0];
         member = await resolveUser(input, guild);
         reason = args.slice(1).join(' ') || 'No reason provided';
-        replyFn = (content) => message.reply(content);
 
         if (!member) {
-          // Try ID-only ban for users not in server
           const cleaned = input.replace(/[<@!>]/g, '').trim();
           if (/^\d{17,19}$/.test(cleaned)) {
             try {
-              const user = await client.users.fetch(cleaned);
-              await guild.members.ban(user, { reason });
-              return replyFn(`**${user.username}** has been banned (not in server). Reason: ${reason}`);
+              targetUser = await client.users.fetch(cleaned);
             } catch {
-              return replyFn('\u274C Could not find or ban that user.');
+              return replyError(error(`Could not find or ban that user.`));
             }
+          } else {
+            return replyError(error(`Could not find that user.`));
           }
-          return replyFn('\u274C Could not find that user.');
+        } else {
+          targetUser = member.user;
         }
-        targetUser = member.user;
       }
 
-      if (!guild.members.me.permissions.has(PermissionFlagsBits.BanMembers)) {
-        return replyFn('\u274C I don\'t have the **Ban Members** permission to do this.');
+      const botMember = guild.members.me;
+      if (!ownerBypass) {
+    if (!botMember || !botMember.permissions.has(PermissionFlagsBits.BanMembers)) {
+        return replyError(error(`I don't have the **Ban Members** permission to do this.`));
       }
+    }
 
-      if (!isOwner && member.roles.highest.position >= executorMember.roles.highest.position) {
-        return replyFn('\u274C You cannot moderate someone with an equal or higher role than you.');
-      }
-
-      if (member.roles.highest.position >= guild.members.me.roles.highest.position) {
-        return replyFn('\u274C I cannot moderate this user as their role is higher than or equal to mine.');
+      if (member) {
+        if (!ownerBypass) {
+    if (member.roles.highest.position >= executorMember.roles.highest.position) {
+          return replyError(error(`You cannot moderate someone with an equal or higher role than you.`));
+        }
+    }
+        if (!ownerBypass) {
+    if (member.roles.highest.position >= botMember.roles.highest.position) {
+          return replyError(error(`I cannot moderate this user as their role is higher than or equal to mine.`));
+        }
+    }
       }
 
       try {
         await targetUser.send(`You have been **banned** from **${guild.name}**.\n**Reason:** ${reason}`);
-      } catch (_) { /* DMs may be disabled */ }
+      } catch (err) {
+        console.error('[Ban DM Error]', err);
+      }
 
-      await member.ban({ reason });
+      if (member) {
+        await member.ban({ reason });
+      } else {
+        await guild.members.ban(targetUser, { reason });
+      }
 
-      await replyFn(`**${targetUser.username}** has been banned. Reason: ${reason}`);
+      const embed = new EmbedBuilder()
+        .setColor('#ED4245')
+        .setAuthor({
+          name: targetUser.username,
+          iconURL: targetUser.displayAvatarURL({ dynamic: true }),
+        })
+        .setDescription(success(`Banned **${targetUser.tag}**`) + `\n**Reason:** ${reason}`)
+        .setFooter({ text: `Requested by ${executor.tag}` });
+
+      await replySuccess({ embeds: [embed] });
     } catch (err) {
       console.error('[Ban]', err);
     }

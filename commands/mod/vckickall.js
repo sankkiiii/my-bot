@@ -1,0 +1,140 @@
+const {
+  SlashCommandBuilder,
+  EmbedBuilder,
+  PermissionFlagsBits,
+  ChannelType,
+  CommandInteraction,
+} = require('discord.js');
+const cooldown = require('../../utils/cooldown');
+const checkOwnerBypass = require('../../utils/isOwner');
+const {
+  slashError,
+  slashSuccessTemp,
+  prefixError,
+  prefixSuccessTemp,
+  deleteTrigger,
+} = require('../../utils/replyHelper');
+const { success, error, withEmoji } = require('../../utils/emoji');
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('vckickall')
+    .setDescription('Disconnect everyone from a voice channel')
+    .setDefaultMemberPermissions(PermissionFlagsBits.MoveMembers)
+    .addChannelOption((opt) =>
+      opt
+        .setName('channel')
+        .setDescription('Target VC (leave empty to use your current VC)')
+        .addChannelTypes(ChannelType.GuildVoice)
+        .setRequired(false)
+    ),
+
+  name: 'vckickall',
+  aliases: ['vcpurge', 'kickall', 'emptyvc', 'clearvc'],
+
+  async execute(interactionOrMessage) {
+    const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
+    const interaction = isSlash ? interactionOrMessage : null;
+    const message = isSlash ? null : interactionOrMessage;
+    const guild = interactionOrMessage.guild;
+    const executor = isSlash ? interaction.member : message.member;
+
+    if (!guild) return;
+
+    // Cooldown check (5s as requested)
+    if (!ownerBypass) {
+    const remaining = cooldown.check('vckickall', executor.id, guild.id, 5000);
+    if (remaining > 0) {
+      const secs = (remaining / 1000).toFixed(1);
+      const msg = withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`);
+      return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
+    }
+    }
+
+    // Permission checks
+    if (!executor.permissions.has(PermissionFlagsBits.MoveMembers)) {
+      const msg = error('You need **Move Members** permission.');
+      return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
+    }
+
+    const botMember = guild.members.me;
+    if (!botMember.permissions.has(PermissionFlagsBits.MoveMembers)) {
+      const msg = error('I need **Move Members** permission.');
+      return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
+    }
+
+    // Get target VC
+    let targetVC;
+    if (isSlash) {
+      targetVC = interaction.options.getChannel('channel') || executor.voice?.channel;
+    } else {
+      const args = message.content.trim().split(/\s+/).slice(1);
+      const chMention = message.mentions.channels.first();
+      if (chMention) {
+        targetVC = chMention;
+      } else if (args[0]) {
+        targetVC = guild.channels.cache.get(args[0]);
+      } else {
+        targetVC = executor.voice?.channel;
+      }
+    }
+
+    // Validate VC
+    if (!targetVC) {
+      const msg = error('Please specify a voice channel or join one first.');
+      return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
+    }
+
+    if (targetVC.type !== ChannelType.GuildVoice) {
+      const msg = error('That is not a voice channel.');
+      return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
+    }
+
+    // Get all members in VC
+    const members = targetVC.members;
+    if (members.size === 0) {
+      const msg = error(`**${targetVC.name}** is already empty.`);
+      return isSlash ? slashError(interaction, msg) : prefixError(message, msg);
+    }
+
+    // Delete trigger for prefix
+    if (!isSlash) {
+      await deleteTrigger(message, 0);
+    }
+
+    // Kick all members
+    let kicked = 0;
+    let failed = 0;
+    const kickedNames = [];
+    const reason = `VC purged by ${executor.user.tag}`;
+
+    for (const [memberId, member] of members) {
+      try {
+        await member.voice.disconnect(reason);
+        kicked++;
+        kickedNames.push(member.displayName);
+      } catch {
+        failed++;
+      }
+    }
+
+    // Success embed
+    const embed = new EmbedBuilder()
+      .setColor('#ED4245')
+      .setAuthor({
+        name: executor.user.username,
+        iconURL: executor.user.displayAvatarURL({ dynamic: true })
+      })
+      .setDescription(success(`Disconnected **${kicked}** members from **${targetVC.name}**`) + `${failed > 0 ? `\n⚠️ ${failed} could not be disconnected` : ''}`)
+      .setFooter({ text: `Requested by ${executor.user.tag}` });
+
+    const replyOptions = { embeds: [embed] };
+    if (isSlash) {
+      return slashSuccessTemp(interaction, replyOptions);
+    } else {
+      return prefixSuccessTemp(message, replyOptions);
+    }
+  },
+};

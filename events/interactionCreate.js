@@ -1,5 +1,3 @@
-const fs = require('fs');
-const path = require('path');
 const {
   Events,
   EmbedBuilder,
@@ -15,7 +13,12 @@ const {
   UserSelectMenuBuilder,
 } = require('discord.js');
 const config = require('../config');
+const isOwner = require('../utils/isOwner');
+const getConfig = require('../utils/getConfig');
+const guildConfig = require('../database/guildConfig');
+const configCache = require('../utils/configCache');
 const { generateTranscript } = require('../utils/transcript');
+const { success, error, withEmoji, errorEmoji } = require('../utils/emoji');
 
 async function sendLog(client, channelId, embed) {
   if (!channelId) return;
@@ -27,31 +30,19 @@ async function sendLog(client, channelId, embed) {
   }
 }
 
-const TICKET_COUNT_PATH = path.join(__dirname, '..', 'data', 'ticketCount.json');
-
-function getTicketCount() {
-  try {
-    const data = JSON.parse(fs.readFileSync(TICKET_COUNT_PATH, 'utf-8'));
-    return data.count || 0;
-  } catch {
-    return 0;
-  }
-}
-
-function setTicketCount(count) {
-  fs.writeFileSync(TICKET_COUNT_PATH, JSON.stringify({ count }, null, 2));
-}
-
 const VC_BUTTON_IDS = [
   'vc_rename', 'vc_limit', 'vc_lock', 'vc_unlock', 'vc_hide',
-  'vc_unhide', 'vc_waiting', 'vc_trust', 'vc_reject', 'vc_delete',
-  'vc_kick', 'vc_ban',
+  'vc_unhide', 'vc_trust', 'vc_delete',
+  'vc_kick', 'vc_ban', 'vc_claim', 'vc_unban', 'vc_transfer',
 ];
 
 const VC_MODAL_IDS = ['vc_rename_modal', 'vc_limit_modal'];
 const TICKET_MODAL_ID = 'ticket_reason_modal';
 
-const VC_SELECT_IDS = ['vc_trust_select', 'vc_reject_select', 'vc_kick_select', 'vc_ban_select'];
+const VC_SELECT_IDS = [
+  'vc_trust_select', 'vc_kick_select',
+  'vc_ban_select', 'vc_unban_select', 'vc_transfer_select',
+];
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -77,14 +68,43 @@ module.exports = {
             await handleTicketClose(interaction, client);
             return;
           }
+          if (interaction.customId.startsWith('resetconfig_confirm_')) {
+            await handleResetConfigConfirm(interaction);
+            return;
+          }
+          if (interaction.customId === 'resetconfig_cancel') {
+            await handleResetConfigCancel(interaction);
+            return;
+          }
           if (VC_BUTTON_IDS.includes(interaction.customId)) {
             await handleVcButton(interaction);
             return;
           }
+          if (interaction.customId.startsWith('help_page_')) {
+            if (interaction.customId === 'help_page_indicator') return;
+
+            // Expiry check for help buttons
+            const firstComponent = interaction.message?.components?.[0]?.components?.[0];
+            if (firstComponent?.disabled) {
+              return interaction.reply({
+                content: error('This help menu has expired. Run `/help` or `!help` again.'),
+                ephemeral: true
+              });
+            }
+
+            const { buildCategoryEmbed } = require('../commands/util/help');
+            const { prefix } = require('../config');
+            const parts = interaction.customId.split('_');
+            const key = parts[2];
+            const pageNum = parseInt(parts[3]);
+            if (isNaN(pageNum)) return;
+            const { embed, rows } = buildCategoryEmbed(key, interaction.client, prefix, pageNum);
+            return interaction.update({ embeds: [embed], components: rows });
+          }
         } catch (err) {
           console.error('[Button Error]', err);
           if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({ content: '\u274C An error occurred.', ephemeral: true }).catch(() => {});
+            await interaction.reply({ content: error('An error occurred.'), ephemeral: true }).catch(() => {});
           }
         }
       }
@@ -94,6 +114,29 @@ module.exports = {
         if (VC_SELECT_IDS.includes(interaction.customId)) {
           await handleVcSelectMenu(interaction);
           return;
+        }
+      }
+
+      // --- String select menu handling ---
+      if (interaction.isStringSelectMenu()) {
+        if (interaction.customId === 'help_select') {
+          const { buildCategoryEmbed } = require('../commands/util/help');
+          const { prefix } = require('../config');
+          const selected = interaction.values[0];
+          const { embed, rows } = buildCategoryEmbed(
+            selected,
+            interaction.client,
+            prefix,
+            0
+          );
+          return interaction.update({ embeds: [embed], components: rows });
+        }
+
+        if (interaction.customId === 'help_select_disabled') {
+          return interaction.reply({
+            content: error('This help menu has expired. Run `/help` or `!help` again.'),
+            ephemeral: true
+          });
         }
       }
 
@@ -121,18 +164,49 @@ module.exports = {
 async function handleTicketOpenButton(interaction, client) {
   const guild = interaction.guild;
   const user = interaction.user;
+  const cfg = getConfig(guild.id);
 
-  const sanitizedName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!cfg?.ticket_category) {
+    return interaction.reply({
+      content: error('Ticket system not configured. Ask admin to run `/setup tickets`.'),
+      ephemeral: true,
+    });
+  }
+
+  const ticketCategory = guild.channels.cache.get(cfg.ticket_category);
+  if (!ticketCategory || ticketCategory.type !== ChannelType.GuildCategory) {
+    return interaction.reply({
+      content: error('Ticket category is missing or invalid. Admin: re-run `/setup tickets`'),
+      ephemeral: true,
+    });
+  }
+
+  const botMember = guild.members.me;
+  if (!botMember) {
+    return interaction.reply({
+      content: error('Could not verify bot permissions. Try again in a moment.'),
+      ephemeral: true,
+    });
+  }
+
+  const botPerms = ticketCategory.permissionsFor(botMember);
+  if (!botMember.permissions.has(PermissionFlagsBits.ManageChannels)
+    || !botPerms?.has(PermissionFlagsBits.ManageChannels)
+    || !botPerms?.has(PermissionFlagsBits.ViewChannel)) {
+    return interaction.reply({
+      content: error('I need **Manage Channels** and **View Channel** in the ticket category.'),
+      ephemeral: true,
+    });
+  }
 
   // Check for existing ticket BEFORE showing modal
-  const existingChannel = guild.channels.cache.find(
-    (ch) =>
-      ch.name === `ticket-${sanitizedName}` &&
-      ch.parentId === config.ticketCategory,
+  const existingChannel = guild.channels.cache.find((ch) =>
+    ch.parentId === cfg.ticket_category
+    && ch.topic?.includes(`Opened by: ${user.id}`),
   );
   if (existingChannel) {
     return interaction.reply({
-      content: `\u274C You already have an open ticket: ${existingChannel}`,
+      content: error(`You already have an open ticket: ${existingChannel}`),
       ephemeral: true,
     });
   }
@@ -158,134 +232,155 @@ async function handleTicketOpenButton(interaction, client) {
 async function handleTicketModalSubmit(interaction, client) {
   await interaction.deferReply({ ephemeral: true });
 
-  const guild = interaction.guild;
-  const user = interaction.user;
-  const reason = interaction.fields.getTextInputValue('ticket_reason_input');
+  try {
+    const cfg = getConfig(interaction.guild.id);
 
-  const sanitizedName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!cfg?.ticket_category) {
+      return interaction.editReply({
+        content: error('Ticket system not configured.\nAsk an admin to run `/setup tickets` first.'),
+      });
+    }
+    if (!cfg?.ticket_log_channel) {
+      return interaction.editReply({
+        content: error('Ticket log channel not configured.\nAsk an admin to run `/setup tickets` first.'),
+      });
+    }
+    if (!cfg?.transcript_channel) {
+      return interaction.editReply({
+        content: error('Transcript channel not configured.\nAsk an admin to run `/setup tickets` first.'),
+      });
+    }
 
-  // Double-check for existing ticket (race condition guard)
-  const existingChannel = guild.channels.cache.find(
-    (ch) =>
-      ch.name === `ticket-${sanitizedName}` &&
-      ch.parentId === config.ticketCategory,
-  );
-  if (existingChannel) {
-    return interaction.editReply({
-      content: `\u274C You already have an open ticket: ${existingChannel}`,
-    });
-  }
+    const reason = interaction.fields.getTextInputValue('ticket_reason_input');
 
-  const ticketNumber = getTicketCount() + 1;
-  setTicketCount(ticketNumber);
+    const existingChannel = interaction.guild.channels.cache.find((c) =>
+      c.parentId === cfg.ticket_category
+      && c.topic?.includes(`Opened by: ${interaction.user.id}`),
+    );
+    if (existingChannel) {
+      return interaction.editReply({
+        content: error(`You already have an open ticket: ${existingChannel}`),
+      });
+    }
 
-  const ticketChannel = await guild.channels.create({
-    name: `ticket-${sanitizedName}`,
-    type: ChannelType.GuildText,
-    topic: `Opened by: ${user.id} | Reason: ${reason}`,
-    parent: config.ticketCategory || undefined,
-    permissionOverwrites: [
-      {
-        id: guild.roles.everyone.id,
-        deny: [PermissionFlagsBits.ViewChannel],
-      },
-      {
-        id: user.id,
-        allow: [
-          PermissionFlagsBits.ViewChannel,
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.ReadMessageHistory,
-          PermissionFlagsBits.AttachFiles,
-        ],
-      },
-      {
-        id: client.user.id,
-        allow: [
-          PermissionFlagsBits.ViewChannel,
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.ReadMessageHistory,
-          PermissionFlagsBits.ManageMessages,
-          PermissionFlagsBits.ManageChannels,
-        ],
-      },
-      ...guild.roles.cache
-        .filter(
-          (role) =>
-            role.id !== guild.id &&
-            (role.permissions.has(PermissionFlagsBits.ManageMessages) ||
-              role.permissions.has(PermissionFlagsBits.KickMembers) ||
-              role.permissions.has(PermissionFlagsBits.BanMembers)),
-        )
-        .map((role) => ({
-          id: role.id,
+    const ticketNumber = guildConfig.incrementTicketCount(interaction.guild.id);
+
+    const ticketChannel = await interaction.guild.channels.create({
+      name: `ticket-${interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+      type: ChannelType.GuildText,
+      parent: cfg.ticket_category,
+      topic: `Opened by: ${interaction.user.id} | Reason: ${reason}`,
+      permissionOverwrites: [
+        {
+          id: interaction.guild.id,
+          deny: [PermissionFlagsBits.ViewChannel],
+        },
+        {
+          id: interaction.user.id,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory,
+            PermissionFlagsBits.AttachFiles,
+          ],
+        },
+        {
+          id: interaction.client.user.id,
           allow: [
             PermissionFlagsBits.ViewChannel,
             PermissionFlagsBits.SendMessages,
             PermissionFlagsBits.ReadMessageHistory,
             PermissionFlagsBits.ManageMessages,
-            PermissionFlagsBits.AttachFiles,
+            PermissionFlagsBits.ManageChannels,
           ],
-        })),
-    ],
-  });
+        },
+        ...interaction.guild.roles.cache
+          .filter((r) =>
+            r.permissions.has(PermissionFlagsBits.ManageMessages)
+            || r.permissions.has(PermissionFlagsBits.KickMembers)
+            || r.permissions.has(PermissionFlagsBits.BanMembers),
+          )
+          .map((r) => ({
+            id: r.id,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory,
+              PermissionFlagsBits.ManageMessages,
+              PermissionFlagsBits.AttachFiles,
+            ],
+          })),
+      ],
+    });
 
-  const welcomeEmbed = new EmbedBuilder()
-    .setTitle('\uD83C\uDFAB Ticket Opened')
-    .setColor(0x57f287)
-    .addFields(
-      { name: '\uD83D\uDC64 Opened by', value: `${user}`, inline: true },
-      { name: '\uD83C\uDFAB Ticket', value: `#${ticketNumber}`, inline: true },
-      { name: '\uD83D\uDCCB Reason', value: reason, inline: false },
-      { name: '\uD83D\uDFE2 Status', value: 'Open', inline: true },
-    )
-    .setFooter({ text: 'Only staff can close this ticket' })
-    .setTimestamp();
+    const welcomeEmbed = new EmbedBuilder()
+      .setColor('#57F287')
+      .setTitle(`Ticket #${ticketNumber}`)
+      .setDescription(
+        `Hey ${interaction.user}, thanks for opening a ticket!\n\n` +
+        `**Opened by:** ${interaction.user}\n` +
+        `**Ticket:** #${ticketNumber}\n` +
+        `**Reason:** ${reason}\n` +
+        `**Status:** 🟢 Open`
+      )
+      .setFooter({ text: 'Only staff can close this ticket' })
+      .setTimestamp();
 
-  const closeRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('close_ticket')
-      .setLabel('\uD83D\uDD12 Close Ticket')
-      .setStyle(ButtonStyle.Danger),
-  );
+    const closeRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('close_ticket')
+        .setLabel('Close Ticket')
+        .setStyle(ButtonStyle.Secondary),
+    );
 
-  await ticketChannel.send({ embeds: [welcomeEmbed], components: [closeRow] });
+    await ticketChannel.send({ embeds: [welcomeEmbed], components: [closeRow] });
 
-  const logEmbed = new EmbedBuilder()
-    .setTitle('Ticket Opened')
-    .setColor(0x57f287)
-    .addFields(
-      { name: 'Opened By', value: `${user.username} (${user.id})` },
-      { name: 'Channel', value: `<#${ticketChannel.id}> (${ticketChannel.name})` },
-      { name: 'Ticket #', value: `${ticketNumber}` },
-      { name: 'Reason', value: reason },
-    )
-    .setTimestamp();
-  await sendLog(client, config.ticketLogChannel, logEmbed);
+    const logEmbed = new EmbedBuilder()
+      .setTitle('Ticket Opened')
+      .setColor('#57F287')
+      .addFields(
+        { name: 'Opened By', value: `${interaction.user.username} (${interaction.user.id})` },
+        { name: 'Channel', value: `<#${ticketChannel.id}> (${ticketChannel.name})` },
+        { name: 'Ticket #', value: `${ticketNumber}` },
+        { name: 'Reason', value: reason },
+      )
+      .setTimestamp();
+    const logChannel = interaction.guild.channels.cache.get(cfg.ticket_log_channel);
+    if (logChannel) {
+      await logChannel.send({ embeds: [logEmbed] });
+    }
 
-  await interaction.editReply({ content: `Your ticket has been created: ${ticketChannel}` });
+    await interaction.editReply({ content: success(`Your ticket has been created: ${ticketChannel}`) });
+  } catch (err) {
+    console.error('[Ticket Create Error]', err);
+    return interaction.editReply({
+      content: error(`Error: ${err.message}`),
+    });
+  }
 }
 
 async function handleTicketClose(interaction, client) {
+  await interaction.deferReply({ ephemeral: true });
+
   const guild = interaction.guild;
   const closer = interaction.member;
+  const cfg = getConfig(guild.id);
 
-  const isOwner = config.ownerId && closer.user.id === config.ownerId;
+  const isOwnerUser = isOwner(closer.user.id);
 
   if (
-    !isOwner &&
+    !isOwnerUser &&
     !closer.permissions.has(PermissionFlagsBits.ManageMessages) &&
     !closer.permissions.has(PermissionFlagsBits.KickMembers) &&
     !closer.permissions.has(PermissionFlagsBits.BanMembers)
   ) {
-    return interaction.reply({
-      content: '\u274C You need **Manage Messages**, **Kick Members**, or **Ban Members** permission to close tickets.',
-      ephemeral: true,
+    return interaction.editReply({
+      content: error('You need **Manage Messages**, **Kick Members**, or **Ban Members** permission to close tickets.'),
     });
   }
 
-  await interaction.reply({
-    content: '\uD83D\uDD12 Closing ticket and generating transcript...',
-    ephemeral: true,
+  await interaction.editReply({
+    content: withEmoji('loading', 'Closing ticket and generating transcript...'),
   });
 
   const ticketChannel = interaction.channel;
@@ -313,7 +408,8 @@ async function handleTicketClose(interaction, client) {
       try {
         const opener = await client.users.fetch(openedById);
         openedByTag = opener.username;
-      } catch {
+      } catch (err) {
+        console.error('[TicketClose] Failed to fetch opener:', err);
         openedByTag = `User ${openedById}`;
       }
     }
@@ -340,39 +436,37 @@ async function handleTicketClose(interaction, client) {
 
   const transcriptBuffer = generateTranscript(allMessages, ticketInfo);
 
-  if (config.transcriptChannel) {
+  if (cfg?.transcript_channel) {
     const transcriptEmbed = new EmbedBuilder()
-      .setTitle('\uD83D\uDCC4 Ticket Transcript')
-      .setColor(0xfee75c)
+      .setColor('#5865F2')
+      .setTitle('Ticket Transcript')
       .addFields(
         { name: 'Ticket', value: ticketChannel.name, inline: true },
-        { name: 'Opened By', value: openedByTag, inline: true },
-        { name: 'Closed By', value: closer.user.username, inline: true },
-        { name: 'Total Messages', value: `${allMessages.length}`, inline: true },
-        { name: 'Date', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
+        { name: 'Closed by', value: closer.user.username, inline: true },
+        { name: 'Messages', value: `${allMessages.length}`, inline: true },
       )
       .setTimestamp();
 
     const attachment = new AttachmentBuilder(transcriptBuffer, {
       name: `transcript-${ticketChannel.name}.html`,
     });
-    const transcriptCh = await client.channels.fetch(config.transcriptChannel).catch(() => null);
+    const transcriptCh = await client.channels.fetch(cfg.transcript_channel).catch(() => null);
     if (transcriptCh) {
       await transcriptCh.send({ embeds: [transcriptEmbed], files: [attachment] });
     }
   }
 
   const logEmbed = new EmbedBuilder()
+    .setColor('#ED4245')
     .setTitle('Ticket Closed')
-    .setColor(0xed4245)
     .addFields(
-      { name: 'Closed By', value: `${closer.user.username} (${closer.user.id})` },
-      { name: 'Channel', value: ticketChannel.name },
-      { name: 'Opened By', value: openedByTag },
-      { name: 'Total Messages', value: `${allMessages.length}` },
+      { name: 'Ticket', value: ticketChannel.name, inline: true },
+      { name: 'Closed by', value: `${closer.user.username} (${closer.user.id})`, inline: true },
+      { name: 'Opened by', value: openedByTag, inline: true },
+      { name: 'Messages', value: `${allMessages.length}`, inline: true },
     )
     .setTimestamp();
-  await sendLog(client, config.ticketLogChannel, logEmbed);
+  await sendLog(client, cfg?.ticket_log_channel, logEmbed);
 
   setTimeout(async () => {
     try {
@@ -384,46 +478,89 @@ async function handleTicketClose(interaction, client) {
 }
 
 // ═══════════════════════════════════════
-// VC CONTROL PANEL HANDLERS
+// RESET CONFIG HANDLERS
 // ═══════════════════════════════════════
 
-// Find a user's active temp VC from the Map.
-// Works whether clicked from the VC text chat OR a permanent control panel.
-function findUserVc(tempVCs, userId, interactionChannelId, userVoiceChannelId) {
-  // 1. Direct match: button clicked inside the VC's built-in text chat
-  if (tempVCs.has(interactionChannelId)) {
-    const data = tempVCs.get(interactionChannelId);
-    if (data.creatorId === userId) {
-      return { vcChannelId: interactionChannelId, vcData: data };
-    }
-  }
-
-  // 2. User is in a VC they own
-  if (userVoiceChannelId && tempVCs.has(userVoiceChannelId)) {
-    const data = tempVCs.get(userVoiceChannelId);
-    if (data.creatorId === userId) {
-      return { vcChannelId: userVoiceChannelId, vcData: data };
-    }
-  }
-
-  // 3. Search the entire Map for any VC owned by this user
-  for (const [channelId, data] of tempVCs.entries()) {
-    if (data.creatorId === userId) {
-      return { vcChannelId: channelId, vcData: data };
-    }
-  }
-
-  return null;
+function buildDisabledRows(message) {
+  if (!message?.components?.length) return [];
+  return message.components.map((row) => {
+    const newRow = ActionRowBuilder.from(row);
+    newRow.components = row.components.map((c) => ButtonBuilder.from(c).setDisabled(true));
+    return newRow;
+  });
 }
+
+async function handleResetConfigConfirm(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  const parts = interaction.customId.split('_');
+  const system = parts[2];
+  const guildId = parts[3];
+
+  if (guildId !== interaction.guild.id) {
+    return interaction.editReply(error('This reset prompt is not for this server.'));
+  }
+
+  if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+    return interaction.editReply(error('You need **Administrator** permission to reset config.'));
+  }
+
+  if (system === 'all') {
+    guildConfig.deleteConfig(guildId);
+    configCache.invalidate(guildId);
+    await interaction.editReply(success('Configuration reset.'));
+  } else if (system === 'tickets') {
+    guildConfig.setMany(guildId, {
+      ticket_category: null,
+      ticket_log_channel: null,
+      transcript_channel: null,
+    });
+    configCache.invalidate(guildId);
+    await interaction.editReply(success('Configuration reset.'));
+  } else if (system === 'tempvc') {
+    guildConfig.setMany(guildId, {
+      temp_vc_category: null,
+      create_vc_channel: null,
+      create_duo_channel: null,
+    });
+    configCache.invalidate(guildId);
+    await interaction.editReply(success('Configuration reset.'));
+  } else {
+    await interaction.editReply(error('Unknown reset target.'));
+  }
+
+  const disabledRows = buildDisabledRows(interaction.message);
+  if (disabledRows.length) {
+    await interaction.message.edit({ components: disabledRows }).catch(() => {});
+  }
+}
+
+async function handleResetConfigCancel(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+    return interaction.editReply(error('You need **Administrator** permission to cancel resets.'));
+  }
+
+  await interaction.editReply(success('Reset cancelled.'));
+
+  const disabledRows = buildDisabledRows(interaction.message);
+  if (disabledRows.length) {
+    await interaction.message.edit({ components: disabledRows }).catch(() => {});
+  }
+}
+
+// ═══════════════════════════════════════
+// VC CONTROL PANEL HANDLERS
+// ═══════════════════════════════════════
 
 async function handleVcButton(interaction) {
   const id = interaction.customId;
   const tempVCs = interaction.client.tempVCs;
   const modalButtons = ['vc_rename', 'vc_limit'];
-  const selectButtons = ['vc_trust', 'vc_reject', 'vc_kick', 'vc_ban'];
+  const selectButtons = ['vc_trust', 'vc_kick', 'vc_ban', 'vc_unban', 'vc_transfer'];
 
-  // Defer immediately for non-modal/non-select buttons (must respond within 3s)
-  // Modal buttons use showModal(), select buttons use reply() with select menu
+  // Defer immediately for non-modal/non-select buttons
   if (!modalButtons.includes(id) && !selectButtons.includes(id)) {
     await interaction.deferReply({ ephemeral: true });
   }
@@ -431,29 +568,41 @@ async function handleVcButton(interaction) {
   // Helper to reply based on deferred state
   const errorReply = (msg) => {
     if (interaction.deferred) {
-      return interaction.editReply({ content: msg });
+      return interaction.editReply({ content: error(msg) });
     }
-    return interaction.reply({ content: msg, ephemeral: true });
+    return interaction.reply({ content: error(msg), ephemeral: true });
   };
 
-  // --- Find the user's temp VC ---
-  const result = findUserVc(
-    tempVCs,
-    interaction.user.id,
-    interaction.channelId,
-    interaction.member.voice?.channelId,
-  );
+  const userVoiceChannelId = interaction.member.voice?.channelId;
 
-  if (!result) {
-    return errorReply('\u274C You don\'t have an active voice channel. Join \u2795 Create VC first.');
+  if (!userVoiceChannelId) {
+    return errorReply('You must be in a voice channel to use these controls.');
   }
 
-  const { vcChannelId, vcData } = result;
+  const vcData = tempVCs.get(userVoiceChannelId);
+  const isOwnerCheck = isOwner(interaction.user.id);
 
-  // Check if creator is in the VC (except for delete)
-  const creatorInVC = interaction.member.voice?.channelId === vcChannelId;
-  if (!creatorInVC && id !== 'vc_delete') {
-    return errorReply('\u274C You must be connected to your voice channel to use controls.');
+  if (!isOwnerCheck) {
+    if (!vcData) {
+      return errorReply('You are not in a temporary voice channel.');
+    }
+
+    // STANDARD CREATOR CHECK
+    if (id !== 'vc_claim' && id !== 'vc_delete') {
+      if (interaction.user.id !== vcData.creatorId) {
+        return errorReply('Only the voice channel creator can use these controls.');
+      }
+    }
+  }
+
+  if (!vcData) {
+    return errorReply('You are not in a temporary voice channel.');
+  }
+
+  const voiceChannel = interaction.guild.channels.cache.get(userVoiceChannelId);
+
+  if (!voiceChannel) {
+    return errorReply('Your voice channel no longer exists.');
   }
 
   // --- Handle each button ---
@@ -479,7 +628,7 @@ async function handleVcButton(interaction) {
 
     if (id === 'vc_limit') {
       if (vcData.type === 'duo') {
-        return errorReply('\u274C Duo VCs are locked to 2 users.');
+        return errorReply('Duo VCs are locked to 2 users.');
       }
       const modal = new ModalBuilder()
         .setCustomId('vc_limit_modal')
@@ -507,21 +656,7 @@ async function handleVcButton(interaction) {
         .setMaxValues(1);
       const row = new ActionRowBuilder().addComponents(selectMenu);
       return interaction.reply({
-        content: '\u2795 Select a user to give access to your VC:',
-        components: [row],
-        ephemeral: true,
-      });
-    }
-
-    if (id === 'vc_reject') {
-      const selectMenu = new UserSelectMenuBuilder()
-        .setCustomId('vc_reject_select')
-        .setPlaceholder('Select a user to reject...')
-        .setMinValues(1)
-        .setMaxValues(1);
-      const row = new ActionRowBuilder().addComponents(selectMenu);
-      return interaction.reply({
-        content: '\uD83D\uDEAB Select a user to reject from your VC:',
+        content: withEmoji('vcTrustBtn', 'Select a user to give access to your VC:'),
         components: [row],
         ephemeral: true,
       });
@@ -535,7 +670,7 @@ async function handleVcButton(interaction) {
         .setMaxValues(1);
       const row = new ActionRowBuilder().addComponents(selectMenu);
       return interaction.reply({
-        content: '\uD83D\uDC62 Select a user to kick from your VC:',
+        content: withEmoji('vcKickBtn', 'Select a user to kick from your VC:'),
         components: [row],
         ephemeral: true,
       });
@@ -549,90 +684,149 @@ async function handleVcButton(interaction) {
         .setMaxValues(1);
       const row = new ActionRowBuilder().addComponents(selectMenu);
       return interaction.reply({
-        content: '\uD83D\uDD28 Select a user to ban from your VC:',
+        content: withEmoji('vcBanBtn', 'Select a user to ban from your VC:'),
         components: [row],
         ephemeral: true,
       });
     }
 
-    const vc = interaction.guild.channels.cache.get(vcChannelId);
+    if (id === 'vc_unban') {
+      const selectMenu = new UserSelectMenuBuilder()
+        .setCustomId('vc_unban_select')
+        .setPlaceholder('Select a user to unban from your VC...')
+        .setMinValues(1)
+        .setMaxValues(1);
+      const row = new ActionRowBuilder().addComponents(selectMenu);
+      return interaction.reply({
+        content: '🔓 Select a user to unban from your VC:',
+        components: [row],
+        ephemeral: true,
+      });
+    }
+
+    if (id === 'vc_transfer') {
+      const selectMenu = new UserSelectMenuBuilder()
+        .setCustomId('vc_transfer_select')
+        .setPlaceholder('Select a user to transfer ownership to...')
+        .setMinValues(1)
+        .setMaxValues(1);
+
+      const row = new ActionRowBuilder().addComponents(selectMenu);
+
+      return interaction.reply({
+        content: '🔄 Select a user to transfer your VC ownership to:',
+        components: [row],
+        ephemeral: true
+      });
+    }
+
+    if (id === 'vc_claim') {
+        const currentCreatorId = vcData.creatorId;
+        if (interaction.user.id === currentCreatorId) {
+            return interaction.editReply({ content: error('You are already the owner of this voice channel.') });
+        }
+
+        const isCreatorPresent = voiceChannel.members.has(currentCreatorId);
+        if (!isOwnerCheck && isCreatorPresent) {
+            return interaction.editReply({ content: error('The channel owner is still present in the channel.') });
+        }
+
+        // Claim ownership
+        tempVCs.set(userVoiceChannelId, {
+            ...vcData,
+            creatorId: interaction.user.id
+        });
+
+        // Give new owner permissions
+        await voiceChannel.permissionOverwrites.edit(interaction.user.id, {
+            ManageChannels: true,
+            MoveMembers: true,
+            ViewChannel: true,
+            Connect: true,
+            Speak: true
+        });
+
+        // Remove old owner permissions
+        try {
+            await voiceChannel.permissionOverwrites.edit(currentCreatorId, {
+                ManageChannels: null,
+                MoveMembers: null
+            });
+        } catch {}
+
+        return interaction.editReply({
+            content: success('You are now the owner of this voice channel!')
+        });
+    }
 
     if (id === 'vc_lock') {
-      await vc.permissionOverwrites.edit(interaction.guild.id, { Connect: false });
-      return interaction.editReply({ content: '\uD83D\uDD12 Voice channel locked.' });
+      await voiceChannel.permissionOverwrites.edit(interaction.guild.id, { Connect: false });
+      return interaction.editReply({ content: success('Channel locked.') });
     }
 
     if (id === 'vc_unlock') {
-      await vc.permissionOverwrites.edit(interaction.guild.id, { Connect: null });
-      return interaction.editReply({ content: '\uD83D\uDD13 Voice channel unlocked.' });
+      await voiceChannel.permissionOverwrites.edit(interaction.guild.id, { Connect: null });
+      return interaction.editReply({ content: success('Channel unlocked.') });
     }
 
     if (id === 'vc_hide') {
-      await vc.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: false });
-      return interaction.editReply({ content: '\uD83D\uDC41\uFE0F Voice channel hidden.' });
+      await voiceChannel.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: false });
+      return interaction.editReply({ content: success('Channel hidden.') });
     }
 
     if (id === 'vc_unhide') {
-      await vc.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: null });
-      return interaction.editReply({ content: '\uD83D\uDC41\uFE0F Voice channel is now visible.' });
-    }
-
-    if (id === 'vc_waiting') {
-      await vc.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: true, Connect: false });
-      return interaction.editReply({ content: '\u231B Waiting room enabled.' });
+      await voiceChannel.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: null });
+      return interaction.editReply({ content: success('Channel visible.') });
     }
 
     if (id === 'vc_delete') {
-      tempVCs.delete(vcChannelId);
-      await interaction.editReply({ content: '\uD83D\uDDD1\uFE0F Deleting your voice channel...' });
-      await vc?.delete().catch(() => {});
+      if (interaction.user.id !== vcData.creatorId && !interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        return interaction.editReply({ content: error('Only the creator or an administrator can delete this channel.') });
+      }
+      tempVCs.delete(userVoiceChannelId);
+      await interaction.editReply({ content: success('Deleting your voice channel...') });
+      await voiceChannel.delete().catch(() => {});
       return;
     }
   } catch (err) {
     console.error('[VC Control Error]', err);
-    const msg = '\u274C Something went wrong. Please try again.';
+    const msg = 'Something went wrong. Please try again.';
     if (interaction.deferred || interaction.replied) {
-      return interaction.editReply({ content: msg }).catch(() => {});
+      return interaction.editReply({ content: error(msg) }).catch(() => {});
     }
-    return interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
+    return interaction.reply({ content: error(msg), ephemeral: true }).catch(() => {});
   }
 }
 
 async function handleVcModal(interaction) {
   const id = interaction.customId;
   const tempVCs = interaction.client.tempVCs;
+  const userVoiceChannelId = interaction.member.voice?.channelId;
 
-  console.log('[VC Modal] customId:', id, 'channelId:', interaction.channelId);
-  console.log('[VC Modal] Map size:', tempVCs?.size);
-
-  // Find the user's temp VC (works from VC text chat or permanent panel)
-  const result = findUserVc(
-    tempVCs,
-    interaction.user.id,
-    interaction.channelId,
-    interaction.member.voice?.channelId,
-  );
-
-  if (!result) {
-    return interaction.reply({
-      content: '\u274C You don\'t have an active voice channel. Join \u2795 Create VC first.',
-      ephemeral: true,
-    });
+  if (!userVoiceChannelId) {
+    return interaction.reply({ content: error('You must be in a voice channel to use these controls.'), ephemeral: true });
   }
 
-  const { vcChannelId, vcData } = result;
+  const vcData = tempVCs.get(userVoiceChannelId);
+  const isOwnerCheck = isOwner(interaction.user.id);
 
-  const voiceChannel = interaction.guild.channels.cache.get(vcChannelId);
+  if (!isOwnerCheck) {
+    if (!vcData) {
+      return interaction.reply({ content: error('You are not in a temporary voice channel.'), ephemeral: true });
+    }
+
+    if (interaction.user.id !== vcData.creatorId) {
+      return interaction.reply({ content: error('Only the voice channel creator can use these controls.'), ephemeral: true });
+    }
+  }
+
+  if (!vcData) {
+    return interaction.reply({ content: error('You are not in a temporary voice channel.'), ephemeral: true });
+  }
+
+  const voiceChannel = interaction.guild.channels.cache.get(userVoiceChannelId);
   if (!voiceChannel) {
-    return interaction.reply({ content: '\u274C Voice channel not found.', ephemeral: true });
-  }
-
-  const creatorInVC = interaction.member.voice?.channelId === vcChannelId;
-  if (!creatorInVC) {
-    return interaction.reply({
-      content: '\u274C You must be connected to your voice channel to use controls.',
-      ephemeral: true,
-    });
+    return interaction.reply({ content: error('Your voice channel no longer exists.'), ephemeral: true });
   }
 
   await interaction.deferReply({ ephemeral: true });
@@ -641,7 +835,7 @@ async function handleVcModal(interaction) {
     if (id === 'vc_rename_modal') {
       const newName = interaction.fields.getTextInputValue('new_name');
       await voiceChannel.setName(newName);
-      await interaction.editReply(`\u2705 Channel renamed to **${newName}**`);
+      await interaction.editReply(success(`Channel renamed to **${newName}**`));
       return;
     }
 
@@ -649,158 +843,192 @@ async function handleVcModal(interaction) {
       const input = interaction.fields.getTextInputValue('user_limit');
       const limit = parseInt(input, 10);
       if (isNaN(limit) || limit < 0 || limit > 99) {
-        return interaction.editReply('\u274C Please enter a valid number between 0 and 99.');
+        return interaction.editReply(error('Please enter a valid number between 0 and 99.'));
       }
       if (vcData.type === 'duo') {
-        return interaction.editReply('\u274C Duo VCs are locked to 2 users.');
+        return interaction.editReply(error('Duo VCs are locked to 2 users.'));
       }
       await voiceChannel.setUserLimit(limit);
       if (limit === 0) {
-        await interaction.editReply('\u2705 User limit removed (unlimited).');
+        await interaction.editReply(success('User limit removed (unlimited).'));
       } else {
-        await interaction.editReply(`\u2705 User limit set to **${limit}**.`);
+        await interaction.editReply(success(`User limit set to **${limit}**`));
       }
       return;
     }
-
   } catch (err) {
     console.error(`[VC Modal] Error handling ${id}:`, err.message);
-    await interaction.editReply('\u274C An error occurred while processing your request.').catch(() => {});
+    await interaction.editReply(error('An error occurred while processing your request.')).catch(() => {});
   }
 }
-
-// ═══════════════════════════════════════
-// VC USER SELECT MENU HANDLER
-// ═══════════════════════════════════════
 
 async function handleVcSelectMenu(interaction) {
   const id = interaction.customId;
   const tempVCs = interaction.client.tempVCs;
+  const userVoiceChannelId = interaction.member.voice?.channelId;
 
-  // Find the user's temp VC
-  const result = findUserVc(
-    tempVCs,
-    interaction.user.id,
-    interaction.channelId,
-    interaction.member.voice?.channelId,
-  );
-
-  if (!result) {
-    return interaction.update({
-      content: '\u274C VC session expired. Leave and rejoin \u2795 Create VC.',
-      components: [],
-    });
+  if (!userVoiceChannelId) {
+    return interaction.update({ content: error('You must be in a voice channel to use these controls.'), components: [] });
   }
 
-  const { vcChannelId } = result;
+  const vcData = tempVCs.get(userVoiceChannelId);
+  const isOwnerCheck = isOwner(interaction.user.id);
 
-  if (interaction.user.id !== result.vcData.creatorId) {
-    return interaction.update({
-      content: '\u274C Only the VC creator can use these controls.',
-      components: [],
-    });
+  if (!isOwnerCheck) {
+    if (!vcData) {
+      return interaction.update({ content: error('You are not in a temporary voice channel.'), components: [] });
+    }
+
+    if (interaction.user.id !== vcData.creatorId) {
+      return interaction.update({ content: error('Only the voice channel creator can use these controls.'), components: [] });
+    }
+  }
+
+  if (!vcData) {
+    return interaction.update({ content: error('You are not in a temporary voice channel.'), components: [] });
+  }
+
+  const voiceChannel = interaction.guild.channels.cache.get(userVoiceChannelId);
+  if (!voiceChannel) {
+    return interaction.update({ content: error('Your voice channel no longer exists.'), components: [] });
   }
 
   const selectedUser = interaction.users.first();
   if (!selectedUser) {
-    return interaction.update({ content: '\u274C No user selected.', components: [] });
+    return interaction.update({ content: error('No user selected.'), components: [] });
   }
 
   const member = interaction.guild.members.cache.get(selectedUser.id)
     || await interaction.guild.members.fetch(selectedUser.id).catch(() => null);
 
   if (!member) {
-    return interaction.update({ content: '\u274C User not found.', components: [] });
-  }
-
-  const vc = interaction.guild.channels.cache.get(vcChannelId);
-  if (!vc) {
-    return interaction.update({ content: '\u274C Voice channel not found.', components: [] });
+    return interaction.update({ content: error('User not found.'), components: [] });
   }
 
   try {
     if (id === 'vc_trust_select') {
-      await vc.permissionOverwrites.edit(member.id, {
+      await voiceChannel.permissionOverwrites.edit(member.id, {
         ViewChannel: true,
         Connect: true,
         Speak: true,
       });
-      return interaction.update({
-        content: `\u2705 ${member.displayName} can now join your VC even if locked/hidden.`,
-        components: [],
-      });
-    }
-
-    if (id === 'vc_reject_select') {
-      if (member.voice?.channelId === vcChannelId) {
-        await member.voice.disconnect('Rejected by VC owner').catch(() => {});
-      }
-      await vc.permissionOverwrites.edit(member.id, {
-        ViewChannel: false,
-        Connect: false,
-      });
-      return interaction.update({
-        content: `\uD83D\uDEAB ${member.displayName} has been rejected from your VC.`,
-        components: [],
-      });
+      return interaction.update({ content: success(`${member.displayName} can now join your channel.`), components: [] });
     }
 
     if (id === 'vc_kick_select') {
       if (member.id === interaction.user.id) {
-        return interaction.update({ content: '\u274C You cannot kick yourself.', components: [] });
+        return interaction.update({ content: error('You cannot kick yourself.'), components: [] });
       }
-      if (member.voice?.channelId !== vcChannelId) {
-        return interaction.update({
-          content: '\u274C That user is not in your voice channel.',
-          components: [],
-        });
+      if (member.voice?.channelId !== userVoiceChannelId) {
+        return interaction.update({ content: error('That user is not in your voice channel.'), components: [] });
       }
       await member.voice.disconnect('Kicked from VC by owner');
-      await vc.permissionOverwrites.edit(member.id, {
-        Connect: false,
-        ViewChannel: false,
-      });
-      return interaction.update({
-        content: `\uD83D\uDC62 ${member.displayName} has been kicked from your VC.`,
-        components: [],
-      });
+      await voiceChannel.permissionOverwrites.edit(member.id, { Connect: false, ViewChannel: false });
+      return interaction.update({ content: success(`${member.displayName} has been kicked from the VC.`), components: [] });
     }
 
     if (id === 'vc_ban_select') {
       if (member.id === interaction.user.id) {
-        return interaction.update({ content: '\u274C You cannot ban yourself.', components: [] });
+        return interaction.update({ content: error('You cannot ban yourself.'), components: [] });
       }
-      if (member.voice?.channelId === vcChannelId) {
+      if (member.voice?.channelId === userVoiceChannelId) {
         await member.voice.disconnect('Banned from VC by owner').catch(() => {});
       }
-      await vc.permissionOverwrites.edit(member.id, {
-        Connect: false,
-        ViewChannel: false,
-        Speak: false,
-      });
+      await voiceChannel.permissionOverwrites.edit(member.id, { Connect: false, ViewChannel: false, Speak: false });
       try {
         await member.send({
           embeds: [
             new EmbedBuilder()
-              .setTitle('\uD83D\uDD28 Banned from Voice Channel')
-              .setDescription(`You have been banned from **${vc.name}** in **${interaction.guild.name}**`)
-              .setColor(0xED4245)
-              .addFields(
-                { name: 'Banned By', value: interaction.user.username },
-              ),
+              .setTitle('Banned from Voice Channel')
+              .setDescription(`You have been banned from **${voiceChannel.name}** in **${interaction.guild.name}**`)
+              .setColor('#ED4245')
+              .addFields({ name: 'Banned By', value: interaction.user.username }),
           ],
         });
       } catch {}
+      return interaction.update({ content: success(`${member.displayName} has been banned from the VC.`), components: [] });
+    }
+
+    if (id === 'vc_unban_select') {
+      const existingOverwrite = voiceChannel.permissionOverwrites.cache.get(member.id);
+      if (!existingOverwrite) {
+        return interaction.update({ content: error(`**${member.displayName}** is not banned from your VC.`), components: [] });
+      }
+      await voiceChannel.permissionOverwrites.delete(member.id);
+      return interaction.update({ content: success(`**${member.displayName}** has been unbanned from your VC.`), components: [] });
+    }
+
+    if (id === 'vc_transfer_select') {
+      // Get selected user
+      const selectedUser = interaction.users.first();
+      const newOwner = interaction.guild.members.cache.get(selectedUser.id)
+        || await interaction.guild.members.fetch(selectedUser.id).catch(() => null);
+
+      if (!newOwner) {
+        return interaction.update({ content: error('User not found.'), components: [] });
+      }
+
+      // Cannot transfer to yourself
+      if (newOwner.id === interaction.user.id) {
+        return interaction.update({ content: error('You cannot transfer ownership to yourself.'), components: [] });
+      }
+
+      // Cannot transfer to a bot
+      if (newOwner.user.bot) {
+        return interaction.update({ content: error('You cannot transfer ownership to a bot.'), components: [] });
+      }
+
+      // New owner must be in the VC
+      if (newOwner.voice?.channelId !== userVoiceChannelId) {
+        return interaction.update({ content: error(`**${newOwner.displayName}** must be in your voice channel to receive ownership.`), components: [] });
+      }
+
+      // Transfer ownership in Map
+      const oldCreatorId = vcData.creatorId;
+      tempVCs.set(userVoiceChannelId, {
+        ...vcData,
+        creatorId: newOwner.id
+      });
+
+      // Give new owner ManageChannels + MoveMembers
+      try {
+        await voiceChannel.permissionOverwrites.edit(newOwner.id, {
+          ViewChannel: true,
+          Connect: true,
+          Speak: true,
+          SendMessages: true,
+          ManageChannels: true,
+          MoveMembers: true,
+        });
+      } catch (err) {
+        console.error('[VC Transfer] Failed to set new owner perms:', err.message);
+      }
+
+      // Remove old owner ManageChannels + MoveMembers
+      try {
+        await voiceChannel.permissionOverwrites.edit(oldCreatorId, {
+          ManageChannels: null,
+          MoveMembers: null,
+        });
+      } catch (err) {
+        console.error('[VC Transfer] Failed to remove old owner perms:', err.message);
+      }
+
+      // Notify in VC text chat
+      try {
+        await voiceChannel.send(
+          `🔄 **${newOwner.displayName}** is now the owner of this voice channel.\n` +
+          `*(Transferred from <@${oldCreatorId}>)*`
+        );
+      } catch {}
+
       return interaction.update({
-        content: `\uD83D\uDD28 ${member.displayName} has been banned from your VC.`,
-        components: [],
+        content: success(`Ownership transferred to **${newOwner.displayName}** successfully.`),
+        components: []
       });
     }
   } catch (err) {
     console.error('[VC Select Error]', err);
-    return interaction.update({
-      content: '\u274C Something went wrong. Please try again.',
-      components: [],
-    }).catch(() => {});
+    return interaction.update({ content: error('Something went wrong. Please try again.'), components: [] }).catch(() => {});
   }
 }

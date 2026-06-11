@@ -1,6 +1,20 @@
-const { SlashCommandBuilder, PermissionFlagsBits, CommandInteraction } = require('discord.js');
+const {
+  SlashCommandBuilder,
+  PermissionFlagsBits,
+  CommandInteraction,
+  EmbedBuilder,
+} = require('discord.js');
 const config = require('../../config');
+const checkOwnerBypass = require('../../utils/isOwner');
+const cooldown = require('../../utils/cooldown');
+const {
+  slashError,
+  slashSuccess,
+  prefixError,
+  prefixSuccess,
+} = require('../../utils/replyHelper');
 const resolveUser = require('../../utils/resolveUser');
+const { success, error, getEmoji, withEmoji } = require('../../utils/emoji');
 
 const MAX_TIMEOUT_MS = 28 * 24 * 60 * 60 * 1000; // 28 days
 
@@ -18,34 +32,61 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
 
   name: 'mute',
-  aliases: ['timeout'],
+  aliases: ['timeout', 'silence', 'shut'],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
     const client = isSlash ? argsOrClient : clientOrUndefined;
     const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
 
     try {
-      let member, targetUser, durationMinutes, reason, guild, executor, executorMember, replyFn;
+      let member;
+      let targetUser;
+      let durationMinutes;
+      let reason;
+      let guild;
+      let executor;
+      let executorMember;
+      let replyError;
+      let replySuccess;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
+        if (!interaction.guild) {
+          return interaction.reply({
+            content: 'This command only works in a server.',
+            ephemeral: true,
+          });
+        }
         guild = interaction.guild;
         executor = interaction.user;
         executorMember = interaction.member;
         durationMinutes = interaction.options.getInteger('duration');
         reason = interaction.options.getString('reason') || 'No reason provided';
-        replyFn = (content) => interaction.reply({ content, ephemeral: true });
+        replyError = (content) => slashError(interaction, content);
+        replySuccess = (payload) => slashSuccess(interaction, payload);
 
-        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-          return interaction.reply({ content: '\u274C You need the **Timeout Members** permission to use this command.', ephemeral: true });
+        if (!ownerBypass) {
+    const remaining = cooldown.check('mute', interaction.user.id, interaction.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
+
+        if (!ownerBypass) {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+          return replyError(error(`You need the **Timeout Members** permission to use this command.`));
+        }
+    }
 
         const userOption = interaction.options.getUser('user');
         const query = interaction.options.getString('query');
 
         if (!userOption && !query) {
-          return interaction.reply({ content: '\u274C Please provide a user (select or type username/ID).', ephemeral: true });
+          return replyError(error(`Please provide a user (select or type username/ID).`));
         }
 
         if (userOption) {
@@ -59,54 +100,83 @@ module.exports = {
         }
 
         if (!member) {
-          return replyFn('\u274C Could not find that user in this server.');
+          return replyError(error(`Could not find that user in this server.`));
         }
       } else {
         const message = interactionOrMessage;
         const args = argsOrClient;
+        if (!message.guild) {
+          return message.reply('This command only works in a server.');
+        }
         guild = message.guild;
         executor = message.author;
         executorMember = message.member;
+        replyError = (content) => prefixError(message, content);
+        replySuccess = (payload) => prefixSuccess(message, payload);
 
-        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-          return message.reply('\u274C You need the **Timeout Members** permission to use this command.');
+        if (!ownerBypass) {
+    const remaining = cooldown.check('mute', message.author.id, message.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
-        if (!args[0]) return message.reply('Please provide a user to mute.');
+        if (!ownerBypass) {
+    if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+          return replyError(error(`You need the **Timeout Members** permission to use this command.`));
+        }
+    }
+
+        if (!args[0]) return replyError(error(`Please provide a user to mute.`));
 
         const input = args[0];
         member = await resolveUser(input, guild);
-        replyFn = (content) => message.reply(content);
-
         if (!member) {
-          return replyFn('\u274C Could not find that user in this server.');
+          return replyError(error(`Could not find that user in this server.`));
         }
         targetUser = member.user;
 
         durationMinutes = parseInt(args[1], 10);
         if (isNaN(durationMinutes) || durationMinutes < 1) {
-          return message.reply('Please provide a valid duration in minutes. Usage: `!mute <user> <minutes> [reason]`');
+          return replyError(error(`Please provide a valid duration in minutes. Usage: \`!mute <user> <minutes> [reason]\``));
         }
         reason = args.slice(2).join(' ') || 'No reason provided';
       }
 
-      if (!guild.members.me.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-        return replyFn('\u274C I don\'t have the **Timeout Members** permission to do this.');
+      const botMember = guild.members.me;
+      if (!ownerBypass) {
+    if (!botMember || !botMember.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        return replyError(error(`I don't have the **Timeout Members** permission to do this.`));
       }
+    }
 
       const durationMs = Math.min(durationMinutes * 60 * 1000, MAX_TIMEOUT_MS);
 
-      if (!isOwner && member.roles.highest.position >= executorMember.roles.highest.position) {
-        return replyFn('\u274C You cannot moderate someone with an equal or higher role than you.');
+      if (!ownerBypass) {
+    if (member.roles.highest.position >= executorMember.roles.highest.position) {
+        return replyError(error(`You cannot moderate someone with an equal or higher role than you.`));
       }
+    }
 
-      if (member.roles.highest.position >= guild.members.me.roles.highest.position) {
-        return replyFn('\u274C I cannot moderate this user as their role is higher than or equal to mine.');
+      if (!ownerBypass) {
+    if (member.roles.highest.position >= botMember.roles.highest.position) {
+        return replyError(error(`I cannot moderate this user as their role is higher than or equal to mine.`));
       }
+    }
 
       await member.timeout(durationMs, reason);
 
-      await replyFn(`**${targetUser.username}** has been muted for ${durationMinutes} minute(s). Reason: ${reason}`);
+      const embed = new EmbedBuilder()
+        .setColor('#FEE75C')
+        .setAuthor({
+          name: targetUser.username,
+          iconURL: targetUser.displayAvatarURL({ dynamic: true }),
+        })
+        .setDescription(success(`Muted **${targetUser.tag}** for **${durationMinutes}m**`) + `\n**Reason:** ${reason}`)
+        .setFooter({ text: `Requested by ${executor.tag}` });
+
+      await replySuccess({ embeds: [embed] });
     } catch (err) {
       console.error('[Mute]', err);
     }

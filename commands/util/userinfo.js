@@ -2,23 +2,50 @@ const {
   SlashCommandBuilder,
   EmbedBuilder,
   CommandInteraction,
+  PermissionFlagsBits,
 } = require('discord.js');
 const resolveUserGlobal = require('../../utils/resolveUserGlobal');
+const checkOwnerBypass = require('../../utils/isOwner');
+const cooldown = require('../../utils/cooldown');
+const {
+  slashError,
+  slashSuccess,
+  prefixError,
+  prefixSuccess,
+} = require('../../utils/replyHelper');
+const { error, withEmoji } = require('../../utils/emoji');
 
 const flagsMap = {
-  Staff: '👨‍💼 Discord Staff',
-  Partner: '🤝 Partnered Server Owner',
-  Hypesquad: '🏠 HypeSquad Events',
-  BugHunterLevel1: '🐛 Bug Hunter Level 1',
-  BugHunterLevel2: '🐛 Bug Hunter Level 2',
-  HypeSquadOnlineHouse1: '🏠 HypeSquad Bravery',
-  HypeSquadOnlineHouse2: '🏠 HypeSquad Brilliance',
-  HypeSquadOnlineHouse3: '🏠 HypeSquad Balance',
-  PremiumEarlySupporter: '⭐ Early Supporter',
-  VerifiedBot: '✅ Verified Bot',
-  VerifiedDeveloper: '🔨 Early Verified Bot Developer',
-  CertifiedModerator: '🛡️ Discord Certified Moderator',
-  ActiveDeveloper: '👨‍💻 Active Developer',
+  Staff: 'Discord Staff',
+  Partner: 'Partnered Owner',
+  Hypesquad: 'HypeSquad Events',
+  BugHunterLevel1: 'Bug Hunter',
+  BugHunterLevel2: 'Bug Hunter Gold',
+  HypeSquadOnlineHouse1: 'Bravery',
+  HypeSquadOnlineHouse2: 'Brilliance',
+  HypeSquadOnlineHouse3: 'Balance',
+  PremiumEarlySupporter: 'Early Supporter',
+  VerifiedBot: 'Verified Bot',
+  VerifiedDeveloper: 'Early Bot Dev',
+  CertifiedModerator: 'Certified Mod',
+  ActiveDeveloper: 'Active Developer',
+};
+
+const permMap = {
+  Administrator: 'Administrator',
+  KickMembers: 'Kick Members',
+  BanMembers: 'Ban Members',
+  ManageChannels: 'Manage Channels',
+  ManageMessages: 'Manage Messages',
+  MentionEveryone: 'Mention Everyone',
+  ManageNicknames: 'Manage Nicknames',
+  ManageRoles: 'Manage Roles',
+  ManageWebhooks: 'Manage Webhooks',
+  ManageEmojisAndStickers: 'Manage Emojis',
+  ModerateMembers: 'Moderate Members',
+  ViewAuditLog: 'View Audit Log',
+  ManageGuild: 'Manage Server',
+  ManageThreads: 'Manage Threads',
 };
 
 module.exports = {
@@ -33,20 +60,38 @@ module.exports = {
     ),
 
   name: 'userinfo',
-  aliases: ['ui', 'whois', 'user', 'lookup'],
+  aliases: ['whois', 'user', 'lookup'],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
     const client = isSlash ? argsOrClient : clientOrUndefined;
 
     try {
-      let resolved, guild, replyFn, requester;
+      let resolved;
+      let guild;
+      let replyError;
+      let replySuccess;
+      let executor;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
         guild = interaction.guild;
-        requester = interaction.user;
-        replyFn = (opts) => interaction.reply(opts);
+        if (!guild) {
+          return slashError(interaction, 'This command only works in a server.');
+        }
+        executor = interaction.user;
+        replyError = (content) => slashError(interaction, content);
+        replySuccess = (opts) => slashSuccess(interaction, opts);
+
+        if (!ownerBypass) {
+    const remaining = cooldown.check('userinfo', interaction.user.id, interaction.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
+        }
+    }
 
         const userOption = interaction.options.getUser('user');
         const queryOption = interaction.options.getString('query');
@@ -62,16 +107,24 @@ module.exports = {
           const user = await client.users.fetch(interaction.user.id, { force: true });
           resolved = { member, user, inGuild: true };
         }
-
-        if (!resolved.user) {
-          return interaction.reply({ content: '\u274C Could not find that user. Try their @mention, username, or user ID.', ephemeral: true });
-        }
       } else {
         const message = interactionOrMessage;
         const args = argsOrClient;
         guild = message.guild;
-        requester = message.author;
-        replyFn = (opts) => message.reply(opts);
+        if (!guild) {
+          return prefixError(message, 'This command only works in a server.');
+        }
+        executor = message.author;
+        replyError = (content) => prefixError(message, content);
+        replySuccess = (opts) => prefixSuccess(message, opts);
+
+        if (!ownerBypass) {
+    const remaining = cooldown.check('userinfo', message.author.id, message.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
+        }
+    }
 
         const input = message.mentions.users.first()?.id || args.join(' ');
 
@@ -82,115 +135,104 @@ module.exports = {
         } else {
           resolved = await resolveUserGlobal(input, message.guild, client);
         }
+      }
 
-        if (!resolved.user) {
-          return message.reply('\u274C Could not find that user. Try their @mention, username, or user ID.');
-        }
+      if (!resolved.user) {
+        return replyError(error('Could not find that user.'));
       }
 
       const { member, user, inGuild } = resolved;
-
-      // Fetch user with force to get full profile data (banner, badges, etc.)
       const fetchedUser = await client.users.fetch(user.id, { force: true });
-
-      // Get badges
+      const createdTimestamp = Math.floor(fetchedUser.createdTimestamp / 1000);
       const badges = fetchedUser.flags?.toArray()
         .map((f) => flagsMap[f])
-        .filter(Boolean) || [];
+        .filter(Boolean)
+        .join(', ') || 'None';
 
-      // ═══════════════════════════════════════
-      // NON-MEMBER EMBED (user not in server)
-      // ═══════════════════════════════════════
+      const color = inGuild ? (member.displayHexColor || 0x5865F2) : 0x5865F2;
+
+      let description = '';
+
       if (!inGuild) {
-        const createdTimestamp = Math.floor(fetchedUser.createdTimestamp / 1000);
+        description = `**General Information**
+Name: ${fetchedUser.username}
+ID: ${fetchedUser.id}
+Bot: ${fetchedUser.bot ? '✅' : '❌'}
 
-        const description = [
-          '\u26A0\uFE0F This user is not in this server.',
-          'Showing global Discord profile only.',
-          '',
-          `🆔 **${fetchedUser.id}**  •  🤖 Bot: ${fetchedUser.bot ? 'Yes' : 'No'}`,
-          `📅 Created: <t:${createdTimestamp}:R> (<t:${createdTimestamp}:D>)`,
-        ].join('\n');
+**Account Info**
+Badges: ${badges}
+Created: <t:${createdTimestamp}:R>
 
-        const fields = [];
-
-        if (badges.length > 0) {
-          fields.push({ name: '🏷️ Badges', value: badges.join('\n'), inline: false });
-        }
+${withEmoji('warning', 'This user is not in this server.')}`;
 
         const embed = new EmbedBuilder()
-          .setTitle(`${fetchedUser.username} (Not in server)`)
+          .setColor(color)
+          .setAuthor({
+            name: `${fetchedUser.username}'s Information`,
+            iconURL: guild.iconURL({ dynamic: true }),
+          })
           .setThumbnail(fetchedUser.displayAvatarURL({ size: 256, dynamic: true }))
-          .setColor(0x5865F2)
           .setDescription(description)
-          .setFooter({ text: `Requested by ${requester.username} • Not a server member`, iconURL: requester.displayAvatarURL({ dynamic: true }) })
-          .setTimestamp();
+          .setFooter({ text: `Requested by ${executor.tag}` });
 
-        if (fields.length > 0) {
-          embed.addFields(fields);
-        }
-
-        return replyFn({ embeds: [embed] });
+        return await replySuccess({ embeds: [embed] });
       }
 
-      // ═══════════════════════════════════════
-      // MEMBER EMBED (user is in server)
-      // ═══════════════════════════════════════
-      const color = member.displayColor || 0x5865F2;
-
-      const createdTimestamp = Math.floor(fetchedUser.createdTimestamp / 1000);
+      // Guild user
       const joinedTimestamp = Math.floor(member.joinedTimestamp / 1000);
-
       const roles = member.roles.cache
         .filter((r) => r.id !== guild.id)
-        .sort((a, b) => b.position - a.position)
-        .map((r) => r.toString());
-      const rolesDisplay = roles.length > 0
-        ? roles.slice(0, 15).join(' ') + (roles.length > 15 ? ` +${roles.length - 15} more` : '')
+        .sort((a, b) => b.position - a.position);
+      const roleCount = roles.size;
+      const rolesDisplay = roles.size > 0
+        ? roles.map((r) => r.toString()).slice(0, 10).join(', ') + (roles.size > 10 ? ` +${roles.size - 10} more` : '')
         : 'None';
 
-      // Build compact description
-      const description = [
-        `🆔 **${fetchedUser.id}**  •  🤖 Bot: ${fetchedUser.bot ? 'Yes' : 'No'}`,
-        `📅 Created: <t:${createdTimestamp}:R> (<t:${createdTimestamp}:D>)`,
-        `📥 Joined: <t:${joinedTimestamp}:R> (<t:${joinedTimestamp}:D>)`,
-      ].join('\n');
+      const keyPerms = Object.entries(permMap)
+        .filter(([perm]) => member.permissions.has(PermissionFlagsBits[perm]))
+        .map(([, label]) => label)
+        .join(', ');
+      const keyPermissions = keyPerms || 'None';
 
-      // Build fields array — only add fields that have real values
-      const fields = [
-        { name: '🎭 Display Name', value: member.displayName, inline: true },
-        { name: '🌈 Top Role', value: `${member.roles.highest}`, inline: true },
-        { name: '🎨 Color', value: member.displayHexColor, inline: true },
-        { name: `📋 Roles (${roles.length})`, value: rolesDisplay, inline: false },
-      ];
+      let acknowledgement = 'Server Member';
+      if (member.id === guild.ownerId) acknowledgement = 'Server Owner';
+      else if (member.permissions.has(PermissionFlagsBits.Administrator)) acknowledgement = 'Server Administrator';
+      else if (member.permissions.has(PermissionFlagsBits.ManageGuild)) acknowledgement = 'Server Manager';
+      else if (member.permissions.has(PermissionFlagsBits.ManageMessages)) acknowledgement = 'Server Moderator';
 
-      // Boosting — only if actively boosting
-      if (member.premiumSince) {
-        const boostTimestamp = Math.floor(member.premiumSinceTimestamp / 1000);
-        fields.push({ name: '🚀 Boosting', value: `<t:${boostTimestamp}:R>`, inline: true });
-      }
+      description = `**General Information**
+Name: ${fetchedUser.username}
+ID: ${fetchedUser.id}
+Nickname: ${member.nickname || 'None'}
+Bot: ${fetchedUser.bot ? '✅' : '❌'}
 
-      // Timeout — only if currently timed out
-      if (member.communicationDisabledUntil) {
-        const timeoutTimestamp = Math.floor(member.communicationDisabledUntilTimestamp / 1000);
-        fields.push({ name: '⏰ Timeout', value: `<t:${timeoutTimestamp}:R>`, inline: true });
-      }
+**Account Info**
+Badges: ${badges}
+Created: <t:${createdTimestamp}:R>
+Joined: <t:${joinedTimestamp}:R>
 
-      // Badges — only if user has any
-      if (badges.length > 0) {
-        fields.push({ name: '🏷️ Badges', value: badges.join('\n'), inline: false });
-      }
+**Role Info**
+Roles [${roleCount}]: ${rolesDisplay}
+Color: ${member.displayHexColor}
+
+**Extra**
+Acknowledgement: ${acknowledgement}
+Boosting: ${member.premiumSince ? `<t:${Math.floor(member.premiumSinceTimestamp / 1000)}:R>` : 'No'}
+
+**Key Permissions**
+${keyPermissions}`;
 
       const embed = new EmbedBuilder()
-        .setTitle(`${member.displayName} (${fetchedUser.username})`)
-        .setThumbnail(member.displayAvatarURL({ size: 256, dynamic: true }))
         .setColor(color)
+        .setAuthor({
+          name: `${member.displayName}'s Information`,
+          iconURL: guild.iconURL({ dynamic: true }),
+        })
+        .setThumbnail(member.displayAvatarURL({ size: 256, dynamic: true }))
         .setDescription(description)
-        .addFields(fields)
-        .setFooter({ text: `Requested by ${requester.username}`, iconURL: requester.displayAvatarURL({ dynamic: true }) })
-        .setTimestamp();
+        .setFooter({ text: `Requested by ${executor.tag}` });
 
-      await replyFn({ embeds: [embed] });
+      await replySuccess({ embeds: [embed] });
     } catch (err) {
       console.error('[UserInfo]', err);
     }

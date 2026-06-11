@@ -1,6 +1,20 @@
-const { SlashCommandBuilder, PermissionFlagsBits, CommandInteraction } = require('discord.js');
+const {
+  SlashCommandBuilder,
+  PermissionFlagsBits,
+  CommandInteraction,
+  EmbedBuilder,
+} = require('discord.js');
 const config = require('../../config');
+const checkOwnerBypass = require('../../utils/isOwner');
+const cooldown = require('../../utils/cooldown');
+const {
+  slashError,
+  slashSuccess,
+  prefixError,
+  prefixSuccess,
+} = require('../../utils/replyHelper');
 const resolveUser = require('../../utils/resolveUser');
+const { success, error, getEmoji, withEmoji } = require('../../utils/emoji');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -12,32 +26,56 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
 
   name: 'warn',
-  aliases: ['warning'],
+  aliases: ['warning', 'caution'],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const bypassExecutorId = (typeof isSlash !== 'undefined' && isSlash) ? (interactionOrMessage.user ? interactionOrMessage.user.id : interactionOrMessage.author.id) : (interactionOrMessage && interactionOrMessage.author ? interactionOrMessage.author.id : (interactionOrMessage && interactionOrMessage.user ? interactionOrMessage.user.id : (typeof executorId !== 'undefined' ? executorId : (typeof executor !== 'undefined' ? executor.id : ''))));
+    const ownerBypass = checkOwnerBypass(bypassExecutorId);
     const client = isSlash ? argsOrClient : clientOrUndefined;
     const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
 
     try {
-      let targetUser, reason, guild, executor, replyFn;
+      let targetUser;
+      let reason;
+      let guild;
+      let executor;
+      let replyError;
+      let replySuccess;
 
       if (isSlash) {
         const interaction = interactionOrMessage;
+        if (!interaction.guild) {
+          return interaction.reply({
+            content: 'This command only works in a server.',
+            ephemeral: true,
+          });
+        }
         guild = interaction.guild;
         executor = interaction.user;
-        replyFn = (content) => interaction.reply({ content, ephemeral: true });
+        replyError = (content) => slashError(interaction, content);
+        replySuccess = (payload) => slashSuccess(interaction, payload);
 
-        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-          return interaction.reply({ content: '\u274C You need the **Timeout Members** permission to use this command.', ephemeral: true });
+        if (!ownerBypass) {
+    const remaining = cooldown.check('warn', interaction.user.id, interaction.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
+
+        if (!ownerBypass) {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+          return replyError(error(`You need the **Timeout Members** permission to use this command.`));
+        }
+    }
 
         const userOption = interaction.options.getUser('user');
         const query = interaction.options.getString('query');
         reason = interaction.options.getString('reason') || 'No reason provided';
 
         if (!userOption && !query) {
-          return interaction.reply({ content: '\u274C Please provide a user (select or type username/ID).', ephemeral: true });
+          return replyError(error(`Please provide a user (select or type username/ID).`));
         }
 
         if (userOption) {
@@ -50,36 +88,61 @@ module.exports = {
         }
 
         if (!targetUser) {
-          return replyFn('\u274C Could not find that user.');
+          return replyError(error(`Could not find that user.`));
         }
       } else {
         const message = interactionOrMessage;
         const args = argsOrClient;
+        if (!message.guild) {
+          return message.reply('This command only works in a server.');
+        }
         guild = message.guild;
         executor = message.author;
+        replyError = (content) => prefixError(message, content);
+        replySuccess = (payload) => prefixSuccess(message, payload);
 
-        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-          return message.reply('\u274C You need the **Timeout Members** permission to use this command.');
+        if (!ownerBypass) {
+    const remaining = cooldown.check('warn', message.author.id, message.guild.id, 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return replyError(error(`You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
-        if (!args[0]) return message.reply('Please provide a user to warn.');
+        if (!ownerBypass) {
+    if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+          return replyError(error(`You need the **Timeout Members** permission to use this command.`));
+        }
+    }
+
+        if (!args[0]) return replyError(error(`Please provide a user to warn.`));
 
         const input = args[0];
         const member = await resolveUser(input, guild);
         reason = args.slice(1).join(' ') || 'No reason provided';
-        replyFn = (content) => message.reply(content);
 
         if (!member) {
-          return replyFn('\u274C Could not find that user.');
+          return replyError(error(`Could not find that user.`));
         }
         targetUser = member.user;
       }
 
       try {
         await targetUser.send(`You have been **warned** in **${guild.name}**.\n**Reason:** ${reason}`);
-      } catch (_) { /* DMs may be disabled */ }
+      } catch (err) {
+        console.error('[Warn DM Error]', err);
+      }
 
-      await replyFn(`**${targetUser.username}** has been warned. Reason: ${reason}`);
+      const embed = new EmbedBuilder()
+        .setColor('#FEE75C')
+        .setAuthor({
+          name: targetUser.username,
+          iconURL: targetUser.displayAvatarURL({ dynamic: true }),
+        })
+        .setDescription(success(`Warned **${targetUser.tag}**`) + `\n**Reason:** ${reason}`)
+        .setFooter({ text: `Requested by ${executor.tag}` });
+
+      await replySuccess({ embeds: [embed] });
     } catch (err) {
       console.error('[Warn]', err);
     }

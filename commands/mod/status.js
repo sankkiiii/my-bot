@@ -1,4 +1,5 @@
 const fs = require('fs');
+const checkOwnerBypass = require('../../utils/isOwner');
 const path = require('path');
 const {
   SlashCommandBuilder,
@@ -8,108 +9,126 @@ const {
   version: djsVersion,
 } = require('discord.js');
 const config = require('../../config');
-
-const PRESENCE_PATH = path.join(__dirname, '..', '..', 'data', 'presence.json');
-
-function formatUptime(seconds) {
-  const d = Math.floor(seconds / 86400);
-  const h = Math.floor((seconds % 86400) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  return `${d}d ${h}h ${m}m ${s}s`;
-}
+const cooldown = require('../../utils/cooldown');
+const {
+  slashError,
+  slashSuccess,
+  prefixError,
+  prefixSuccess,
+} = require('../../utils/replyHelper');
+const { withEmoji } = require('../../utils/emoji');
+const formatDuration = require('../../utils/formatDuration');
 
 function getPresenceInfo() {
+  const PRESENCE_PATH = path.join(__dirname, '..', '..', 'data', 'presence.json');
   try {
     if (fs.existsSync(PRESENCE_PATH)) {
-      const saved = JSON.parse(fs.readFileSync(PRESENCE_PATH, 'utf-8'));
-      if (saved.type && saved.type !== 'CLEAR' && saved.text) {
-        return `${saved.type}: ${saved.text}`;
-      }
+      const data = JSON.parse(fs.readFileSync(PRESENCE_PATH, 'utf-8'));
+      if (data.type === 'CLEAR') return 'None';
+      return `${data.type.charAt(0) + data.type.slice(1).toLowerCase()} ${data.text}`;
     }
-  } catch {
-    // ignore
+  } catch (err) {
+    console.error('[Status] Failed to read presence.json:', err);
   }
   return 'None';
+}
+
+function formatUptime(seconds) {
+  const d = Math.floor(seconds / (3600 * 24));
+  const h = Math.floor((seconds % (3600 * 24)) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+
+  const parts = [];
+  if (d > 0) parts.push(`${d}d`);
+  if (h > 0) parts.push(`${h}h`);
+  if (m > 0) parts.push(`${m}m`);
+  if (s > 0 || parts.length === 0) parts.push(`${s}s`);
+
+  return parts.join(' ');
 }
 
 function buildStatusEmbed(client, ping, latency, user) {
   const mem = process.memoryUsage();
   const memUsed = (mem.heapUsed / 1024 / 1024).toFixed(2);
-  const memTotal = (mem.heapTotal / 1024 / 1024).toFixed(2);
   const uptime = formatUptime(process.uptime());
-  const serverCount = client.guilds.cache.size;
-  const userCount = client.guilds.cache.reduce((acc, g) => acc + g.memberCount, 0);
-  const channelCount = client.channels.cache.size;
-  const commandCount = client.commands.size;
-  const presence = client.user.presence;
-  const statusText = presence?.status || 'online';
-  const activity = getPresenceInfo();
+  const guilds = client.guilds.cache.size;
+  const users = client.guilds.cache.reduce((acc, g) => acc + g.memberCount, 0);
+  const commands = client.commands.size;
+  const presence = getPresenceInfo();
 
   return new EmbedBuilder()
-    .setTitle('\uD83D\uDCCA Bot Status')
-    .setColor(0x5865f2)
-    .setThumbnail(client.user.displayAvatarURL({ dynamic: true }))
-    .addFields(
-      { name: '\uD83C\uDFD3 API Ping', value: `${ping}ms`, inline: true },
-      { name: '\u21A9\uFE0F Latency', value: `${latency}ms`, inline: true },
-      { name: '\u23F1\uFE0F Uptime', value: uptime, inline: true },
-      { name: '\uD83E\uDDE0 Memory', value: `${memUsed}MB / ${memTotal}MB`, inline: true },
-      { name: '\uD83C\uDF10 Servers', value: `${serverCount}`, inline: true },
-      { name: '\uD83D\uDC65 Users', value: `${userCount}`, inline: true },
-      { name: '\uD83D\uDCE2 Channels', value: `${channelCount}`, inline: true },
-      { name: '\u2699\uFE0F Commands', value: `${commandCount}`, inline: true },
-      { name: '\uD83D\uDFE2 Status', value: statusText, inline: true },
-      { name: '\uD83C\uDFAE Activity', value: activity, inline: true },
-      { name: '\uD83D\uDD27 Node.js', value: process.version, inline: true },
-      { name: '\uD83D\uDCE6 discord.js', value: `v${djsVersion}`, inline: true },
+    .setColor('#5865F2')
+    .setAuthor({
+      name: client.user.username,
+      iconURL: client.user.displayAvatarURL({ dynamic: true }),
+    })
+    .setDescription(
+      `**Performance**\n` +
+      `${withEmoji('ping', `Ping: ${ping}ms`)}\n` +
+      `${withEmoji('latency', `Latency: ${latency}ms`)}\n` +
+      `${withEmoji('uptime', `Uptime: ${uptime}`)}\n` +
+      `${withEmoji('memory', `Memory: ${memUsed}MB`)}\n\n` +
+
+      `**Stats**\n` +
+      `${withEmoji('servers', `Servers: ${guilds}`)}\n` +
+      `${withEmoji('members', `Users: ${users}`)}\n` +
+      `${withEmoji('commands', `Commands: ${commands}`)}\n\n` +
+
+      `**System**\n` +
+      `${withEmoji('nodejs', `Node.js: ${process.version}`)}\n` +
+      `${withEmoji('djs', `discord.js: v${djsVersion}`)}\n` +
+      `${presence && presence !== 'None' ? `\n**Activity**\n${withEmoji('playing', presence)}` : ''}`
     )
-    .setFooter({ text: `Requested by ${user.username}` })
-    .setTimestamp();
+    .setFooter({ text: `Requested by ${user.tag}` });
 }
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('status')
-    .setDescription('Show the bot current stats and health')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+    .setDescription('Show bot statistics and status'),
 
   name: 'status',
-  aliases: ['stats', 'botinfo', 'info'],
+  aliases: ['stats', 'botstats', 'info', 'botinfo'],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
+    const executorId = isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id;
+    const ownerBypass = checkOwnerBypass(executorId);
     const client = isSlash ? argsOrClient : clientOrUndefined;
-    const isOwner = (isSlash ? interactionOrMessage.user.id : interactionOrMessage.author.id) === config.ownerId;
 
     try {
       if (isSlash) {
         const interaction = interactionOrMessage;
-
-        if (!isOwner && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return interaction.reply({
-            content: '\u274C You need **Administrator** permission.',
-            ephemeral: true,
-          });
+        if (!ownerBypass) {
+    const remaining = cooldown.check('status', interaction.user.id, interaction.guild?.id || 'DM', 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return slashError(interaction, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
-        const sent = await interaction.reply({ content: 'Calculating...', fetchReply: true });
-        const latency = sent.createdTimestamp - interaction.createdTimestamp;
+        const start = Date.now();
+        await interaction.deferReply();
+        const latency = Date.now() - start;
         const ping = client.ws.ping;
 
         const embed = buildStatusEmbed(client, ping, latency, interaction.user);
-        await interaction.editReply({ content: null, embeds: [embed] });
+        await interaction.editReply({ embeds: [embed] });
       } else {
         const message = interactionOrMessage;
-
-        if (!isOwner && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return message.reply('\u274C You need **Administrator** permission.');
+        if (!ownerBypass) {
+    const remaining = cooldown.check('status', message.author.id, message.guild?.id || 'DM', 3000);
+        if (remaining > 0) {
+          const secs = (remaining / 1000).toFixed(1);
+          return prefixError(message, withEmoji('warning', `You are on cooldown. Try again in **${secs}s**.`));
         }
+    }
 
         const start = Date.now();
-        const ping = client.ws.ping;
-        const placeholder = await message.reply('Calculating...');
+        const placeholder = await message.reply(withEmoji('loading', 'Fetching status...'));
         const latency = Date.now() - start;
+        const ping = client.ws.ping;
 
         const embed = buildStatusEmbed(client, ping, latency, message.author);
         await placeholder.edit({ content: null, embeds: [embed] });
