@@ -32,5 +32,5 @@ module.exports = {
   // VC Control Panel image URL
   // Upload image to Discord CDN → right click → Copy Link
   // Set to null to use text buttons instead
-  vcPanelImage: 'https://media.discordapp.net/attachments/1322874646416064624/1512196465035055174/content.png?ex=6a233634&is=6a21e4b4&hm=fe76d8ca84474b7c38cdbd890e9646b6f910f2f7737eeacb87077153a19d3d1b&=&format=webp&quality=lossless&width=1330&height=491',
+  vcPanelImage: 'https://media.discordapp.net/attachments/1322874646416064624/1514424733595341032/content.png?ex=6a2b5171&is=6a29fff1&hm=619992ab927b2e6a9c46fdd88d42e95b834ba5d80ffe2dc01bc4e785868d5852&=&format=webp&quality=lossless&width=1330&height=477',
 };
