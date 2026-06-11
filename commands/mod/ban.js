@@ -26,7 +26,7 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
 
   name: 'ban',
-  aliases: ['forceban', 'hackban'],
+  aliases: ['forceban', 'hackban','fuckoff'],
 
   async execute(interactionOrMessage, argsOrClient, clientOrUndefined) {
     const isSlash = interactionOrMessage instanceof CommandInteraction;
