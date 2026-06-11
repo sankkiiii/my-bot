@@ -1,9 +1,9 @@
 module.exports = {
 
   // ── REQUIRED — set these two always ──────
-  success: '<:success:EMOJI_ID_HERE>',   // used everywhere for success
-  error:   '<:error:EMOJI_ID_HERE>',     // used everywhere for errors
-
+  success: '<:success_bhootni:1514432756946567218>',   // used everywhere for success
+  error:   '<:error_bhootni:1514432927545430117>',     // used everywhere for errors
+  
   // ── OPTIONAL — leave empty if not needed ─
   // If empty string '' → nothing shown (no emoji)
 
