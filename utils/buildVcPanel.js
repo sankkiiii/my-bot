@@ -23,17 +23,20 @@ function buildVcPanel() {
   const embed = new EmbedBuilder()
     .setColor('#5865F2')
     .setTitle('🎙️ Voice Controls')
-    .setDescription(
-      '**🔧 Channel:** Rename • Limit • Delete\n' +
-      '**🔒 Access:** Lock • Unlock • Hide • Unhide\n' +
-      '**👥 Members:** Trust • Kick • Ban • Unban • Claim • Transfer'
-    )
+    .setDescription('Use the buttons below or \`/vc\` to manage\nyour voice channel.')
     .setFooter({
       text: '🔐 Only the channel creator can use these'
     });
 
   if (config.vcPanelImage) {
     embed.setImage(config.vcPanelImage);
+  } else {
+    // Show text fields as fallback
+    embed.addFields(
+      { name: '🔧 Channel', value: 'Rename • Limit • Delete', inline: false },
+      { name: '🔒 Access', value: 'Lock • Unlock • Hide • Unhide', inline: false },
+      { name: '👥 Members', value: 'Trust • Kick • Ban • Unban • Claim • Transfer', inline: false }
+    );
   }
 
   // Row 1 — 4 buttons
