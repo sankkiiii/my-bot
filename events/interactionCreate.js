@@ -82,6 +82,16 @@ module.exports = {
           }
           if (interaction.customId.startsWith('help_page_')) {
             if (interaction.customId === 'help_page_indicator') return;
+
+            // Expiry check for help buttons
+            const firstComponent = interaction.message?.components?.[0]?.components?.[0];
+            if (firstComponent?.disabled) {
+              return interaction.reply({
+                content: error('This help menu has expired. Run `/help` or `!help` again.'),
+                ephemeral: true
+              });
+            }
+
             const { buildCategoryEmbed } = require('../commands/util/help');
             const { prefix } = require('../config');
             const parts = interaction.customId.split('_');
@@ -120,6 +130,13 @@ module.exports = {
             0
           );
           return interaction.update({ embeds: [embed], components: rows });
+        }
+
+        if (interaction.customId === 'help_select_disabled') {
+          return interaction.reply({
+            content: error('This help menu has expired. Run `/help` or `!help` again.'),
+            ephemeral: true
+          });
         }
       }
 

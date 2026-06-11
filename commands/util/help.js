@@ -243,9 +243,38 @@ module.exports = {
     const { embed, rows } = buildHelpMenu(actualClient, prefix);
 
     if (isSlash) {
-      return interaction.reply({ embeds: [embed], components: rows });
+      const sentMsg = await interaction.reply({ embeds: [embed], components: rows, fetchReply: true });
+
+      // Auto-disable after 5 minutes
+      setTimeout(async () => {
+        try {
+          const disabledMenu = new StringSelectMenuBuilder()
+            .setCustomId('help_select_disabled')
+            .setPlaceholder('⏰ This menu has expired. Run /help again.')
+            .setDisabled(true)
+            .addOptions([{ label: 'Expired', value: 'expired' }]);
+          
+          const disabledRow = new ActionRowBuilder().addComponents(disabledMenu);
+          await interaction.editReply({ embeds: [embed], components: [disabledRow] });
+        } catch {}
+      }, 5 * 60 * 1000);
+
     } else {
-      return message.reply({ embeds: [embed], components: rows });
+      const sentMsg = await message.reply({ embeds: [embed], components: rows });
+
+      // Auto-disable after 5 minutes
+      setTimeout(async () => {
+        try {
+          const disabledMenu = new StringSelectMenuBuilder()
+            .setCustomId('help_select_disabled')
+            .setPlaceholder(`⏰ This menu has expired. Run ${prefix}help again.`)
+            .setDisabled(true)
+            .addOptions([{ label: 'Expired', value: 'expired' }]);
+          
+          const disabledRow = new ActionRowBuilder().addComponents(disabledMenu);
+          await sentMsg.edit({ embeds: [embed], components: [disabledRow] });
+        } catch {}
+      }, 5 * 60 * 1000);
     }
   }
 };

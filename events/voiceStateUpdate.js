@@ -56,8 +56,9 @@ module.exports = {
   name: Events.VoiceStateUpdate,
 
   async execute(oldState, newState) {
-    const tempVCs = newState.client.tempVCs;
-    const creating = newState.client.tempVCsCreating;
+    const client = newState.client;
+    const tempVCs = client.tempVCs;
+    const creating = client.tempVCsCreating;
     const cfg = getConfig(newState.guild.id);
     const CREATE_VC_CHANNEL = cfg?.create_vc_channel;
     const CREATE_DUO_CHANNEL = cfg?.create_duo_channel;
@@ -72,13 +73,11 @@ module.exports = {
 
         // Build permission overwrites array
         const permOverwrites = [
-          // @everyone — default deny nothing special
           {
             id: guild.id,
             allow: [],
             deny: []
           },
-          // Creator gets full control
           {
             id: member.id,
             allow: [
@@ -90,7 +89,6 @@ module.exports = {
               PermissionFlagsBits.MoveMembers,
             ]
           },
-          // Bot gets full control
           {
             id: guild.members.me.id,
             allow: [
@@ -108,14 +106,10 @@ module.exports = {
         const inheritedRoleIds = [];
         if (triggerChannel) {
           for (const [id, overwrite] of triggerChannel.permissionOverwrites.cache) {
-            // Skip @everyone
             if (id === guild.id) continue;
-            // Skip user overwrites (only copy role overwrites)
-            if (overwrite.type !== 0) continue; // type 0 = role
-            // Skip if already in array (bot or creator)
+            if (overwrite.type !== 0) continue; 
             if (id === guild.members.me.id) continue;
 
-            // Add role with ViewChannel + Connect + Speak + SendMessages
             permOverwrites.push({
               id: id,
               allow: [
@@ -152,29 +146,58 @@ module.exports = {
         });
 
         console.log(`[TempVC] Created: ${tempChannel.name} for ${member.user.tag}`);
-        console.log(`[TempVC] Inherited ${inheritedRoleIds.length} roles from trigger channel`);
-        console.log(`[TempVC] Inherited role IDs:`, inheritedRoleIds);
 
+        let userMoved = false;
         try {
           await member.voice.setChannel(tempChannel);
+          userMoved = true;
         } catch (err) {
           console.error('[TempVC] Failed to move member to hub:', err.message);
         }
 
-        // 3 second grace period
-        setTimeout(() => {
-          creating.delete(tempChannel.id);
-        }, 3000);
+        // Grace period logic
+        if (userMoved) {
+          setTimeout(() => {
+            creating.delete(tempChannel.id);
+          }, 1000);
+        } else {
+          setTimeout(() => {
+            creating.delete(tempChannel.id);
+            const ch = guild.channels.cache.get(tempChannel.id);
+            if (ch) {
+              const humans = ch.members.filter(m => !m.user.bot);
+              if (humans.size === 0) {
+                tempVCs.delete(tempChannel.id);
+                ch.delete().catch(() => {});
+                console.log('[TempVC] Deleted empty VC after grace:', ch.name);
+              }
+            }
+          }, 3000);
+        }
 
         await sendControlPanel(tempChannel);
         
-        // Place directly below trigger channel
-        if (triggerChannel) {
-          try {
+        // Position logic for Hub VC
+        try {
+          const existingHubVCs = guild.channels.cache
+            .filter(ch =>
+              ch.parentId === TEMP_VC_CATEGORY &&
+              ch.type === ChannelType.GuildVoice &&
+              !ch.name.startsWith('𝄢・duo') &&
+              ch.id !== CREATE_VC_CHANNEL &&
+              ch.id !== CREATE_DUO_CHANNEL &&
+              ch.id !== tempChannel.id
+            )
+            .sort((a, b) => a.position - b.position);
+
+          if (existingHubVCs.size > 0) {
+            const lastHub = existingHubVCs.last();
+            await tempChannel.setPosition(lastHub.position + 1, { relative: false });
+          } else if (triggerChannel) {
             await tempChannel.setPosition(triggerChannel.position + 1, { relative: false });
-          } catch (err) {
-            console.error('[TempVC] Failed to set position:', err.message);
           }
+        } catch (err) {
+          console.error('[TempVC] Failed to set position:', err.message);
         }
       }
 
@@ -263,29 +286,56 @@ module.exports = {
         });
 
         console.log(`[TempVC] Created: ${duoChannel.name} for ${member.user.tag}`);
-        console.log(`[TempVC] Inherited ${inheritedRoleIds.length} roles from trigger channel`);
-        console.log(`[TempVC] Inherited role IDs:`, inheritedRoleIds);
 
+        let userMoved = false;
         try {
           await member.voice.setChannel(duoChannel);
+          userMoved = true;
         } catch (err) {
           console.error('[DuoVC] Failed to move member to duo:', err.message);
         }
 
-        // 3 second grace period
-        setTimeout(() => {
-          creating.delete(duoChannel.id);
-        }, 3000);
+        // Grace period logic
+        if (userMoved) {
+          setTimeout(() => {
+            creating.delete(duoChannel.id);
+          }, 1000);
+        } else {
+          setTimeout(() => {
+            creating.delete(duoChannel.id);
+            const ch = guild.channels.cache.get(duoChannel.id);
+            if (ch) {
+              const humans = ch.members.filter(m => !m.user.bot);
+              if (humans.size === 0) {
+                tempVCs.delete(duoChannel.id);
+                ch.delete().catch(() => {});
+                console.log('[TempVC] Deleted empty VC after grace:', ch.name);
+              }
+            }
+          }, 3000);
+        }
 
         await sendControlPanel(duoChannel);
 
-        // Place directly below duo trigger channel
-        if (duoTriggerChannel) {
-          try {
+        // Position logic for Duo VC
+        try {
+          const existingDuoVCs = guild.channels.cache
+            .filter(ch =>
+              ch.parentId === TEMP_VC_CATEGORY &&
+              ch.type === ChannelType.GuildVoice &&
+              ch.name.startsWith('𝄢・duo') &&
+              ch.id !== duoChannel.id
+            )
+            .sort((a, b) => a.position - b.position);
+
+          if (existingDuoVCs.size > 0) {
+            const lastDuo = existingDuoVCs.last();
+            await duoChannel.setPosition(lastDuo.position + 1, { relative: false });
+          } else if (duoTriggerChannel) {
             await duoChannel.setPosition(duoTriggerChannel.position + 1, { relative: false });
-          } catch (err) {
-            console.error('[DuoVC] Failed to set position:', err.message);
           }
+        } catch (err) {
+          console.error('[DuoVC] Position set failed:', err.message);
         }
       }
 
@@ -306,8 +356,8 @@ module.exports = {
         // SKIP if not a tracked temp VC
         if (!tempVCs.has(channelId)) return;
 
-        // Small delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Deletion delay reduced to 500ms
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         // Re-fetch channel after delay
         const freshChannel = oldState.guild.channels.cache.get(channelId);
